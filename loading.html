@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+<title>Kimi Code Desktop</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --fg: #e8e8ea;
+    --muted: #8a8a90;
+    --accent: #3d6bff;
+    --line: #232327;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+  }
+  .wrap { width: 420px; text-align: center; }
+  .mark {
+    width: 56px; height: 56px;
+    margin: 0 auto 20px;
+    border-radius: 14px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 30px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    animation: breathe 2.2s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.75; transform: scale(0.96); }
+  }
+  h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+  .sub { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .bar {
+    margin: 26px auto 0;
+    width: 220px; height: 2px;
+    background: var(--line);
+    border-radius: 1px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar::after {
+    content: "";
+    position: absolute; top: 0; left: -40%;
+    width: 40%; height: 100%;
+    background: var(--accent);
+    animation: slide 1.2s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0% { left: -40%; } 100% { left: 100%; }
+  }
+  .log {
+    margin-top: 28px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    height: 120px;
+    overflow: hidden;
+    text-align: left;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: text;
+  }
+  .actions { margin-top: 18px; font-size: 12px; }
+  .actions a {
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+  }
+  .actions a:hover { color: var(--fg); border-bottom-color: var(--fg); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark">K</div>
+    <h1>正在启动 Kimi Code Web 服务</h1>
+    <p class="sub">自动运行 kimi web，捕获会话地址后进入工作台</p>
+    <div class="bar"></div>
+    <div class="log" id="log">等待 CLI 输出…&#10;</div>
+    <div class="actions">
+      <a id="manual">启动失败？手动输入地址</a>
+    </div>
+  </div>
+  <script>
+    const logEl = document.getElementById('log');
+    const lines = [];
+    function push(msg) {
+      lines.push(msg);
+      while (lines.length > 6) lines.shift();
+      logEl.textContent = lines.join('\n');
+    }
+    if (window.kimiDesktop) {
+      window.kimiDesktop.onLog(push);
+      document.getElementById('manual').addEventListener('click', () => {
+        window.kimiDesktop.showSetup();
+      });
+    }
+  </script>
+</body>
+</html>

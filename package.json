@@ -1,0 +1,42 @@
+{
+  "name": "kimi-code-desktop",
+  "version": "0.2.0",
+  "description": "Kimi Code 网页版桌面套壳 — 自动启动 kimi web 并嵌入桌面窗口",
+  "main": "main.js",
+  "author": "zyl",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.kimi.code.desktop",
+    "productName": "Kimi Code Desktop",
+    "files": [
+      "main.js",
+      "preload.js",
+      "loading.html",
+      "setup.html",
+      "assets/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "KimiCodeDesktop-Portable.${ext}"
+    },
+    "directories": {
+      "output": "release"
+    }
+  }
+}

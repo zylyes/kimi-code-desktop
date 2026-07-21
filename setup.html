@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+<title>Kimi Code Desktop · 设置</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --fg: #e8e8ea;
+    --muted: #8a8a90;
+    --accent: #3d6bff;
+    --line: #232327;
+    --field: #17171a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .panel { width: 460px; }
+  .mark {
+    width: 44px; height: 44px;
+    border-radius: 11px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 24px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px;
+  }
+  h1 { font-size: 18px; font-weight: 600; }
+  .reason {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid #4a3b1e;
+    background: #201a10;
+    color: #d8b36a;
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    display: none;
+  }
+  .reason.show { display: block; }
+  .group { margin-top: 22px; }
+  .group label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .modes { display: flex; gap: 8px; }
+  .mode {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    cursor: pointer;
+    font-size: 13px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .mode small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); opacity: 0.8; }
+  .mode.active { border-color: var(--accent); color: var(--fg); }
+  input[type="text"] {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--fg);
+    font-size: 13px;
+    font-family: Consolas, "Courier New", monospace;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  .hint { margin-top: 8px; font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .hint code {
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 11px;
+  }
+  .hidden { display: none; }
+  button {
+    margin-top: 26px;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; }
+  .mini {
+    margin-top: 0;
+    width: auto;
+    padding: 0 14px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  .mini:hover { border-color: var(--accent); filter: none; }
+  .divider {
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+  .log {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    height: 110px;
+    overflow-y: auto;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: text;
+  }
+  .ok { margin-top: 12px; color: #7ec88a; font-size: 12px; min-height: 16px; text-align: center; }
+  .err { margin-top: 12px; color: #e06c75; font-size: 12px; min-height: 16px; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="mark">K</div>
+    <h1>连接 Kimi Code Web</h1>
+    <div class="reason" id="reason"></div>
+
+    <div class="group">
+      <label>启动方式</label>
+      <div class="modes">
+        <div class="mode active" id="modeAuto">自动启动<small>运行 kimi web 并捕获地址</small></div>
+        <div class="mode" id="modeManual">手动填写<small>粘贴已启动的会话地址</small></div>
+      </div>
+    </div>
+
+    <div class="group" id="cliGroup">
+      <label>Kimi Code CLI 路径（留空则自动探测）</label>
+      <div class="row">
+        <input type="text" id="cliPath" spellcheck="false" />
+        <button class="mini" id="browseCli" type="button">浏览…</button>
+      </div>
+      <div class="hint" id="cliHint">自动探测位置：<code id="defaultCli"></code></div>
+    </div>
+
+    <div class="group divider" id="installGroup">
+      <label>未安装 CLI？在线安装 Kimi Code</label>
+      <div class="row">
+        <input type="text" id="installDir" spellcheck="false" />
+        <button class="mini" id="browseDir" type="button">选择文件夹…</button>
+      </div>
+      <div class="hint">安装目录默认为 <code>%USERPROFILE%\.kimi-code</code>，可选择其他文件夹。</div>
+      <button id="installBtn" type="button" style="margin-top:14px">安装 Kimi Code CLI</button>
+      <div class="log hidden" id="installLog"></div>
+      <div class="ok" id="installOk"></div>
+    </div>
+
+    <div class="group hidden" id="urlGroup">
+      <label>Web 会话地址</label>
+      <input type="text" id="manualUrl" placeholder="http://127.0.0.1:端口/sessions/…#token=…" spellcheck="false" />
+      <div class="hint">在终端运行 <code>kimi web</code>，复制输出的完整地址（含 #token= 部分）粘贴到这里。</div>
+    </div>
+
+    <button id="save">保存并连接</button>
+    <div class="err" id="err"></div>
+  </div>
+
+  <script>
+    const REASONS = {
+      'cli-not-found': '未在默认位置找到 Kimi Code CLI。请确认已安装，或在下方手动指定 kimi.exe 路径。',
+      'spawn-failed': 'CLI 启动失败。请检查 CLI 路径是否正确，或改用手动填写地址。',
+      'exit-early': 'CLI 进程在输出 Web 地址前就退出了。请先在终端手动运行 kimi web 确认可用。',
+      'timeout': '等待 Web 地址超时。可以重试自动启动，或改用手动填写地址。',
+      'load-failed': '页面加载失败。服务可能已停止，请重新启动或更新地址。',
+      'server-stopped': 'kimi web 服务已停止运行。可重新启动，或改用手动填写地址。',
+      'manual': '',
+    };
+
+    const qs = new URLSearchParams(location.search);
+    const reasonKey = qs.get('reason') || '';
+    const reasonEl = document.getElementById('reason');
+    if (REASONS[reasonKey]) {
+      reasonEl.textContent = REASONS[reasonKey];
+      reasonEl.classList.add('show');
+    }
+
+    const modeAuto = document.getElementById('modeAuto');
+    const modeManual = document.getElementById('modeManual');
+    const cliGroup = document.getElementById('cliGroup');
+    const urlGroup = document.getElementById('urlGroup');
+    const cliPathEl = document.getElementById('cliPath');
+    const manualUrlEl = document.getElementById('manualUrl');
+    const errEl = document.getElementById('err');
+    let mode = 'auto';
+
+    function setMode(m) {
+      mode = m;
+      modeAuto.classList.toggle('active', m === 'auto');
+      modeManual.classList.toggle('active', m === 'manual');
+      cliGroup.classList.toggle('hidden', m !== 'auto');
+      urlGroup.classList.toggle('hidden', m !== 'manual');
+    }
+    modeAuto.addEventListener('click', () => setMode('auto'));
+    modeManual.addEventListener('click', () => setMode('manual'));
+
+    (async () => {
+      if (!window.kimiDesktop) return;
+      const info = await window.kimiDesktop.getInfo();
+      document.getElementById('defaultCli').textContent = info.defaultCli;
+      cliPathEl.placeholder = info.defaultCli;
+      if (info.config) {
+        if (info.config.cliPath) cliPathEl.value = info.config.cliPath;
+        if (info.config.manualUrl) manualUrlEl.value = info.config.manualUrl;
+        if (info.config.mode === 'manual') setMode('manual');
+      }
+      // 已检测到 CLI 时收起在线安装区块
+      if (info.cliFound) document.getElementById('installGroup').classList.add('hidden');
+      else document.getElementById('installDir').placeholder = info.defaultCli.replace(/[\\/]bin[\\/]kimi(\.exe)?$/i, '');
+    })();
+
+    // 浏览选择已有的 kimi.exe
+    document.getElementById('browseCli').addEventListener('click', async () => {
+      const p = await window.kimiDesktop.pickCli();
+      if (p) cliPathEl.value = p;
+    });
+
+    // 选择安装目录
+    document.getElementById('browseDir').addEventListener('click', async () => {
+      const d = await window.kimiDesktop.pickDir();
+      if (d) document.getElementById('installDir').value = d;
+    });
+
+    // 在线安装 CLI
+    const installBtn = document.getElementById('installBtn');
+    const installLog = document.getElementById('installLog');
+    const installOk = document.getElementById('installOk');
+    window.kimiDesktop.onInstallLog((msg) => {
+      installLog.classList.remove('hidden');
+      installLog.textContent += msg + '\n';
+      installLog.scrollTop = installLog.scrollHeight;
+    });
+    installBtn.addEventListener('click', async () => {
+      installBtn.disabled = true;
+      installBtn.textContent = '正在安装…';
+      installOk.textContent = '';
+      errEl.textContent = '';
+      installLog.classList.remove('hidden');
+      installLog.textContent = '';
+      const dir = document.getElementById('installDir').value.trim();
+      const r = await window.kimiDesktop.installCli(dir);
+      installBtn.disabled = false;
+      installBtn.textContent = '安装 Kimi Code CLI';
+      if (r.ok) {
+        installOk.textContent = '安装完成，正在启动…';
+        cliPathEl.value = r.cliPath;
+        setMode('auto');
+        await window.kimiDesktop.saveSetup({ mode: 'auto', cliPath: r.cliPath, manualUrl: manualUrlEl.value.trim() });
+      } else {
+        errEl.textContent = '安装失败：' + (r.error || '未知错误');
+      }
+    });
+
+    document.getElementById('save').addEventListener('click', async () => {
+      errEl.textContent = '';
+      const payload = {
+        mode,
+        cliPath: cliPathEl.value.trim(),
+        manualUrl: manualUrlEl.value.trim(),
+      };
+      if (mode === 'manual') {
+        if (!/^https?:\/\//i.test(payload.manualUrl)) {
+          errEl.textContent = '请填写以 http:// 开头的完整会话地址';
+          return;
+        }
+      }
+      await window.kimiDesktop.saveSetup(payload);
+    });
+  </script>
+</body>
+</html>
