@@ -68,4 +68,11 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   getDataDirStats: () => ipcRenderer.invoke('system:dataDirStats'),
   cleanupDataDirs: (keys) => ipcRenderer.invoke('system:cleanupDataDirs', keys),
   packDiagnostics: () => ipcRenderer.invoke('system:packDiagnostics'),
+  // 多实例 API
+  instancesList: () => ipcRenderer.invoke('instances:list'),
+  instancesSwitch: (target) => ipcRenderer.invoke('instances:switch', target),
+  // IDE 接入 API
+  ideDetect: () => ipcRenderer.invoke('ide:detect'),
+  ideApplyZed: () => ipcRenderer.invoke('ide:applyZed'),
+  ideGetSnippet: (editor) => ipcRenderer.invoke('ide:getSnippet', editor),
 });

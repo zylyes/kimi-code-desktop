@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0] - 2026-07-22
+
+### 新功能
+
+- **多实例管理面板**：托盘新增「多实例」子菜单；扫描 `~/.kimi-code/server/instances/`（0.28+ 新版格式，防御性解析），目录不存在时回退读取 `server/lock`（0.27 旧版格式）；子菜单显示各实例端口/版本/存活状态/当前连接标记，点击实例先 HTTP probe 校验可达、再重读 server.token，复用令牌轮换的 WS 断连重建序列完成窗口连接切换；列表 10 秒缓存防抖自动刷新，另提供「重新扫描」手动强制刷新；已退出实例置灰展示。
+- **旧版 kimi-cli 迁移提示**：启动时检测 `~/.kimi/` 存在且含 `bin/` 或 `config.toml` 时弹出三按钮对话框「立即迁移 / 稍后 / 不再提示」；「立即迁移」打开外部终端窗口运行 `kimi migrate`；「不再提示」写入 config.json `legacyMigrationDismissed` 持久去重，且保存设置时该标志不丢失。
+- **IDE 一键接入向导**：设置中心新增第 9 个标签页「IDE 接入」，帮助菜单新增「IDE 接入向导…」入口（showSetup 支持 tab 定位，setup.html 解析 `?tab=ide`）；先探测 `kimi acp` 子命令可用性（不可用时提示升级 CLI）；Zed 卡片支持一键写入 `agent_servers` 配置（JSONC 剥注释/尾逗号后合并，写前 `.bak` 备份，解析失败回退展示片段 + 复制按钮）；JetBrains 卡片检测已装 IDE 并给出手动配置步骤文本（强调必须绝对路径）+ 复制；通用 ACP 片段卡片适配其它客户端。
+- **自动更新/遥测开关**：维护标签页新增「自动安装更新」checkbox，读写 tui.toml `[upgrade].auto_install`（保存走 `kimi doctor` 校验 + 失败回滚）；环境页新增「禁止 CLI 自动更新」「禁用遥测」两个强制级开关，写入 config.json 的 `noAutoUpdate`/`disableTelemetry` 并向子进程 env 注入 `KIMI_CODE_NO_AUTO_UPDATE=1`/`KIMI_DISABLE_TELEMETRY=1`（保存后自动重启服务生效）。
+
+### 技术细节
+
+- 新增 `instances-manager.js`：`scanInstances`/`checkPidAlive`/`probeInstance`；新增 `ide-integration.js`：`detectAcp`/`detectEditors`/`buildZedSnippet`/`applyZedConfig`/`stripJsonc`/`buildGenericSnippet`/`buildJetBrainsGuide`。
+- 新增 IPC 通道：`instances:list`、`instances:switch`、`ide:detect`、`ide:applyZed`、`ide:getSnippet`；preload 新增桥接方法：`instancesList`/`instancesSwitch`/`ideDetect`/`ideApplyZed`/`ideGetSnippet`。
+- config.json 新增 `noAutoUpdate`/`disableTelemetry`/`legacyMigrationDismissed` 字段；`buildKimiEnv` 新增两个条件注入。
+- 新增 `test-instances-manager.js`（6 项断言）与 `test-ide-integration.js`（19 项断言，含 JSONC 字符串内 `//` 不误删边界）；四个测试文件全绿。
+- 打包清单（build.files）登记 `instances-manager.js`、`ide-integration.js`。
+- 无破坏性变更。
+
 ## [0.7.0] - 2026-07-22
 
 ### 新功能

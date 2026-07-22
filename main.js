@@ -9,6 +9,8 @@ const http = require('http');
 const WebSocket = require('ws');
 const configManager = require('./config-manager');
 const skillsManager = require('./skills-manager');
+const instancesManager = require('./instances-manager');
+const ideIntegration = require('./ide-integration');
 
 const APP_NAME = 'Kimi Code Desktop';
 const isDev = process.argv.includes('--dev');
@@ -123,6 +125,7 @@ function loadConfig() {
     mode: 'auto', cliPath: '', manualUrl: '', shellPath: '',
     httpProxy: '', httpsProxy: '', allProxy: '', noProxy: '',
     port: null, host: '', logLevel: '', kimiCodeHome: '',
+    noAutoUpdate: false, disableTelemetry: false,
   }, readJSON(configFile(), {}));
 }
 
@@ -164,6 +167,8 @@ function buildKimiEnv(cfg) {
   if (cfg.allProxy) env.ALL_PROXY = cfg.allProxy;
   if (cfg.noProxy) env.NO_PROXY = cfg.noProxy;
   if (cfg.kimiCodeHome) env.KIMI_CODE_HOME = cfg.kimiCodeHome;
+  if (cfg.noAutoUpdate === true) env.KIMI_CODE_NO_AUTO_UPDATE = '1';
+  if (cfg.disableTelemetry === true) env.KIMI_DISABLE_TELEMETRY = '1';
   const bashPath = detectGitBash();
   if (bashPath) {
     env.KIMI_SHELL_PATH = bashPath;
@@ -237,18 +242,111 @@ function getCliVersion(cli) {
 }
 
 // ---------- 多实例感知 ----------
+// 托盘菜单异步扫描的缓存（扫描含网络探测，构建菜单时只能读缓存）
+let lastInstances = [];
+let instancesCacheAt = 0;
+let instancesCacheRefreshing = false;
+
 function checkMultiInstances() {
-  const instancesDir = path.join(getKimiHomeDir(), 'server', 'instances');
   try {
-    if (fs.existsSync(instancesDir)) {
-      const entries = fs.readdirSync(instancesDir);
-      if (entries.length > 0) {
-        logLine(`检测到 ${entries.length} 个 CLI 实例注册项 (${instancesDir})，CLI 将自行选择端口`);
-      }
+    const list = instancesManager.scanInstances(getKimiHomeDir());
+    if (list.length > 0) {
+      const summary = list.map((i) =>
+        `${i.host || '127.0.0.1'}:${i.port || '-'}(v${i.version || '?'}, ${i.alive ? 'alive' : 'exited'})`
+      ).join(', ');
+      logLine(`检测到 ${list.length} 个 CLI 实例注册项 [${summary}]，CLI 将自行选择端口`);
     }
   } catch {
     // 静默安全
   }
+}
+
+// 判断实例是否为当前连接（host+port 与 knownServerBase 匹配，loopback 别名视为同一地址）
+function isCurrentInstance(inst) {
+  if (!knownServerBase || !inst || !inst.port) return false;
+  try {
+    const u = new URL(knownServerBase);
+    if (Number(u.port) !== inst.port) return false;
+    const norm = (h) => (!h || h === 'localhost' || h === '[::1]' || h === '::1') ? '127.0.0.1' : h;
+    return norm(inst.host) === norm(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// 切换到指定实例：探测可达 → 读 token → 更新连接信息并复用 rotateToken 末尾的 WS 重建序列。
+// 失败时不改动任何现状（knownServerBase/knownServerToken 保持原值）。
+async function connectToInstance(host, port) {
+  const reachable = await instancesManager.probeInstance(host, port);
+  if (!reachable) {
+    return { ok: false, error: `实例 ${host}:${port} 不可达` };
+  }
+  const token = readServerToken();
+  if (!token) {
+    return { ok: false, error: '未读取到访问令牌（server.token）' };
+  }
+  knownServerBase = `http://${host}:${port}`;
+  knownServerToken = token;
+  // 废弃旧 WS 订阅并清理，loadMain 会以新地址+token 重建订阅
+  wsGeneration++;
+  cleanupWsPermanent();
+  loadMain(`${knownServerBase}/#token=${encodeURIComponent(token)}`);
+  logLine(`已切换到实例 ${host}:${port}`);
+  return { ok: true };
+}
+
+// 异步刷新实例缓存：扫描 + 探测存活实例 + 标注当前连接，完成后重建托盘菜单
+async function refreshInstancesCache(force) {
+  if (instancesCacheRefreshing) return;
+  const now = Date.now();
+  if (!force && now - instancesCacheAt <= 10000) return;
+  instancesCacheRefreshing = true;
+  instancesCacheAt = now;
+  try {
+    const list = instancesManager.scanInstances(getKimiHomeDir());
+    await Promise.all(list.map(async (inst) => {
+      inst.responding = inst.alive
+        ? await instancesManager.probeInstance(inst.host || '127.0.0.1', inst.port)
+        : false;
+      inst.current = isCurrentInstance(inst);
+    }));
+    lastInstances = list;
+  } catch (err) {
+    logLine(`实例缓存刷新失败: ${err.message}`);
+  } finally {
+    instancesCacheRefreshing = false;
+  }
+  updateTrayStatus();
+}
+
+// 托盘点击切换实例：与 instances:switch 同一逻辑，失败弹框提示
+async function switchInstanceFromTray(inst) {
+  const r = await connectToInstance(inst.host || '127.0.0.1', inst.port);
+  if (!r.ok) {
+    dialog.showMessageBox({ type: 'error', title: '切换实例', message: `切换失败：${r.error}` });
+  }
+  refreshInstancesCache(true);
+}
+
+// 构建「多实例」子菜单：标签含 :端口、版本、当前/已退出标记；已退出置灰；底部重新扫描
+function buildInstancesSubmenu() {
+  const items = lastInstances.map((inst) => {
+    const parts = [`${inst.host || ''}:${inst.port || '?'}`];
+    if (inst.version) parts.push(`v${inst.version}`);
+    if (inst.current) parts.push('当前');
+    else if (!inst.alive) parts.push('已退出');
+    return {
+      label: parts.join(' '),
+      enabled: !!inst.alive,
+      click: () => { void switchInstanceFromTray(inst); },
+    };
+  });
+  if (items.length === 0) {
+    items.push({ label: '未发现实例', enabled: false });
+  }
+  items.push({ type: 'separator' });
+  items.push({ label: '重新扫描', click: () => { void refreshInstancesCache(true); } });
+  return items;
 }
 
 // ---------- HTTP 工具 ----------
@@ -1354,10 +1452,12 @@ function loadMain(url) {
   startWsSubscription();
 }
 
-function showSetup(reason) {
+function showSetup(reason, tab) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   sessionLauncherVisible = false; // 从会话启动器进入设置后，确保 startPolling 能加载页面
-  mainWindow.loadFile(path.join(__dirname, 'setup.html'), { query: { reason: reason || '' } });
+  const query = { reason: reason || '' };
+  if (tab) query.tab = tab; // 指定初始标签页（如 'ide'），由 setup.html 的 ?tab= 逻辑消费
+  mainWindow.loadFile(path.join(__dirname, 'setup.html'), { query });
 }
 
 // ---------- 会话启动器 ----------
@@ -1614,6 +1714,7 @@ function buildTrayMenu(statusLabel) {
     { label: '打开会话启动器', click: showSessionLauncher },
     { label: '新建 Web 会话', click: () => { showMainWindow(); restartServer(); } },
     { label: '默认模型', submenu: buildModelSubmenu() },
+    { label: '多实例', submenu: buildInstancesSubmenu() },
     { type: 'separator' },
     { label: '退出', click: () => { quitting = true; app.quit(); } },
   );
@@ -1676,6 +1777,10 @@ function updateTrayStatus() {
     if (statusLabel.length > 100) statusLabel = statusLabel.slice(0, 97) + '...';
     tray.setToolTip(tooltip);
     tray.setContextMenu(buildTrayMenu(statusLabel));
+    // 实例缓存超过 10 秒未刷新时后台触发刷新（刷新完成后会自行重建托盘菜单）
+    if (!instancesCacheRefreshing && Date.now() - instancesCacheAt > 10000) {
+      refreshInstancesCache();
+    }
     const statusKey = lines.join('\n');
     if (statusKey !== trayStatusLastKey) {
       trayStatusLastKey = statusKey;
@@ -1900,6 +2005,7 @@ function buildMenu() {
             dialog.showMessageBox({ type: result.ok ? 'info' : 'error', title, message: title, detail });
           });
         } },
+        { label: 'IDE 接入向导…', click: () => showSetup('manual', 'ide') },
         { label: '打包诊断信息…', click: async () => {
           const r = await packDiagnostics();
           dialog.showMessageBox({
@@ -2117,6 +2223,81 @@ ipcMain.handle('skills:delete', (_e, name) => {
   }
 });
 
+// ---------- 多实例 IPC ----------
+ipcMain.handle('instances:list', async () => {
+  try {
+    const list = instancesManager.scanInstances(getKimiHomeDir());
+    // 存活实例并发探测可达性（host 缺失用 127.0.0.1 兜底），并标注当前连接
+    await Promise.all(list.map(async (inst) => {
+      inst.responding = inst.alive
+        ? await instancesManager.probeInstance(inst.host || '127.0.0.1', inst.port)
+        : false;
+      inst.current = isCurrentInstance(inst);
+    }));
+    return list;
+  } catch (err) {
+    logLine(`instances:list 失败: ${err.message}`);
+    return [];
+  }
+});
+
+ipcMain.handle('instances:switch', async (_e, target) => {
+  const t = target && typeof target === 'object' ? target : {};
+  const host = typeof t.host === 'string' && t.host.trim() ? t.host.trim() : '127.0.0.1';
+  const port = Number(t.port);
+  if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
+    return { ok: false, error: '无效的端口' };
+  }
+  const r = await connectToInstance(host, port);
+  if (r.ok) refreshInstancesCache(true); // 切换后刷新「当前」标记
+  return r;
+});
+
+// ---------- IDE 接入 IPC ----------
+ipcMain.handle('ide:detect', async () => {
+  try {
+    const cli = resolveCliPath(loadConfig());
+    const [acp, editors] = await Promise.all([
+      ideIntegration.detectAcp(cli),
+      Promise.resolve().then(() => ideIntegration.detectEditors()),
+    ]);
+    return { acp, zed: editors.zed, jetbrains: editors.jetbrains };
+  } catch (err) {
+    logLine(`ide:detect 失败: ${err.message}`);
+    return {
+      acp: { available: false, detail: `检测异常: ${err.message}` },
+      zed: { installed: false, execPath: null, settingsPath: null },
+      jetbrains: { installed: false, ides: [] },
+    };
+  }
+});
+
+ipcMain.handle('ide:applyZed', () => {
+  try {
+    const cli = resolveCliPath(loadConfig());
+    if (!cli) return { ok: false, manualRequired: true, reason: '未找到 kimi CLI' };
+    const editors = ideIntegration.detectEditors();
+    return ideIntegration.applyZedConfig(editors.zed.settingsPath, cli);
+  } catch (err) {
+    logLine(`ide:applyZed 失败: ${err.message}`);
+    return { ok: false, manualRequired: true, reason: err.message };
+  }
+});
+
+ipcMain.handle('ide:getSnippet', (_e, editor) => {
+  try {
+    // CLI 未安装时回退默认安装路径，保证片段可直接粘贴使用
+    const cliPath = resolveCliPath(loadConfig()) || defaultCliCandidates()[0];
+    if (editor === 'zed') return JSON.stringify(ideIntegration.buildZedSnippet(cliPath), null, 2);
+    if (editor === 'jetbrains') return ideIntegration.buildJetBrainsGuide(cliPath);
+    if (editor === 'generic') return ideIntegration.buildGenericSnippet(cliPath);
+    return { ok: false, error: `未知的编辑器类型: ${String(editor)}` };
+  } catch (err) {
+    logLine(`ide:getSnippet 失败: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('app:info', () => {
   const cfg = loadConfig();
   const cli = resolveCliPath(cfg);
@@ -2145,6 +2326,8 @@ ipcMain.handle('app:info', () => {
       host: cfg.host || '',
       logLevel: cfg.logLevel || '',
       kimiCodeHome: cfg.kimiCodeHome || '',
+      noAutoUpdate: cfg.noAutoUpdate === true,
+      disableTelemetry: cfg.disableTelemetry === true,
     },
     loadedUrl,
     isDev,
@@ -2168,6 +2351,10 @@ ipcMain.handle('setup:save', async (_e, payload) => {
     host: ensureString(p.host),
     logLevel: ensureString(p.logLevel),
     kimiCodeHome: ensureString(p.kimiCodeHome),
+    noAutoUpdate: p.noAutoUpdate === true,
+    disableTelemetry: p.disableTelemetry === true,
+    // 非表单字段随白名单重建保留，避免保存设置后迁移提示复现
+    legacyMigrationDismissed: prev.legacyMigrationDismissed === true,
   };
   writeJSON(configFile(), cfg);
   logLine(`配置已保存: mode=${cfg.mode}`);
@@ -3110,6 +3297,59 @@ ipcMain.handle('session:deleteSession', async (_e, sessionId) => {
   return { ok: true, message: '会话已删除' };
 });
 
+// ---------- 旧版数据目录迁移提示 ----------
+// 首跑判定后执行：~/.kimi 存在且含 bin 子目录或 config.toml 文件时提示迁移，
+// 「不再提示」写 config.json 的 legacyMigrationDismissed 标志位去重。
+function maybePromptLegacyMigration() {
+  try {
+    const cfg = readJSON(configFile(), {});
+    if (cfg.legacyMigrationDismissed === true) return;
+    const legacyDir = path.join(os.homedir(), '.kimi');
+    if (!fs.existsSync(legacyDir)) return;
+    const hasBin = (() => {
+      try { return fs.statSync(path.join(legacyDir, 'bin')).isDirectory(); } catch { return false; }
+    })();
+    const hasConfigToml = fs.existsSync(path.join(legacyDir, 'config.toml'));
+    if (!hasBin && !hasConfigToml) return;
+    logLine('检测到旧版 kimi-cli 数据目录（~/.kimi），弹出迁移提示');
+    dialog.showMessageBox({
+      type: 'question',
+      title: '发现旧版数据',
+      message: '检测到旧版 kimi-cli 数据目录（~/.kimi）',
+      detail: '可以运行 kimi migrate 将旧版数据迁移到新版数据目录（~/.kimi-code）。迁移会在新打开的命令行窗口中进行，请按窗口内提示操作。',
+      buttons: ['立即迁移', '稍后', '不再提示'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) {
+        const cli = resolveCliPath(loadConfig());
+        if (!cli) {
+          dialog.showMessageBox({ type: 'error', title: '旧版数据迁移', message: '未找到 kimi CLI，无法执行迁移' });
+          return;
+        }
+        try {
+          // 外部终端执行迁移（detached，窗口保持可见）
+          const child = spawn('cmd', ['/c', 'start', 'cmd', '/k', `"${cli}"`, 'migrate'], {
+            detached: true, stdio: 'ignore', windowsHide: false,
+          });
+          child.unref();
+          logLine('已启动外部终端执行 kimi migrate');
+        } catch (err) {
+          logLine(`启动迁移终端失败: ${err.message}`);
+          dialog.showMessageBox({ type: 'error', title: '旧版数据迁移', message: `启动迁移终端失败：${err.message}` });
+        }
+      } else if (response === 2) {
+        const cur = readJSON(configFile(), {});
+        cur.legacyMigrationDismissed = true;
+        writeJSON(configFile(), cur);
+        logLine('旧版迁移提示已设置为不再提示');
+      }
+    }).catch(() => { /* ignore */ });
+  } catch {
+    // 静默安全
+  }
+}
+
 // ---------- 生命周期 ----------
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -3143,6 +3383,8 @@ if (!gotLock) {
       } else {
         startKimiServer();
       }
+      // 旧版 kimi-cli 数据目录（~/.kimi）迁移提示（一次性，可关闭）
+      maybePromptLegacyMigration();
     }
 
     app.on('activate', () => {

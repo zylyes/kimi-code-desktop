@@ -3,7 +3,7 @@
 > 调研来源：Kimi Code 官方文档（https://www.kimi.com/code/docs/kimi-code-cli/ ）10 个板块精读，
 > 覆盖 kimi 命令参考、会话管理、配置系统、平台与模型、扩展能力（Skills/插件/MCP/Hooks）、
 > 交互模式与权限、IDE/ACP 集成、Web UI、帮助中心最佳实践。
-> 调研日期：2026-07-21。本项目当前版本 v0.7.0：Electron 套壳，已实现 `kimi web` 进程管理 + 托盘 + 配置持久化 + 会话启动器 + 新手引导 + WS 事件订阅/原生通知/问答 + 图形化设置中心 + 会话归档/删除 + 认证引导 + Skills/Hooks 面板 + 模型切换 + 权限模式 + 维护面板 + 高级启动参数 + 令牌轮换。
+> 调研日期：2026-07-21。本项目当前版本 v0.8.0：Electron 套壳，已实现 `kimi web` 进程管理 + 托盘 + 配置持久化 + 会话启动器 + 新手引导 + WS 事件订阅/原生通知/问答 + 图形化设置中心 + 会话归档/删除 + 认证引导 + Skills/Hooks 面板 + 模型切换 + 权限模式 + 维护面板 + 高级启动参数 + 令牌轮换 + 多实例管理面板 + 旧版迁移提示 + IDE 一键接入向导 + 自动更新/遥测开关。
 
 ## 状态图例
 
@@ -24,6 +24,7 @@
 | 阶段4 | ✅ v0.5.0 | WS 通知、原生问答、托盘用量、全局热键、外链接管      |
 | 阶段5 | ✅ v0.6.0 | 图形化设置中心（config.toml、权限规则、供应商、MCP） |
 | 阶段7 | ✅ v0.7.0 | P0 收尾（会话归档/删除、认证错误引导）+ 精选 P1（Skills/Hooks 面板、模型切换、权限模式、维护面板、启动参数） |
+| 阶段8 | ✅ v0.8.0 | P1 收尾（多实例管理面板、旧版迁移提示、IDE 一键接入向导、自动更新/遥测开关） |
 | 阶段6 | ⬜ 未实现 | ACP 原生 UI                                          |
 
 ---
@@ -102,22 +103,22 @@
 
 | 功能                                            | 文档依据                                                                                                                            | 实现思路                                                                                                                                                |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 多实例管理面板                                  | 实例注册到`~/.kimi-code/server/instances/`；`kimi server ps`（0.27）/ `/api/v1/connections`                                   | 读目录列出存活实例，托盘切换/重连，避免重复起进程                                                                                                       |
+| ✅ 多实例管理面板（v0.8.0）                     | 实例注册到`~/.kimi-code/server/instances/`；`kimi server ps`（0.27）/ `/api/v1/connections`                                   | 读目录列出存活实例，托盘切换/重连，避免重复起进程                                                                                                       |
 | ✅ 自定义`KIMI_CODE_HOME`（v0.7.0）             | 环境变量可整体搬迁数据根                                                                                                            | config.json 加字段，spawn 注入 env                                                                                                                      |
 | ✅ 令牌轮换菜单（v0.7.0）                       | `kimi web rotate-token`：旧 token 立即失效，运行中实例自动换用                                                                    | 菜单项调子命令后按新`server.token` 重载 URL                                                                                                           |
 | ✅ 固定端口 /`--host` / `--log-level`（v0.7.0） | `kimi web --port/--host/--allowed-host/--log-level`                                                                               | config.json 扩展字段拼启动参数                                                                                                                          |
-| 旧版 kimi-cli 迁移提示                          | 检测`~/.kimi/` 自动提示；`kimi migrate` 交互迁移（幂等，不删旧数据）                                                            | 首次启动检测后引导                                                                                                                                      |
+| ✅ 旧版 kimi-cli 迁移提示（v0.8.0）             | 检测`~/.kimi/` 自动提示；`kimi migrate` 交互迁移（幂等，不删旧数据）                                                            | 首次启动检测后引导                                                                                                                                      |
 | ✅ Skills 管理面板（v0.7.0）                    | 四档扫描目录（项目 > 用户 > extra > 内置）；SKILL.md + YAML frontmatter；`extra_skill_dirs`                                       | 扫描目录解析 frontmatter，GUI 新建/编辑/删除                                                                                                            |
 | ✅ MCP 服务器配置 GUI                           | 两层`mcp.json`（用户级 `~/.kimi-code/mcp.json` + 项目级）；stdio/HTTP/SSE 三种接入；`enabledTools`/`disabledTools` 等字段   | 表单读写 mcp.json                                                                                                                                       |
 | ✅ Hooks 可视化编辑器 + 模板库（v0.7.0）        | `[[hooks]]` 四字段（event/matcher/command/timeout）；16 个事件；退出码 0 放行 / 2 阻断                                            | 生成配置条目 + 预置脚本模板                                                                                                                             |
-| IDE 一键接入向导                                | Zed：`agent_servers` JSON 片段；JetBrains：Configure ACP agents（**必须绝对路径**）；`kimi acp` stdio JSON-RPC            | 检测已装编辑器，自动写入/生成配置片段（桌面应用已知 cliPath）                                                                                           |
+| ✅ IDE 一键接入向导（v0.8.0）                   | Zed：`agent_servers` JSON 片段；JetBrains：Configure ACP agents（**必须绝对路径**）；`kimi acp` stdio JSON-RPC            | 检测已装编辑器，自动写入/生成配置片段（桌面应用已知 cliPath）                                                                                           |
 | ✅ 全局唤起热键（Ctrl+Shift+Space）             | —                                                                                                                                  | 已注册 Electron`globalShortcut`，Ctrl+Shift+Space 显示/隐藏窗口                                                                                       |
 | 🔲 外部链接接管（http(s)/mailto/tel 已实现）    | Web UI 外链与 Open in Terminal/VS Code 依赖浏览器协议处理                                                                           | 已通过`setWindowOpenHandler` 拦截，外部 http(s)、mailto/tel 走系统浏览器，同源本地 Kimi 页面留在 WebView，未知协议拒绝；自定义 Open-in 协议接管未实现 |
 | ✅ 新会话权限模式选择（v0.7.0）                 | `default_permission_mode`/`default_plan_mode`（注意：`kimi web` **不接受** `--yolo/--plan` flag，只能写 config.toml） | 新建会话前写入配置                                                                                                                                      |
 | ✅ 模型切换下拉（v0.7.0）                       | `/models/*` REST 路由；WS `event.model_catalog.changed`；双档模型 `kimi-for-coding` / `kimi-for-coding-highspeed`           | 托盘/菜单下拉切换`default_model`                                                                                                                      |
 | ✅ 诊断打包（一键问题反馈）（v0.7.0）           | `kimi export -y` 打包会话 ZIP 含诊断日志                                                                                          | 导出 ZIP + 桌面端 app.log 打包                                                                                                                          |
 | ✅ 数据目录管理器（v0.7.0）                     | 官方清理矩阵：sessions/+session_index.jsonl（清会话）、logs/、bin/（rg/fd 缓存）、updates/latest.json                               | 展示各子目录体积 + 勾选清理（二次确认）                                                                                                                 |
-| 自动更新/遥测开关                               | tui.toml`[upgrade].auto_install`；`KIMI_CODE_NO_AUTO_UPDATE=1`；`telemetry`/`KIMI_DISABLE_TELEMETRY`                        | 设置页开关写配置或注入 env                                                                                                                              |
+| ✅ 自动更新/遥测开关（v0.8.0）                  | tui.toml`[upgrade].auto_install`；`KIMI_CODE_NO_AUTO_UPDATE=1`；`telemetry`/`KIMI_DISABLE_TELEMETRY`                        | 设置页开关写配置或注入 env                                                                                                                              |
 
 ---
 
@@ -148,6 +149,7 @@
 **阶段 4（原生增强，3-5 天）**：WS 连接 → 审批/问答/完成原生通知 + 托盘用量显示 + 全局热键 + 外链接管 → ✅ **v0.5.0 已发布**
 **阶段 5（设置中心，3-5 天）**：config.toml 图形化 + 权限规则编辑器 + 供应商管理器 + MCP 配置 GUI → ✅ **v0.6.0 已发布**（Skills/Hooks 面板拆分至后续版本）
 **阶段 7（管理增强，2-4 天）**：P0 收尾（会话归档/删除管理器 + 认证错误 FAQ 引导）+ 精选 P1（Skills 面板、Hooks 编辑器、模型切换、新会话权限模式、维护面板含升级/数据目录/诊断打包、高级启动参数、令牌轮换）→ ✅ **v0.7.0 已实现**
+**阶段 8（P1 收尾，2-3 天）**：多实例管理面板 + 旧版 kimi-cli 迁移提示 + IDE 一键接入向导 + 自动更新/遥测开关 → ✅ **v0.8.0 已实现**
 **阶段 6（长期）**：ACP 客户端原生 UI，渐进替代 WebView
 
 ### 阶段 4 实现分项详情
@@ -164,7 +166,7 @@
 | 复杂问答原生输入      | ✅ 已发布      | 多题多选、自定义输入的原生界面                                                                                                                                                                                                                                                                                                    |
 | WS 端到端验证         | 🔶 mock 已验证 | mock 全场景通过：client_hello 握手/订阅、用量（12.3k tokens·上下文 35%）、任务 started/progress/completed 计数归零、审批计数、单题/多选/多题问答开窗、answered 释放与 dismiss 关窗、答案提交契约（answers map + method:'click'，多选与多题含 GUI 真实提交落盘）；聚焦回退分支已补日志。真实服务端人工核对待做（见 §5 第 12 条） |
 
-> **注意**：package.json 当前版本 0.7.0。阶段1—5 与阶段7（v0.2.0 → v0.7.0）均已完成。阶段6（ACP 原生 UI）与 P1/P2 中未标注完成的项目仍未实现。
+> **注意**：package.json 当前版本 0.8.0。阶段1—5、阶段7 与阶段8（v0.2.0 → v0.8.0）均已完成。阶段6（ACP 原生 UI）与 P2 中未标注完成的项目仍未实现。
 
 ---
 
@@ -174,7 +176,7 @@
 2. Web UI 是否保留 `?action=create-in-dir&workDir=` 深链参数（旧版文档）——决定"指定目录新建会话"能否纯 URL 实现；
 3. REST/WS 完整端点清单——启动服务后抓 `http://127.0.0.1:<port>/openapi.json` 与 `/asyncapi.json`（带 bearer token）；
 4. `POST /api/v1/shutdown` 在新版是否保留（文档仅在 legacy `kimi server kill` 处提及）；
-5. `~/.kimi-code/server/instances/` 文件格式（多实例面板依赖）；
+5. `~/.kimi-code/server/instances/` 文件格式（多实例面板依赖）——v0.8.0 已实现防御性解析 + `server/lock` 回退，0.28+ 真实格式待 CLI 升级后人工核对；
 6. Electron 窗口内 Web UI 的 `/export` 下载行为需 `will-download` 拦截处理（浏览器下载上限 64 MiB）；
 7. `kimi acp` 子命令曾短暂移除后恢复（GitHub issue 记录），IDE 集成功能应以"spawn `kimi acp` 是否存活"为最终判定；
 8. Web UI 内是否原生支持 `/permission` 切换、`Ctrl-S` Steer 等 TUI 快捷键（决定桌面端快捷键映射的必要性）；
@@ -201,12 +203,20 @@
     8. 诊断打包 → 核对桌面 ZIP 内含 app.log/doctor.txt/会话导出；
     9. 环境页填固定端口 58630 重启 → 核对服务实际监听 58630 且窗口加载正常；
     10. 触发一次 401（如错误密钥）→ 核对认证错误排查卡片弹出且每次启动只弹一次。
+14. v0.8.0 真实服务核对清单（单元测试已过，真实环境待核）：
+    1. CLI 升级 0.28+ 且多开 `kimi web` → 核对托盘「多实例」子菜单列出 instances/ 各实例（端口/版本/存活），点击切换后窗口加载新实例且 WS 重连成功；
+    2. 切换到一个非本应用启动的实例 → 核对 server.token 是否跨实例有效（无效时应报错回退）；
+    3. 本机 0.27 环境 → 核对子菜单回退显示 server/lock 单实例且标注「当前」；
+    4. 设置中心「IDE 接入」→ 核对 acp 可用性探测与本机 Zed/JetBrains 检测结果；Zed「一键写入」后在 Zed 内确认 kimi-code agent 可用；
+    5. 维护页「自动安装更新」开关 → 核对 tui.toml `[upgrade].auto_install` 写入且 doctor 校验通过；
+    6. 环境页勾选两个强制开关保存 → 核对子进程 env 含 `KIMI_CODE_NO_AUTO_UPDATE=1`/`KIMI_DISABLE_TELEMETRY=1` 且服务自动重启；
+    7. 构造假 `~/.kimi`（含 bin/）→ 核对迁移提示弹出、「不再提示」持久去重且保存设置后不复现。
 
 ---
 
-## 6. 完成情况总览（截至 v0.7.0，2026-07-22）
+## 6. 完成情况总览（截至 v0.8.0，2026-07-22）
 
-### ✅ 已完成（38 项）
+### ✅ 已完成（42 项）
 
 | 版本   | 功能                                                                                                                           |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -216,6 +226,7 @@
 | v0.5.0 | WS 订阅、审批通知、结构化问答原生窗口（全类型）、任务完成通知、托盘用量/进度、全局热键、外链接管（http/mailto/tel/编辑器协议） |
 | v0.6.0 | config.toml GUI、权限规则编辑器、供应商管理器、MCP 配置 GUI、保存后自动 doctor 校验                                            |
 | v0.7.0 | 会话归档/删除管理器（能力自适应）、认证错误 FAQ 引导、Skills 面板、Hooks 编辑器、模型切换下拉、新会话权限模式、维护面板（检查更新/一键升级/数据目录清理/诊断打包）、高级启动参数（端口/host/日志级别/KIMI_CODE_HOME）、令牌轮换 |
+| v0.8.0 | 多实例管理面板、旧版 kimi-cli 迁移提示、IDE 一键接入向导、自动更新/遥测开关                  |
 
 ### 🔲 部分实现（2 项）
 
@@ -223,15 +234,6 @@
 | ------------- | ---------------------------------------------------------- | ----------------------- |
 | 外部链接接管  | http(s)/mailto/tel/vscode/cursor/windsurf/zed 等编辑器协议 | 自定义 Open-in 协议接管 |
 | WS 端到端验证 | mock 服务器全场景自动验证通过                              | 真实服务端人工核对待做  |
-
-### ⬜ 未实现（P1，4 项）
-
-| 功能                            | 说明                                                     |
-| ------------------------------- | -------------------------------------------------------- |
-| 多实例管理面板                  | 读 instances/ 目录列出存活实例，托盘切换/重连            |
-| 旧版 kimi-cli 迁移提示          | 检测`~/.kimi/` 自动提示                                |
-| IDE 一键接入向导                | 检测已装编辑器，自动写入配置片段                         |
-| 自动更新/遥测开关               | 设置页开关写配置或注入 env                               |
 
 ### ⬜ 未实现（P2 / 长期方向，12 项）
 
@@ -242,6 +244,6 @@
 | 分类           | 已完成       | 部分实现    | 未实现       |
 | -------------- | ------------ | ----------- | ------------ |
 | P0 高价值      | 26           | 2           | 0            |
-| P1 中价值      | 12           | 0           | 4            |
+| P1 中价值      | 16           | 0           | 0            |
 | P2 低价值/长期 | 0            | 0           | 12           |
-| **合计** | **38** | **2** | **16** |
+| **合计** | **42** | **2** | **12** |

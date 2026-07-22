@@ -290,6 +290,7 @@
     padding-bottom: 6px;
     border-bottom: 1px solid var(--line);
   }
+  .dimmed { opacity: 0.45; pointer-events: none; }
 
   /* 规则表格 */
   .rule-list { margin-top: 10px; }
@@ -362,6 +363,7 @@
       <button class="tab" data-tab="mcp">MCP</button>
       <button class="tab" data-tab="skills">Skills</button>
       <button class="tab" data-tab="hooks">Hooks</button>
+      <button class="tab" data-tab="ide">IDE 接入</button>
       <button class="tab" data-tab="maint">维护</button>
     </div>
 
@@ -453,6 +455,29 @@
         <div><span class="fl">KIMI_CODE_HOME</span><input type="text" id="advKimiHome" placeholder="默认 %USERPROFILE%\.kimi-code" spellcheck="false" /></div>
       </div>
       <div class="hint">修改 KIMI_CODE_HOME 后需重启应用完全生效；监听地址改为 0.0.0.0 会向局域网暴露服务，请确认已了解风险。</div>
+    </div>
+
+    <div class="group divider" id="enforceGroup">
+      <label>强制开关</label>
+      <div class="form-row" style="margin-top:10px">
+        <div class="switch">
+          <div>
+            <div class="switch-label">禁止 CLI 自动更新</div>
+            <div class="switch-desc">KIMI_CODE_NO_AUTO_UPDATE</div>
+          </div>
+          <input type="checkbox" id="noAutoUpdate" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">禁用遥测</div>
+            <div class="switch-desc">KIMI_DISABLE_TELEMETRY</div>
+          </div>
+          <input type="checkbox" id="disableTelemetry" />
+        </div>
+      </div>
+      <div class="hint">强制级开关，保存后自动重启服务生效。</div>
     </div>
 
     <div class="group divider" id="installGroup">
@@ -600,6 +625,58 @@
       <div class="err" id="hooksErr"></div>
     </div>
 
+    <!-- IDE 接入面板 -->
+    <div class="tab-panel" id="panel-ide">
+      <div class="section-title">ACP 状态</div>
+      <div class="status" style="margin-top:10px">
+        <div class="srow"><span class="dot" id="dotAcp"></span><span class="sname">kimi acp</span><span class="sval" id="stAcp">未检测</span></div>
+      </div>
+      <div class="hint hidden" id="ideUpgradeHint" style="margin-top:10px"></div>
+
+      <div id="ideSections">
+        <div class="section-title" style="margin-top:18px">Zed 编辑器</div>
+        <div class="card">
+          <div class="card-title">Zed</div>
+          <div class="card-meta" id="zedMetaExec">检测中…</div>
+          <div class="card-meta" id="zedMetaCfg"></div>
+          <div class="card-actions hidden" id="zedActions">
+            <button class="btn2" id="zedApplyBtn" type="button">一键写入配置</button>
+          </div>
+          <div class="hidden" id="zedManual" style="margin-top:10px">
+            <div class="hint">自动写入不可用，请手动将以下片段合并到 Zed 的 settings.json：</div>
+            <pre class="log tall" id="zedSnippet"></pre>
+            <div class="card-actions">
+              <button class="btn2" id="zedCopyBtn" type="button">复制片段</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:18px">JetBrains IDE</div>
+        <div class="card">
+          <div class="card-title">JetBrains 系列</div>
+          <div class="card-meta" id="jbMeta">检测中…</div>
+          <div class="hint" style="margin-top:8px">JetBrains 系列 IDE 通过 ACP 接入，操作步骤如下：</div>
+          <pre class="log tall" id="jbSnippet"></pre>
+          <div class="card-actions">
+            <button class="btn2" id="jbCopyBtn" type="button">复制指引</button>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:18px">其它 ACP 客户端</div>
+        <div class="card">
+          <div class="card-title">通用片段</div>
+          <div class="hint">适用于其它支持 ACP（Agent Client Protocol）的客户端，按其配置格式接入以下片段：</div>
+          <pre class="log tall" id="genericSnippet"></pre>
+          <div class="card-actions">
+            <button class="btn2" id="genericCopyBtn" type="button">复制片段</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ok" id="ideOk"></div>
+      <div class="err" id="ideErr"></div>
+    </div>
+
     <!-- 维护面板 -->
     <div class="tab-panel" id="panel-maint">
       <div class="section-title">CLI 升级</div>
@@ -610,6 +687,15 @@
       <div class="btn-row">
         <button class="btn2" id="checkUpgradeBtn" type="button">检查更新</button>
         <button class="btn2 hidden" id="upgradeBtn" type="button">一键升级</button>
+      </div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">自动安装更新</div>
+            <div class="switch-desc">检测到新版本时自动升级 CLI（tui.toml · upgrade.auto_install）</div>
+          </div>
+          <input type="checkbox" id="autoInstallUpgrade" />
+        </div>
       </div>
       <div class="log hidden" id="upgradeLog"></div>
       <div class="ok" id="upgradeOk"></div>
@@ -656,20 +742,23 @@
 
     const $ = (id) => document.getElementById(id);
 
-    // 标签页切换
+    // 标签页切换（switchTab 供点击与 URL ?tab= 初始定位共用）
     const tabs = document.querySelectorAll('.tab');
     const panels = document.querySelectorAll('.tab-panel');
+    function switchTab(key) {
+      const tab = [...tabs].find((t) => t.dataset.tab === key);
+      if (!tab) return;
+      tabs.forEach((t) => t.classList.toggle('active', t === tab));
+      panels.forEach((p) => p.classList.toggle('active', p.id === 'panel-' + key));
+      if (key === 'providers') loadProviders();
+      if (key === 'mcp') loadMcp();
+      if (key === 'skills') loadSkills();
+      if (key === 'hooks') loadHooks();
+      if (key === 'ide') loadIdePanel();
+      if (key === 'maint') { checkUpgrade(false); loadDataDirStats(); loadAutoInstall(); }
+    }
     tabs.forEach((tab) => {
-      tab.addEventListener('click', () => {
-        const key = tab.dataset.tab;
-        tabs.forEach((t) => t.classList.toggle('active', t === tab));
-        panels.forEach((p) => p.classList.toggle('active', p.id === 'panel-' + key));
-        if (key === 'providers') loadProviders();
-        if (key === 'mcp') loadMcp();
-        if (key === 'skills') loadSkills();
-        if (key === 'hooks') loadHooks();
-        if (key === 'maint') { checkUpgrade(false); loadDataDirStats(); }
-      });
+      tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
 
     const modeAuto = $('modeAuto');
@@ -688,6 +777,8 @@
     const advHostEl = $('advHost');
     const advLogLevelEl = $('advLogLevel');
     const advKimiHomeEl = $('advKimiHome');
+    const noAutoUpdateEl = $('noAutoUpdate');
+    const disableTelemetryEl = $('disableTelemetry');
     const errEl = $('err');
     let mode = 'auto';
 
@@ -774,6 +865,8 @@
         if (c.host) advHostEl.value = c.host;
         if (c.logLevel) advLogLevelEl.value = c.logLevel;
         if (c.kimiCodeHome) advKimiHomeEl.value = c.kimiCodeHome;
+        noAutoUpdateEl.checked = !!c.noAutoUpdate;
+        disableTelemetryEl.checked = !!c.disableTelemetry;
         if (c.mode === 'manual') setMode('manual');
       }
       if (!info.cliFound) {
@@ -933,6 +1026,8 @@
         host: advHostEl.value.trim(),
         logLevel: advLogLevelEl.value,
         kimiCodeHome: advKimiHomeEl.value.trim(),
+        noAutoUpdate: noAutoUpdateEl.checked,
+        disableTelemetry: disableTelemetryEl.checked,
       };
     }
 
@@ -1615,6 +1710,50 @@
       }
     });
 
+    // 自动安装更新开关（tui.toml 的 upgrade.auto_install，缺省 true）
+    const autoInstallEl = $('autoInstallUpgrade');
+    let currentTuiData = null;
+
+    async function loadAutoInstall() {
+      if (typeof window.kimiDesktop.loadTuiToml !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.loadTuiToml();
+        if (r.ok) {
+          currentTuiData = r.data || {};
+          const v = currentTuiData.upgrade && currentTuiData.upgrade.auto_install;
+          autoInstallEl.checked = v !== false;
+        } else {
+          setFeedback(upgradeOk, upgradeErr, 'err', '读取 tui.toml 失败：' + (r.error || '未知错误'));
+        }
+      } catch (e) {
+        setFeedback(upgradeOk, upgradeErr, 'err', '读取 tui.toml 异常：' + e.message);
+      }
+    }
+
+    autoInstallEl.addEventListener('change', async () => {
+      const want = autoInstallEl.checked;
+      setFeedback(upgradeOk, upgradeErr, '', '');
+      try {
+        if (currentTuiData === null && typeof window.kimiDesktop.loadTuiToml === 'function') {
+          const lr = await window.kimiDesktop.loadTuiToml();
+          currentTuiData = (lr && lr.ok && lr.data) ? lr.data : {};
+        }
+        // 基于展开原 data 改 upgrade.auto_install，保留 tui.toml 其它键
+        const payload = { ...currentTuiData, upgrade: { ...((currentTuiData && currentTuiData.upgrade) || {}), auto_install: want } };
+        const r = await window.kimiDesktop.saveTuiToml(payload);
+        if (r && r.ok) {
+          currentTuiData = payload;
+          setFeedback(upgradeOk, upgradeErr, 'ok', '自动安装更新已' + (want ? '开启' : '关闭'));
+        } else {
+          autoInstallEl.checked = !want;
+          setFeedback(upgradeOk, upgradeErr, 'err', '保存失败：' + ((r && r.error) || '未知错误'));
+        }
+      } catch (e) {
+        autoInstallEl.checked = !want;
+        setFeedback(upgradeOk, upgradeErr, 'err', '保存异常：' + e.message);
+      }
+    });
+
     function renderDataDirEntries(entries) {
       dataDirList.innerHTML = '';
       if (entries.length === 0) {
@@ -1696,9 +1835,111 @@
       }
     });
 
+    // ==================== IDE 接入面板 ====================
+    const ideOk = $('ideOk');
+    const ideErr = $('ideErr');
+    let ideLoaded = false;
+
+    async function copySnippet(btn, text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        const old = btn.textContent;
+        btn.textContent = '已复制';
+        setTimeout(() => { btn.textContent = old; }, 2000);
+      } catch (e) {
+        setFeedback(ideOk, ideErr, 'err', '复制失败：' + e.message);
+      }
+    }
+
+    // 惰性加载：首次切到 ide tab 才检测并拉取片段
+    async function loadIdePanel() {
+      if (ideLoaded) return;
+      ideLoaded = true;
+      const dotAcp = $('dotAcp'), stAcp = $('stAcp');
+      const upgradeHint = $('ideUpgradeHint');
+      if (!window.kimiDesktop || typeof window.kimiDesktop.ideDetect !== 'function') {
+        setStatus(dotAcp, stAcp, 'bad', '不支持');
+        upgradeHint.textContent = '当前应用版本不支持 IDE 接入检测，请升级应用。';
+        upgradeHint.classList.remove('hidden');
+        $('ideSections').classList.add('dimmed');
+        return;
+      }
+      try {
+        const [det, zedSnip, jbSnip, genericSnip] = await Promise.all([
+          window.kimiDesktop.ideDetect(),
+          window.kimiDesktop.ideGetSnippet('zed'),
+          window.kimiDesktop.ideGetSnippet('jetbrains'),
+          window.kimiDesktop.ideGetSnippet('generic'),
+        ]);
+        // ACP 状态：不可用时整页其它卡片置灰并提示先升级 CLI
+        const acp = (det && det.acp) || {};
+        if (acp.available) {
+          setStatus(dotAcp, stAcp, 'ok', '可用', acp.detail || '');
+        } else {
+          setStatus(dotAcp, stAcp, 'bad', '不可用', acp.detail || '');
+          upgradeHint.textContent = 'kimi acp 不可用' + (acp.detail ? '：' + acp.detail : '') + '。请先在「维护」页升级 CLI 后再接入 IDE。';
+          upgradeHint.classList.remove('hidden');
+          $('ideSections').classList.add('dimmed');
+        }
+        // Zed
+        const zed = (det && det.zed) || {};
+        if (zed.installed) {
+          $('zedMetaExec').textContent = '已安装' + (zed.execPath ? ' · ' + zed.execPath : '');
+          $('zedMetaCfg').textContent = zed.settingsPath ? '配置文件：' + zed.settingsPath : '';
+          $('zedActions').classList.remove('hidden');
+        } else {
+          $('zedMetaExec').textContent = '未检测到 Zed';
+          $('zedMetaCfg').textContent = '';
+        }
+        // JetBrains
+        const jb = (det && det.jetbrains) || {};
+        const ides = Array.isArray(jb.ides) ? jb.ides : [];
+        $('jbMeta').textContent = ides.length > 0 ? '检测到：' + ides.join('、') : '未检测到 JetBrains IDE';
+        // 片段
+        $('zedSnippet').textContent = zedSnip || '';
+        $('jbSnippet').textContent = jbSnip || '';
+        $('genericSnippet').textContent = genericSnip || '';
+      } catch (e) {
+        setFeedback(ideOk, ideErr, 'err', '检测异常：' + e.message);
+      }
+    }
+
+    $('zedApplyBtn').addEventListener('click', async () => {
+      const btn = $('zedApplyBtn');
+      btn.disabled = true;
+      btn.textContent = '正在写入…';
+      setFeedback(ideOk, ideErr, '', '');
+      try {
+        const r = await window.kimiDesktop.ideApplyZed();
+        if (r && r.ok) {
+          setFeedback(ideOk, ideErr, 'ok', '已写入 Zed 配置：' + (r.path || ''));
+          $('zedManual').classList.add('hidden');
+        } else if (r && r.manualRequired) {
+          // 自动写入不可用时展示手动片段，由用户自行合并
+          $('zedManual').classList.remove('hidden');
+          setFeedback(ideOk, ideErr, 'err', '自动写入不可用' + (r.reason ? '：' + r.reason : '') + '，请按下方片段手动配置');
+        } else {
+          setFeedback(ideOk, ideErr, 'err', '写入失败：' + ((r && r.reason) || '未知错误'));
+        }
+      } catch (e) {
+        setFeedback(ideOk, ideErr, 'err', '写入异常：' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '一键写入配置';
+      }
+    });
+
+    $('zedCopyBtn').addEventListener('click', () => copySnippet($('zedCopyBtn'), $('zedSnippet').textContent));
+    $('jbCopyBtn').addEventListener('click', () => copySnippet($('jbCopyBtn'), $('jbSnippet').textContent));
+    $('genericCopyBtn').addEventListener('click', () => copySnippet($('genericCopyBtn'), $('genericSnippet').textContent));
+
     // 初始化配置面板数据
     loadConfigToml();
     loadRules();
+
+    // URL ?tab=xxx 指定初始标签页（键名须命中已存在的 data-tab）
+    const initialTab = qs.get('tab');
+    if (initialTab) switchTab(initialTab);
   </script>
 </body>
 </html>

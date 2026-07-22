@@ -46,6 +46,10 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 33. **维护面板**（v0.7.0）：设置中心新增维护标签页——CLI 检查更新（读 `updates/latest.json` 比对版本）与一键升级（重跑官方 install.ps1，成功后自动重启）；数据目录体积统计与勾选清理（sessions/logs/bin/updates/server，凭据受保护）；诊断打包（app.log + doctor 输出 + 最近会话导出，PowerShell Compress-Archive 生成 ZIP）。
 34. **高级启动参数**（v0.7.0）：环境页新增固定端口 `--port`、监听地址 `--host`、日志级别 `--log-level`、自定义 `KIMI_CODE_HOME` 四项设置（仅新版 CLI 生效，旧版自动忽略并记日志）；KIMI_CODE_HOME 在应用启动最早期注入，全进程统一生效。
 35. **令牌轮换**（v0.7.0）：「会话」菜单新增「轮换访问令牌…」，调用 `kimi web rotate-token` 后重读 server.token、重载窗口并重建 WS 订阅。
+36. **多实例管理面板**（v0.8.0）：托盘新增「多实例」子菜单，扫描 `~/.kimi-code/server/instances/`（0.28+ 格式，目录不存在时回退 `server/lock` 旧版格式），显示各实例端口/版本/存活状态/当前连接标记；点击实例先 HTTP 探测可达再重读 server.token 完成切换；10 秒缓存防抖 + 「重新扫描」手动刷新，已退出实例置灰。
+37. **旧版 kimi-cli 迁移提示**（v0.8.0）：启动时检测 `~/.kimi/` 存在且含 `bin/` 或 `config.toml` 时弹出「立即迁移 / 稍后 / 不再提示」对话框；「立即迁移」打开外部终端运行 `kimi migrate`，「不再提示」写入 config.json 持久去重。
+38. **IDE 一键接入向导**（v0.8.0）：设置中心新增「IDE 接入」标签页 + 帮助菜单「IDE 接入向导…」入口；探测 `kimi acp` 可用性后，Zed 支持一键写入 agent_servers 配置（JSONC 合并、写前 .bak 备份），JetBrains 检测已装 IDE 并给出手动配置步骤，通用 ACP 片段适配其它客户端。
+39. **自动更新/遥测开关**（v0.8.0）：维护页新增「自动安装更新」开关（读写 tui.toml `[upgrade].auto_install`，doctor 校验 + 失败回滚）；环境页新增「禁止 CLI 自动更新」「禁用遥测」强制开关，写入 config.json 并向子进程注入 `KIMI_CODE_NO_AUTO_UPDATE=1`/`KIMI_DISABLE_TELEMETRY=1`（保存后自动重启生效）。
 
 ## 会话启动器
 
@@ -120,11 +124,13 @@ npm install
 main.js              Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC、会话管理、WebSocket 订阅、托盘用量/任务状态、全局热键、问答窗口管理、编辑器协议接管、配置中心 IPC）
 preload.js           渲染进程桥接（含会话启动器 API 和配置中心 API）
 config-manager.js    配置管理模块（读写 config.toml、tui.toml、mcp.json，写入前备份、doctor 校验、失败回滚）
+instances-manager.js 多实例管理模块（扫描 instances/ 目录、lock 回退、PID 存活检测、HTTP 探测）
+ide-integration.js   IDE 接入模块（kimi acp 探测、编辑器检测、Zed 配置写入、JSONC 处理、配置片段生成）
 question.html        原生问答窗口（单选/多选/多题/自定义输入，深色主题 UI）
 question.js          问答窗口渲染逻辑（选项渲染、多题翻页、答案校验、提交/回退/取消）
 question-preload.js  问答窗口预加载桥接（contextIsolation 下暴露 kimiQuestion API）
 loading.html         启动等待页（实时显示 CLI 日志）
-setup.html           设置页（自动/手动两种连接方式，含标签页导航：环境/通用配置/权限规则/供应商/MCP）
+setup.html           设置页（自动/手动两种连接方式，含标签页导航：环境/通用配置/权限规则/供应商/MCP/Skills/Hooks/IDE 接入/维护）
 sessions.html        会话启动器（历史浏览、恢复、导出 ZIP、可视化、新建会话）
 assets/              应用图标
 scripts/
@@ -132,6 +138,8 @@ scripts/
   pack-versioned.ps1   版本化打包脚本
 test-config-manager.js 配置管理模块单元测试
 test-skills-manager.js Skills 管理模块单元测试
+test-instances-manager.js 多实例管理模块单元测试
+test-ide-integration.js IDE 接入模块单元测试
 CHANGELOG.md          版本变更历史
 FEATURE-IDEAS.md      功能建议报告与实施状态
 ```
