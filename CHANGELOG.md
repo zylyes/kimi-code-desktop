@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.0] - 2026-07-22
+
+### 新功能
+
+- **会话归档/删除管理器**：会话启动器详情面板新增「归档」「删除」按钮；启动时解析 `/openapi.json` paths 自动探测服务端能力（`:archive` 自定义动词 / `/archive` 子路径 / `DELETE` 三种形态自适应），不支持的端点按钮禁用；删除前先归档降低误删损失；订阅 WS `event.session.deleted` 自动刷新列表。
+- **认证错误识别与 FAQ 引导**：CLI 输出与 WebSocket 关闭/错误中识别 401/认证失败关键字（每次启动只弹一次），弹出排查卡片（api.kimi.com 与 api.moonshot.cn 密钥不通用、设备授权 30 天过期、模型 ID 静默回退等），可一键跳转重新登录。
+- **Skills 管理面板**：设置中心新增 Skills 标签页，扫描用户级 `~/.kimi-code/skills/` 与 `extra_skill_dirs`（只读标注来源），解析 SKILL.md frontmatter，支持新建/编辑/重命名/删除用户级技能。
+- **Hooks 可视化编辑器**：设置中心新增 Hooks 标签页，按官方文档内置 16 个事件清单与用途提示，编辑 `[[hooks]]`（event/matcher/command/timeout），提供拦截 rm -rf、任务完成通知、附加 Git 分支、Bash 审计日志 4 个模板，保存走 doctor 校验回滚。
+- **模型切换下拉**：托盘菜单与「会话」菜单新增「默认模型」单选子菜单，模型列表取自 `GET /api/v1/models`（失败回退双档模型 + 当前配置），切换写入 config.toml 并可选择立即重启生效；订阅 `event.model_catalog.changed` 自动刷新。
+- **新会话权限模式选择**：会话启动器新建按钮旁新增权限模式下拉与 Plan 复选（默认「保持当前配置」），选择后先写 config.toml 再创建会话。
+- **维护面板**：设置中心新增维护标签页——CLI 检查更新（读 `updates/latest.json` 比对版本）与一键升级（重跑官方 install.ps1，成功后自动重启）；数据目录体积统计与勾选清理（sessions/logs/bin/updates/server，凭据受保护）；诊断打包（app.log + doctor 输出 + 最近会话导出，PowerShell Compress-Archive 生成 ZIP）。
+- **高级启动参数**：环境页新增固定端口 `--port`、监听地址 `--host`、日志级别 `--log-level`、自定义 `KIMI_CODE_HOME` 四项设置（仅新版 CLI 生效，旧版自动忽略并记日志）；KIMI_CODE_HOME 在应用启动最早期注入，全进程统一生效。
+- **令牌轮换**：「会话」菜单新增「轮换访问令牌…」，调用 `kimi web rotate-token` 后重读 server.token、重载窗口并重建 WS 订阅。
+
+### 改进
+
+- `session:createSessionInDirectory` 支持可选权限模式参数，写入失败时中止创建并提示。
+- `skills-manager.deleteSkill` 对不存在的用户级目录显式报错，防止误删 extra 只读技能。
+- mock 服务器扩展：`:archive`/`DELETE`/`/api/v1/models` 端点与 `session.deleted` 事件推送（`/control/emit` scenario 与 `/mock/push/session-deleted` 双触发），openapi.json paths 同步补齐。
+
+### 技术细节
+
+- 新增 `skills-manager.js`：frontmatter 简易解析、目录扫描、用户级技能读写删（路径包含校验防越权）。
+- 新增 IPC 通道：`session:archiveSession`、`session:deleteSession`、`session:getCaps`、`skills:list`、`skills:save`、`skills:delete`、`cli:checkUpdate`、`cli:upgrade`、`system:dataDirStats`、`system:cleanupDataDirs`、`system:packDiagnostics`；新增主→渲染事件 `session:changed`。
+- 新增 `httpRequest()` 通用 REST 辅助与 `buildSessionActionUrl()` 路径模板替换（`{param}` → 会话 ID）。
+- config.json 新增 `port`/`host`/`logLevel`/`kimiCodeHome` 字段，`setup:save` 完整持久化（端口范围校验）。
+- 新增 `test-skills-manager.js` 单元测试（8 项断言全过）；能力探测逻辑已对 mock 实弹验证通过。
+- 打包清单补齐 `skills-manager.js`。
+- 无破坏性变更。
+
 ## [0.6.0] - 2026-07-22
 
 ### 新功能

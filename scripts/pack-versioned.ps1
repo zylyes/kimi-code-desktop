@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     版本化打包脚本 — 从 package.json 读取版本，输出到 release\v<version>\
 

@@ -37,6 +37,15 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 24. **权限规则编辑器**（v0.6.0）：可视化增删改 `[[permission.rules]]`，支持 decision（allow/deny/ask）、pattern、scope，提供"拒绝 rm -rf"与"敏感文件 ask"安全预设。
 25. **供应商与模型管理器**（v0.6.0）：调用 `kimi provider list --json` 展示供应商列表，支持删除供应商与通过向导添加 catalog 供应商（覆盖 6 种 provider 类型）。
 26. **MCP 服务器配置 GUI**（v0.6.0）：读写用户级 `~/.kimi-code/mcp.json`，支持 stdio/http/sse 三种接入方式、命令/URL、环境变量与启停工具列表。
+27. **会话归档与删除管理器**（v0.7.0）：会话启动器详情面板新增「归档」「删除」按钮；启动时解析 `/openapi.json` paths 自动探测服务端能力（`:archive` 自定义动词 / `/archive` 子路径 / `DELETE` 三种形态自适应），不支持的端点按钮禁用；删除前先归档降低误删损失；订阅 WS `event.session.deleted` 自动刷新列表。
+28. **认证错误识别与 FAQ 引导**（v0.7.0）：CLI 输出与 WebSocket 关闭/错误中识别 401/认证失败关键字（每次启动只弹一次），弹出排查卡片（api.kimi.com 与 api.moonshot.cn 密钥不通用、设备授权 30 天过期、模型 ID 静默回退等），可一键跳转重新登录。
+29. **Skills 管理面板**（v0.7.0）：设置中心新增 Skills 标签页，扫描用户级 `~/.kimi-code/skills/` 与 `extra_skill_dirs`（只读标注来源），解析 SKILL.md frontmatter，支持新建/编辑/重命名/删除用户级技能。
+30. **Hooks 可视化编辑器**（v0.7.0）：设置中心新增 Hooks 标签页，按官方文档内置 16 个事件清单与用途提示，编辑 `[[hooks]]`（event/matcher/command/timeout），提供拦截 rm -rf、任务完成通知、附加 Git 分支、Bash 审计日志 4 个模板，保存走 doctor 校验回滚。
+31. **模型切换下拉**（v0.7.0）：托盘菜单与「会话」菜单新增「默认模型」单选子菜单，模型列表取自 `GET /api/v1/models`（失败回退双档模型 + 当前配置），切换写入 config.toml 并可选立即重启生效；订阅 `event.model_catalog.changed` 自动刷新。
+32. **新会话权限模式选择**（v0.7.0）：会话启动器新建按钮旁新增权限模式下拉与 Plan 复选（默认「保持当前配置」），选择后先写 config.toml 再创建会话。
+33. **维护面板**（v0.7.0）：设置中心新增维护标签页——CLI 检查更新（读 `updates/latest.json` 比对版本）与一键升级（重跑官方 install.ps1，成功后自动重启）；数据目录体积统计与勾选清理（sessions/logs/bin/updates/server，凭据受保护）；诊断打包（app.log + doctor 输出 + 最近会话导出，PowerShell Compress-Archive 生成 ZIP）。
+34. **高级启动参数**（v0.7.0）：环境页新增固定端口 `--port`、监听地址 `--host`、日志级别 `--log-level`、自定义 `KIMI_CODE_HOME` 四项设置（仅新版 CLI 生效，旧版自动忽略并记日志）；KIMI_CODE_HOME 在应用启动最早期注入，全进程统一生效。
+35. **令牌轮换**（v0.7.0）：「会话」菜单新增「轮换访问令牌…」，调用 `kimi web rotate-token` 后重读 server.token、重载窗口并重建 WS 订阅。
 
 ## 会话启动器
 
@@ -122,6 +131,7 @@ scripts/
   mock-kimi-server.js  Mock Kimi 服务端（HTTP+WS，覆盖 client_hello/订阅/问答/审批/用量/任务事件验证）
   pack-versioned.ps1   版本化打包脚本
 test-config-manager.js 配置管理模块单元测试
+test-skills-manager.js Skills 管理模块单元测试
 CHANGELOG.md          版本变更历史
 FEATURE-IDEAS.md      功能建议报告与实施状态
 ```

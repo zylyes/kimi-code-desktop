@@ -360,6 +360,9 @@
       <button class="tab" data-tab="rules">权限规则</button>
       <button class="tab" data-tab="providers">供应商</button>
       <button class="tab" data-tab="mcp">MCP</button>
+      <button class="tab" data-tab="skills">Skills</button>
+      <button class="tab" data-tab="hooks">Hooks</button>
+      <button class="tab" data-tab="maint">维护</button>
     </div>
 
     <!-- 环境面板 -->
@@ -433,6 +436,23 @@
         <div><span class="fl">NO_PROXY</span><input type="text" id="noProxy" placeholder="localhost,127.0.0.1" spellcheck="false" /></div>
       </div>
       <div class="hint">作用于自动启动的 CLI 进程，保存后生效；NO_PROXY 用逗号分隔多个地址。</div>
+    </div>
+
+    <div class="group divider" id="advancedGroup">
+      <label>高级启动参数（留空则用默认，仅新版 CLI 生效）</label>
+      <div class="grid2">
+        <div><span class="fl">固定端口</span><input type="text" id="advPort" placeholder="默认 58627，被占自动 +1" spellcheck="false" /></div>
+        <div><span class="fl">监听地址 --host</span><input type="text" id="advHost" placeholder="默认 127.0.0.1" spellcheck="false" /></div>
+        <div><span class="fl">日志级别</span><select id="advLogLevel">
+          <option value="">默认</option>
+          <option value="debug">debug</option>
+          <option value="info">info</option>
+          <option value="warn">warn</option>
+          <option value="error">error</option>
+        </select></div>
+        <div><span class="fl">KIMI_CODE_HOME</span><input type="text" id="advKimiHome" placeholder="默认 %USERPROFILE%\.kimi-code" spellcheck="false" /></div>
+      </div>
+      <div class="hint">修改 KIMI_CODE_HOME 后需重启应用完全生效；监听地址改为 0.0.0.0 会向局域网暴露服务，请确认已了解风险。</div>
     </div>
 
     <div class="group divider" id="installGroup">
@@ -534,6 +554,85 @@
       <div class="ok" id="mcpOk"></div>
       <div class="err" id="mcpErr"></div>
     </div>
+
+    <!-- Skills 面板 -->
+    <div class="tab-panel" id="panel-skills">
+      <div class="section-title">Skills 技能</div>
+      <div class="hint">用户级技能（~/.kimi-code/skills/）可编辑与删除；extra_skill_dirs 中的技能只读。</div>
+      <div class="card-list" id="skillList"></div>
+      <button class="btn-add" id="addSkill">+ 新建技能</button>
+      <div id="skillEditor" class="hidden" style="margin-top:14px">
+        <div class="form-row">
+          <label>名称（小写字母/数字/连字符）</label>
+          <input type="text" id="skillName" placeholder="my-skill" spellcheck="false" />
+        </div>
+        <div class="form-row">
+          <label>描述</label>
+          <input type="text" id="skillDesc" placeholder="一句话描述技能用途" spellcheck="false" />
+        </div>
+        <div class="form-row">
+          <label>正文（SKILL.md Markdown 内容）</label>
+          <textarea id="skillBody" rows="10" spellcheck="false" placeholder="# 技能说明&#10;&#10;在这里编写指令、示例与参考材料…"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn2" id="saveSkillBtn" type="button">保存技能</button>
+          <button class="btn2" id="cancelSkillBtn" type="button">取消</button>
+        </div>
+      </div>
+      <div class="ok" id="skillsOk"></div>
+      <div class="err" id="skillsErr"></div>
+    </div>
+
+    <!-- Hooks 面板 -->
+    <div class="tab-panel" id="panel-hooks">
+      <div class="section-title">Hooks 钩子</div>
+      <div class="hint">hooks 写入 config.toml 的 [[hooks]]：事件触发时执行命令，退出码 0 放行 / 2 阻断。保存前自动运行 kimi doctor 校验。</div>
+      <div class="card-list" id="hookList"></div>
+      <button class="btn-add" id="addHook">+ 添加 Hook</button>
+      <div class="form-row" style="margin-top:10px">
+        <label>从模板填充</label>
+        <select id="hookTemplate">
+          <option value="">选择模板…</option>
+        </select>
+      </div>
+      <button id="saveHooks">保存 Hooks</button>
+      <div class="ok" id="hooksOk"></div>
+      <div class="err" id="hooksErr"></div>
+    </div>
+
+    <!-- 维护面板 -->
+    <div class="tab-panel" id="panel-maint">
+      <div class="section-title">CLI 升级</div>
+      <div class="form-row">
+        <label>当前版本 / 最新版本</label>
+        <div class="hint" id="upgradeInfo">检测中…</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn2" id="checkUpgradeBtn" type="button">检查更新</button>
+        <button class="btn2 hidden" id="upgradeBtn" type="button">一键升级</button>
+      </div>
+      <div class="log hidden" id="upgradeLog"></div>
+      <div class="ok" id="upgradeOk"></div>
+      <div class="err" id="upgradeErr"></div>
+
+      <div class="section-title" style="margin-top:18px">数据目录</div>
+      <div class="hint" id="dataDirPath"></div>
+      <div class="card-list" id="dataDirList"></div>
+      <div class="btn-row">
+        <button class="btn2" id="refreshDataDirBtn" type="button">刷新统计</button>
+        <button class="btn2" id="cleanupDataDirBtn" type="button">清理勾选目录</button>
+      </div>
+      <div class="ok" id="dataDirOk"></div>
+      <div class="err" id="dataDirErr"></div>
+
+      <div class="section-title" style="margin-top:18px">诊断打包</div>
+      <div class="hint">打包应用日志、kimi doctor 输出与最近一次会话导出，用于问题反馈。</div>
+      <div class="btn-row">
+        <button class="btn2" id="packDiagBtn" type="button">打包诊断信息…</button>
+      </div>
+      <div class="ok" id="diagOk"></div>
+      <div class="err" id="diagErr"></div>
+    </div>
   </div>
 
   <script>
@@ -567,6 +666,9 @@
         panels.forEach((p) => p.classList.toggle('active', p.id === 'panel-' + key));
         if (key === 'providers') loadProviders();
         if (key === 'mcp') loadMcp();
+        if (key === 'skills') loadSkills();
+        if (key === 'hooks') loadHooks();
+        if (key === 'maint') { checkUpgrade(false); loadDataDirStats(); }
       });
     });
 
@@ -582,6 +684,10 @@
     const httpsProxyEl = $('httpsProxy');
     const allProxyEl = $('allProxy');
     const noProxyEl = $('noProxy');
+    const advPortEl = $('advPort');
+    const advHostEl = $('advHost');
+    const advLogLevelEl = $('advLogLevel');
+    const advKimiHomeEl = $('advKimiHome');
     const errEl = $('err');
     let mode = 'auto';
 
@@ -664,6 +770,10 @@
         if (c.httpsProxy) httpsProxyEl.value = c.httpsProxy;
         if (c.allProxy) allProxyEl.value = c.allProxy;
         if (c.noProxy) noProxyEl.value = c.noProxy;
+        if (c.port) advPortEl.value = c.port;
+        if (c.host) advHostEl.value = c.host;
+        if (c.logLevel) advLogLevelEl.value = c.logLevel;
+        if (c.kimiCodeHome) advKimiHomeEl.value = c.kimiCodeHome;
         if (c.mode === 'manual') setMode('manual');
       }
       if (!info.cliFound) {
@@ -819,6 +929,10 @@
         httpsProxy: httpsProxyEl.value.trim(),
         allProxy: allProxyEl.value.trim(),
         noProxy: noProxyEl.value.trim(),
+        port: advPortEl.value.trim(),
+        host: advHostEl.value.trim(),
+        logLevel: advLogLevelEl.value,
+        kimiCodeHome: advKimiHomeEl.value.trim(),
       };
     }
 
@@ -869,6 +983,10 @@
         }
       }
       if (!validateProxies(payload)) return;
+      if (payload.port && !/^\d+$/.test(payload.port)) {
+        errEl.textContent = '固定端口应为 1-65535 的数字，留空则使用默认端口';
+        return;
+      }
       await window.kimiDesktop.saveSetup(payload);
     });
 
@@ -1186,6 +1304,396 @@
         if (r.ok) setFeedback(mcpOk, mcpErr, 'ok', 'mcp.json 已保存');
         else setFeedback(mcpOk, mcpErr, 'err', '保存失败：' + (r.error || '未知错误'));
       } catch (e) { setFeedback(mcpOk, mcpErr, 'err', '保存异常：' + e.message); }
+    });
+
+    // ==================== Hooks 面板 ====================
+    // 事件清单以官方文档为准（16 个事件；仅 PreToolUse/Stop/UserPromptSubmit 可阻断）
+    const HOOK_EVENTS = [
+      { value: 'UserPromptSubmit', hint: '用户提交消息（可阻断，stdout 追加到上下文）' },
+      { value: 'PreToolUse', hint: '工具调用前（可阻断，matcher=工具名）' },
+      { value: 'Stop', hint: '回合结束（可阻断）' },
+      { value: 'PostToolUse', hint: '工具成功后' },
+      { value: 'PostToolUseFailure', hint: '工具失败/被阻断后' },
+      { value: 'PermissionRequest', hint: '等待审批前' },
+      { value: 'PermissionResult', hint: '审批完成后' },
+      { value: 'SessionStart', hint: '会话启动/恢复（matcher=startup|resume）' },
+      { value: 'SessionEnd', hint: '会话关闭（matcher=exit）' },
+      { value: 'SubagentStart', hint: '子代理启动前（matcher=子代理名）' },
+      { value: 'SubagentStop', hint: '子代理完成后（matcher=子代理名）' },
+      { value: 'StopFailure', hint: '回合失败后（matcher=错误类型）' },
+      { value: 'Interrupt', hint: '用户中断' },
+      { value: 'PreCompact', hint: '上下文压缩前（matcher=manual|auto）' },
+      { value: 'PostCompact', hint: '上下文压缩后（matcher=manual|auto）' },
+      { value: 'Notification', hint: '后台任务状态变化（matcher=task\\.completed 等）' },
+    ];
+    const HOOK_TEMPLATES = [
+      { label: '拦截 rm -rf 危险命令', hook: { event: 'PreToolUse', matcher: 'Bash', command: 'bash -c \'input=$(cat); echo "$input" | grep -q "rm -rf" && { echo "检测到危险命令，已拦截" >&2; exit 2; } || exit 0\'', timeout: 5 } },
+      { label: '任务完成桌面通知', hook: { event: 'Notification', matcher: 'task\\.completed', command: 'msg * "Kimi Code 任务已完成"', timeout: 10 } },
+      { label: '提交时附加当前 Git 分支', hook: { event: 'UserPromptSubmit', matcher: '', command: 'git branch --show-current', timeout: 5 } },
+      { label: 'Bash 命令审计日志', hook: { event: 'PostToolUse', matcher: 'Bash', command: 'bash -c \'cat >> ~/.kimi-code/bash-audit.jsonl\'', timeout: 5 } },
+    ];
+    const hookList = $('hookList');
+    const hooksOk = $('hooksOk');
+    const hooksErr = $('hooksErr');
+    const hookTemplateEl = $('hookTemplate');
+    let currentHooks = [];
+
+    HOOK_TEMPLATES.forEach((t, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = t.label;
+      hookTemplateEl.appendChild(opt);
+    });
+
+    function renderHooks() {
+      hookList.innerHTML = '';
+      if (currentHooks.length === 0) {
+        hookList.innerHTML = '<div class="hint">暂无 Hook。点击「+ 添加 Hook」或从模板填充。</div>';
+        return;
+      }
+      currentHooks.forEach((hook, idx) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const eventOptions = HOOK_EVENTS.map((e) =>
+          `<option value="${e.value}" ${hook.event === e.value ? 'selected' : ''}>${e.value}</option>`).join('');
+        const eventHint = (HOOK_EVENTS.find((e) => e.value === hook.event) || {}).hint || '';
+        card.innerHTML = `<div class="form-row"><label>事件</label><select data-idx="${idx}" data-field="event">${eventOptions}</select>
+            <div class="hint">${escapeHtml(eventHint)}</div></div>
+          <div class="form-row"><label>matcher（正则，留空匹配全部）</label>
+            <input type="text" data-idx="${idx}" data-field="matcher" value="${escapeHtml(hook.matcher || '')}" placeholder="Bash" spellcheck="false" /></div>
+          <div class="form-row"><label>command（必填，退出码 0 放行 / 2 阻断）</label>
+            <input type="text" data-idx="${idx}" data-field="command" value="${escapeHtml(hook.command || '')}" spellcheck="false" /></div>
+          <div class="form-row"><label>timeout（秒，1-600，默认 30）</label>
+            <input type="text" data-idx="${idx}" data-field="timeout" value="${hook.timeout != null ? escapeHtml(String(hook.timeout)) : ''}" placeholder="30" spellcheck="false" /></div>
+          <div class="card-actions"><button class="btn2 del-hook" data-idx="${idx}">删除</button></div>`;
+        hookList.appendChild(card);
+      });
+      hookList.querySelectorAll('select, input').forEach((el) => {
+        el.addEventListener('input', () => {
+          const idx = Number(el.dataset.idx);
+          const field = el.dataset.field;
+          if (field === 'timeout') {
+            currentHooks[idx][field] = numOrNull(el.value);
+          } else {
+            currentHooks[idx][field] = el.value;
+          }
+        });
+      });
+      hookList.querySelectorAll('.del-hook').forEach((el) => {
+        el.addEventListener('click', () => {
+          currentHooks.splice(Number(el.dataset.idx), 1);
+          renderHooks();
+        });
+      });
+    }
+
+    async function loadHooks() {
+      if (typeof window.kimiDesktop.loadConfigToml !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.loadConfigToml();
+        if (!r.ok) {
+          setFeedback(hooksOk, hooksErr, 'err', '读取配置失败：' + (r.error || '未知错误'));
+          return;
+        }
+        currentHooks = (r.data && Array.isArray(r.data.hooks)) ? r.data.hooks.map((h) => ({ ...h })) : [];
+        renderHooks();
+      } catch (e) {
+        setFeedback(hooksOk, hooksErr, 'err', '读取异常：' + e.message);
+      }
+    }
+
+    $('addHook').addEventListener('click', () => {
+      currentHooks.push({ event: 'PreToolUse', matcher: '', command: '', timeout: null });
+      renderHooks();
+    });
+    hookTemplateEl.addEventListener('change', () => {
+      const idx = Number(hookTemplateEl.value);
+      if (HOOK_TEMPLATES[idx]) {
+        currentHooks.push({ ...HOOK_TEMPLATES[idx].hook });
+        renderHooks();
+      }
+      hookTemplateEl.value = '';
+    });
+    $('saveHooks').addEventListener('click', async () => {
+      setFeedback(hooksOk, hooksErr, '', '');
+      try {
+        const r = await window.kimiDesktop.loadConfigToml();
+        const data = (r.ok && r.data) ? r.data : {};
+        const cleaned = currentHooks
+          .filter((h) => h && h.event && h.command)
+          .map((h) => {
+            const entry = { event: h.event, command: h.command };
+            if (h.matcher) entry.matcher = h.matcher;
+            if (h.timeout != null) entry.timeout = h.timeout;
+            return entry;
+          });
+        if (cleaned.length > 0) data.hooks = cleaned;
+        else delete data.hooks;
+        const save = await window.kimiDesktop.saveConfigToml(data);
+        if (save.ok) setFeedback(hooksOk, hooksErr, 'ok', 'Hooks 已保存');
+        else setFeedback(hooksOk, hooksErr, 'err', '保存失败：' + (save.error || '未知错误'));
+      } catch (e) {
+        setFeedback(hooksOk, hooksErr, 'err', '保存异常：' + e.message);
+      }
+    });
+
+    // ==================== Skills 面板 ====================
+    const skillList = $('skillList');
+    const skillsOk = $('skillsOk');
+    const skillsErr = $('skillsErr');
+    const skillEditor = $('skillEditor');
+    const skillNameEl = $('skillName');
+    const skillDescEl = $('skillDesc');
+    const skillBodyEl = $('skillBody');
+    let currentSkills = [];
+    let editingSkillOriginal = null; // null=新建，否则为原名称
+
+    function renderSkills() {
+      skillList.innerHTML = '';
+      if (currentSkills.length === 0) {
+        skillList.innerHTML = '<div class="hint">暂无技能。点击「+ 新建技能」创建第一个 SKILL.md。</div>';
+        return;
+      }
+      currentSkills.forEach((s) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const srcLabel = s.source === 'user' ? '用户级' : 'extra（只读）';
+        card.innerHTML = `<div class="card-title">${escapeHtml(s.name)}</div>
+          <div class="card-meta">${escapeHtml(s.description || '（无描述）')}</div>
+          <div class="card-meta">来源：${srcLabel} · ${escapeHtml(s.path)}</div>
+          <div class="card-actions">
+            ${s.readonly ? '' : `<button class="btn2 edit-skill" data-name="${escapeHtml(s.dirName)}">编辑</button>
+            <button class="btn2 remove-skill" data-name="${escapeHtml(s.dirName)}">删除</button>`}
+          </div>`;
+        skillList.appendChild(card);
+      });
+      skillList.querySelectorAll('.edit-skill').forEach((btn) => {
+        btn.addEventListener('click', () => openSkillEditor(btn.dataset.name));
+      });
+      skillList.querySelectorAll('.remove-skill').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('确定删除技能「' + btn.dataset.name + '」吗？')) return;
+          try {
+            const r = await window.kimiDesktop.deleteSkill(btn.dataset.name);
+            if (r.ok) { setFeedback(skillsOk, skillsErr, 'ok', '技能已删除'); loadSkills(); }
+            else setFeedback(skillsOk, skillsErr, 'err', '删除失败：' + (r.error || '未知错误'));
+          } catch (e) { setFeedback(skillsOk, skillsErr, 'err', '删除异常：' + e.message); }
+        });
+      });
+    }
+
+    function openSkillEditor(dirName) {
+      const s = currentSkills.find((x) => x.dirName === dirName);
+      editingSkillOriginal = s ? s.dirName : null;
+      skillNameEl.value = s ? s.name : '';
+      skillNameEl.disabled = false;
+      skillDescEl.value = s ? (s.description || '') : '';
+      skillBodyEl.value = s ? (s.body || '') : '';
+      skillEditor.classList.remove('hidden');
+      skillNameEl.focus();
+    }
+
+    async function loadSkills() {
+      if (typeof window.kimiDesktop.listSkills !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.listSkills();
+        if (!r.ok) { setFeedback(skillsOk, skillsErr, 'err', '读取失败：' + (r.error || '未知错误')); return; }
+        currentSkills = r.skills || [];
+        renderSkills();
+      } catch (e) { setFeedback(skillsOk, skillsErr, 'err', '读取异常：' + e.message); }
+    }
+
+    $('addSkill').addEventListener('click', () => openSkillEditor(null));
+    $('cancelSkillBtn').addEventListener('click', () => {
+      skillEditor.classList.add('hidden');
+      editingSkillOriginal = null;
+    });
+    $('saveSkillBtn').addEventListener('click', async () => {
+      setFeedback(skillsOk, skillsErr, '', '');
+      const payload = {
+        originalName: editingSkillOriginal,
+        name: skillNameEl.value.trim(),
+        description: skillDescEl.value.trim(),
+        body: skillBodyEl.value,
+      };
+      try {
+        const r = await window.kimiDesktop.saveSkill(payload);
+        if (r.ok) {
+          setFeedback(skillsOk, skillsErr, 'ok', '技能已保存');
+          skillEditor.classList.add('hidden');
+          editingSkillOriginal = null;
+          loadSkills();
+        } else {
+          setFeedback(skillsOk, skillsErr, 'err', '保存失败：' + (r.error || '未知错误'));
+        }
+      } catch (e) { setFeedback(skillsOk, skillsErr, 'err', '保存异常：' + e.message); }
+    });
+
+    // ==================== 维护面板 ====================
+    const upgradeInfo = $('upgradeInfo');
+    const upgradeBtn = $('upgradeBtn');
+    const upgradeLog = $('upgradeLog');
+    const upgradeOk = $('upgradeOk');
+    const upgradeErr = $('upgradeErr');
+    const dataDirPath = $('dataDirPath');
+    const dataDirList = $('dataDirList');
+    const dataDirOk = $('dataDirOk');
+    const dataDirErr = $('dataDirErr');
+    const diagOk = $('diagOk');
+    const diagErr = $('diagErr');
+    const packDiagBtn = $('packDiagBtn');
+
+    // installLog 已有自己的订阅，这里只补充 upgradeLog 的写入
+    if (typeof window.kimiDesktop.onInstallLog === 'function') {
+      window.kimiDesktop.onInstallLog((msg) => {
+        upgradeLog.textContent += msg + '\n';
+        upgradeLog.scrollTop = upgradeLog.scrollHeight;
+      });
+    }
+
+    function formatBytes(n) {
+      const bytes = Number(n) || 0;
+      if (bytes < 1024) return bytes + ' B';
+      const units = ['KB', 'MB', 'GB'];
+      let v = bytes;
+      let u = -1;
+      do { v /= 1024; u++; } while (v >= 1024 && u < units.length - 1);
+      return v.toFixed(1) + ' ' + units[u];
+    }
+
+    async function checkUpgrade(userTriggered) {
+      if (typeof window.kimiDesktop.checkUpdate !== 'function') return;
+      upgradeInfo.textContent = '检测中…';
+      try {
+        const r = await window.kimiDesktop.checkUpdate();
+        if (r.ok) {
+          upgradeInfo.textContent = '当前 ' + (r.current || '未知') + ' · 最新 ' + (r.latest || '未知');
+          if (r.updateAvailable) {
+            upgradeBtn.classList.remove('hidden');
+            upgradeBtn.textContent = '一键升级（有新版本）';
+          } else {
+            upgradeBtn.classList.add('hidden');
+          }
+          if (userTriggered) {
+            setFeedback(upgradeOk, upgradeErr, 'ok', r.updateAvailable ? '发现新版本，可一键升级' : '已是最新版本');
+          }
+        } else {
+          upgradeInfo.textContent = '检查失败：' + (r.error || '未知错误');
+          if (userTriggered) setFeedback(upgradeOk, upgradeErr, 'err', '检查失败：' + (r.error || '未知错误'));
+        }
+      } catch (e) {
+        upgradeInfo.textContent = '检查失败：' + e.message;
+        if (userTriggered) setFeedback(upgradeOk, upgradeErr, 'err', '检查异常：' + e.message);
+      }
+    }
+
+    $('checkUpgradeBtn').addEventListener('click', () => checkUpgrade(true));
+
+    upgradeBtn.addEventListener('click', async () => {
+      if (typeof window.kimiDesktop.upgradeCli !== 'function') return;
+      if (!confirm('将重新运行官方安装脚本升级到最新版，升级后自动重启服务。继续？')) return;
+      upgradeBtn.disabled = true;
+      upgradeBtn.textContent = '正在升级…';
+      upgradeLog.classList.remove('hidden');
+      upgradeLog.textContent = '';
+      setFeedback(upgradeOk, upgradeErr, '', '');
+      try {
+        const r = await window.kimiDesktop.upgradeCli();
+        if (r.ok) {
+          setFeedback(upgradeOk, upgradeErr, 'ok', '升级完成，服务正在重启…');
+          upgradeBtn.classList.add('hidden');
+          refreshStatus();
+          checkUpgrade(false);
+        } else {
+          setFeedback(upgradeOk, upgradeErr, 'err', '升级失败：' + (r.error || '未知错误'));
+        }
+      } catch (e) {
+        setFeedback(upgradeOk, upgradeErr, 'err', '升级异常：' + e.message);
+      } finally {
+        upgradeBtn.disabled = false;
+        upgradeBtn.textContent = '一键升级';
+      }
+    });
+
+    function renderDataDirEntries(entries) {
+      dataDirList.innerHTML = '';
+      if (entries.length === 0) {
+        dataDirList.innerHTML = '<div class="hint">数据目录不存在或为空</div>';
+        return;
+      }
+      entries.forEach((entry) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<div class="card-title">${escapeHtml(entry.label || entry.key)}</div>
+          <div class="card-meta">体积 ${formatBytes(entry.bytes)} · ${entry.files || 0} 个文件</div>
+          ${entry.cleanable
+            ? `<div class="card-actions"><label><input type="checkbox" class="dir-check" data-key="${escapeHtml(entry.key)}"> 勾选清理</label></div>`
+            : '<div class="card-meta">受保护，不可清理</div>'}`;
+        dataDirList.appendChild(card);
+      });
+    }
+
+    async function loadDataDirStats() {
+      if (typeof window.kimiDesktop.getDataDirStats !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.getDataDirStats();
+        if (!r.ok) {
+          setFeedback(dataDirOk, dataDirErr, 'err', '读取失败：' + (r.error || '未知错误'));
+          return;
+        }
+        dataDirPath.textContent = '数据根目录：' + (r.root || '未知');
+        renderDataDirEntries(r.entries || []);
+      } catch (e) {
+        setFeedback(dataDirOk, dataDirErr, 'err', '读取异常：' + e.message);
+      }
+    }
+
+    $('refreshDataDirBtn').addEventListener('click', () => loadDataDirStats());
+
+    $('cleanupDataDirBtn').addEventListener('click', async () => {
+      if (typeof window.kimiDesktop.cleanupDataDirs !== 'function') return;
+      const keys = [...dataDirList.querySelectorAll('.dir-check:checked')].map((el) => el.dataset.key);
+      if (keys.length === 0) {
+        setFeedback(dataDirOk, dataDirErr, 'err', '请先勾选要清理的目录');
+        return;
+      }
+      const msg = keys.includes('sessions')
+        ? '清理 sessions 将删除全部本地会话记录与索引（云端不受影响），确定继续？'
+        : '确定清理勾选的目录吗？此操作不可撤销。';
+      if (!confirm(msg)) return;
+      try {
+        const r = await window.kimiDesktop.cleanupDataDirs(keys);
+        if (!r.ok) {
+          setFeedback(dataDirOk, dataDirErr, 'err', '清理失败：' + (r.error || '未知错误'));
+        } else if (r.errors && r.errors.length > 0) {
+          setFeedback(dataDirOk, dataDirErr, 'err', '部分目录清理失败：' + r.errors.map((x) => x.key + '（' + x.error + '）').join('；'));
+        } else {
+          setFeedback(dataDirOk, dataDirErr, 'ok', '已清理：' + (r.cleaned || []).join('、'));
+        }
+      } catch (e) {
+        setFeedback(dataDirOk, dataDirErr, 'err', '清理异常：' + e.message);
+      }
+      loadDataDirStats();
+    });
+
+    packDiagBtn.addEventListener('click', async () => {
+      if (typeof window.kimiDesktop.packDiagnostics !== 'function') return;
+      packDiagBtn.disabled = true;
+      packDiagBtn.textContent = '正在打包…';
+      setFeedback(diagOk, diagErr, '', '');
+      try {
+        const r = await window.kimiDesktop.packDiagnostics();
+        if (r.ok) {
+          setFeedback(diagOk, diagErr, 'ok', '诊断包已保存：' + r.path);
+        } else if (r.message !== '已取消') {
+          setFeedback(diagOk, diagErr, 'err', '打包失败：' + (r.message || '未知错误'));
+        }
+      } catch (e) {
+        setFeedback(diagOk, diagErr, 'err', '打包异常：' + e.message);
+      } finally {
+        packDiagBtn.disabled = false;
+        packDiagBtn.textContent = '打包诊断信息…';
+      }
     });
 
     // 初始化配置面板数据

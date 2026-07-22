@@ -42,12 +42,30 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   listProviders: () => ipcRenderer.invoke('config:listProviders'),
   removeProvider: (name) => ipcRenderer.invoke('config:removeProvider', name),
   addProviderCatalog: (args) => ipcRenderer.invoke('config:addProviderCatalog', args),
+  // Skills 管理 API
+  listSkills: () => ipcRenderer.invoke('skills:list'),
+  saveSkill: (payload) => ipcRenderer.invoke('skills:save', payload),
+  deleteSkill: (name) => ipcRenderer.invoke('skills:delete', name),
   // 会话启动器 API
   getSessions: () => ipcRenderer.invoke('session:getSessions'),
   refreshSessions: () => ipcRenderer.invoke('session:refreshSessions'),
   resumeSession: (id) => ipcRenderer.invoke('session:resumeSession', id),
   exportSession: (id) => ipcRenderer.invoke('session:exportSession', id),
   visualiseSession: (id) => ipcRenderer.invoke('session:visualiseSession', id),
-  createSessionInDirectory: () => ipcRenderer.invoke('session:createSessionInDirectory'),
+  createSessionInDirectory: (opts) => ipcRenderer.invoke('session:createSessionInDirectory', opts),
   openSessionLauncher: () => ipcRenderer.invoke('session:openLauncher'),
+  archiveSession: (id) => ipcRenderer.invoke('session:archiveSession', id),
+  deleteSession: (id) => ipcRenderer.invoke('session:deleteSession', id),
+  getCaps: () => ipcRenderer.invoke('session:getCaps'),
+  onSessionChanged: (fn) => {
+    const listener = () => fn();
+    ipcRenderer.on('session:changed', listener);
+    return () => ipcRenderer.removeListener('session:changed', listener);
+  },
+  // 维护 API
+  checkUpdate: () => ipcRenderer.invoke('cli:checkUpdate'),
+  upgradeCli: () => ipcRenderer.invoke('cli:upgrade'),
+  getDataDirStats: () => ipcRenderer.invoke('system:dataDirStats'),
+  cleanupDataDirs: (keys) => ipcRenderer.invoke('system:cleanupDataDirs', keys),
+  packDiagnostics: () => ipcRenderer.invoke('system:packDiagnostics'),
 });

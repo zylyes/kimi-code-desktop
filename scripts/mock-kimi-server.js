@@ -1,5 +1,5 @@
 // Mock Kimi 服务端 — 供桌面端联调/测试使用
-// HTTP: /openapi.json、/、问题答案提交、/control/* 控制端点
+// HTTP: /openapi.json、/、问题答案提交、会话归档/删除、/api/v1/models、/control/* 与 /mock/push/* 控制端点
 // WS: /api/v1/ws，子协议 kimi-code.bearer.<token> 鉴权，支持 /control/emit 广播事件
 // 端口 MOCK_PORT（默认 58999），token MOCK_TOKEN（默认 mock-token）
 const http = require('http');
@@ -29,6 +29,12 @@ function readBody(req) {
       try { resolve(JSON.parse(data || '{}')); } catch { resolve({}); }
     });
   });
+}
+
+// 与 WS 握手同一套 Bearer token 校验
+function authed(req) {
+  const m = (req.headers['authorization'] || '').match(/^Bearer\s+(.+?)\s*$/i);
+  return !!(m && m[1] === TOKEN);
 }
 
 // ---------- 事件场景 ----------
@@ -111,6 +117,10 @@ const scenarios = {
       },
     },
   }),
+  'session.deleted': (body) => ({
+    event: 'event.session.deleted',
+    payload: { session_id: (body && body.session_id) || DEFAULT_SESSION },
+  }),
   'task.started': () => ({
     event: 'event.task.started',
     payload: { task_id: 't1', title: '构建项目', progress: 0.5 },
@@ -175,7 +185,21 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
 
   if (req.method === 'GET' && p === '/openapi.json') {
-    return json(res, 200, { openapi: '3.0.0', info: { title: 'mock-kimi-server', version: '0.0.0' }, paths: {} });
+    return json(res, 200, {
+      openapi: '3.0.0',
+      info: { title: 'mock-kimi-server', version: '0.0.0' },
+      paths: {
+        '/api/v1/sessions/{session_id}:archive': {
+          post: { summary: 'Archive a session' },
+        },
+        '/api/v1/sessions/{session_id}': {
+          delete: { summary: 'Delete a session' },
+        },
+        '/api/v1/models': {
+          get: { summary: 'List available models' },
+        },
+      },
+    });
   }
 
   if (req.method === 'GET' && p === '/') {
@@ -193,6 +217,30 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { code: 0, data: {} });
   }
 
+  // 归档会话（路径含 :archive 动词）
+  const am = p.match(/^\/api\/v1\/sessions\/([^/]+):archive$/);
+  if (req.method === 'POST' && am) {
+    if (!authed(req)) return json(res, 401, { code: 1, error: 'unauthorized' });
+    console.log('MOCK_ARCHIVE ' + am[1]);
+    return json(res, 200, {});
+  }
+
+  // 删除会话，并广播 event.session.deleted
+  const dm = p.match(/^\/api\/v1\/sessions\/([^/]+)$/);
+  if (req.method === 'DELETE' && dm) {
+    if (!authed(req)) return json(res, 401, { code: 1, error: 'unauthorized' });
+    const sid = dm[1];
+    broadcast({ event: 'event.session.deleted', session_id: sid, payload: { session_id: sid } });
+    console.log('MOCK_SESSION_DELETED ' + sid);
+    return json(res, 200, {});
+  }
+
+  // 模型列表
+  if (req.method === 'GET' && p === '/api/v1/models') {
+    if (!authed(req)) return json(res, 401, { code: 1, error: 'unauthorized' });
+    return json(res, 200, { models: [{ id: 'kimi-for-coding' }, { id: 'kimi-for-coding-highspeed' }] });
+  }
+
   if (req.method === 'POST' && p === '/control/emit') {
     const body = await readBody(req);
     const name = body.scenario;
@@ -206,6 +254,15 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && p === '/control/scenarios') {
     return json(res, 200, { code: 0, scenarios: Object.keys(scenarios) });
+  }
+
+  // 便捷触发：向所有 WS 客户端推送 event.session.deleted
+  if (req.method === 'POST' && p === '/mock/push/session-deleted') {
+    const body = await readBody(req);
+    const sid = (body && body.session_id) || DEFAULT_SESSION;
+    broadcast({ event: 'event.session.deleted', session_id: sid, payload: { session_id: sid } });
+    console.log('MOCK_EMIT ' + JSON.stringify({ event: 'event.session.deleted' }));
+    return json(res, 200, { code: 0, emitted: 'session.deleted' });
   }
 
   json(res, 404, { code: 1, error: 'not found' });

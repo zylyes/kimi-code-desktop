@@ -8,6 +8,7 @@ const os = require('os');
 const http = require('http');
 const WebSocket = require('ws');
 const configManager = require('./config-manager');
+const skillsManager = require('./skills-manager');
 
 const APP_NAME = 'Kimi Code Desktop';
 const isDev = process.argv.includes('--dev');
@@ -63,6 +64,18 @@ const usageState = {
   pendingApprovals: 0,
   pendingQuestions: 0,
 };
+// 服务端能力探测（来自 /openapi.json，按路径自适应，探测不到则功能降级禁用）
+const serverCaps = {
+  archive: false, archivePath: null,
+  delete: false, deletePath: null, deleteMethod: 'post',
+  models: false, modelsPath: null,
+};
+// 认证错误提示去抖（每次启动世代只弹一次）
+let authErrorShownForGen = -1;
+// 模型切换下拉缓存（fetchModels 填充，菜单构建时消费）
+let cachedModels = [];
+// 模型菜单防抖刷新定时器
+let modelMenuRefreshTimer = null;
 
 // ---------- 路径与持久化 ----------
 const userDataDir = () => app.getPath('userData');
@@ -106,7 +119,21 @@ function logLine(msg) {
 }
 
 function loadConfig() {
-  return Object.assign({ mode: 'auto', cliPath: '', manualUrl: '', shellPath: '', httpProxy: '', httpsProxy: '', allProxy: '', noProxy: '' }, readJSON(configFile(), {}));
+  return Object.assign({
+    mode: 'auto', cliPath: '', manualUrl: '', shellPath: '',
+    httpProxy: '', httpsProxy: '', allProxy: '', noProxy: '',
+    port: null, host: '', logLevel: '', kimiCodeHome: '',
+  }, readJSON(configFile(), {}));
+}
+
+// 自定义 KIMI_CODE_HOME：尽早注入 process.env，使全进程（含 config-manager）统一生效
+function applyKimiCodeHomeFromConfig() {
+  const cfg = readJSON(configFile(), {});
+  const home = typeof cfg.kimiCodeHome === 'string' ? cfg.kimiCodeHome.trim() : '';
+  if (home && home !== process.env.KIMI_CODE_HOME) {
+    process.env.KIMI_CODE_HOME = home;
+    logLine(`使用自定义 KIMI_CODE_HOME: ${home}`);
+  }
 }
 
 function detectGitBash() {
@@ -136,6 +163,7 @@ function buildKimiEnv(cfg) {
   if (cfg.httpsProxy) env.HTTPS_PROXY = cfg.httpsProxy;
   if (cfg.allProxy) env.ALL_PROXY = cfg.allProxy;
   if (cfg.noProxy) env.NO_PROXY = cfg.noProxy;
+  if (cfg.kimiCodeHome) env.KIMI_CODE_HOME = cfg.kimiCodeHome;
   const bashPath = detectGitBash();
   if (bashPath) {
     env.KIMI_SHELL_PATH = bashPath;
@@ -270,6 +298,30 @@ function httpPostShutdown(base, token) {
   });
 }
 
+// 通用 REST 请求（归档/删除等动作），返回 { status, data } 或 null
+function httpRequest(method, url, token, timeout = 8000) {
+  return new Promise((resolve) => {
+    const opts = {
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname + url.search,
+      method,
+      timeout,
+    };
+    if (token) {
+      opts.headers = { 'Authorization': `Bearer ${token}` };
+    }
+    const req = http.request(opts, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, data }));
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.end();
+  });
+}
+
 // ---------- 优雅停止 ----------
 function waitForProcessExit(proc, timeout) {
   return new Promise((resolve, reject) => {
@@ -336,6 +388,38 @@ const URL_RE = /https?:\/\/(?:127\.0\.0\.1|localhost|\[?::1\]?):\d+\/[^\s"'<>)\]
 const ANSI_RE = /\[[0-9;?]*[a-zA-Z]/g;
 const stripAnsi = (s) => s.replace(ANSI_RE, '');
 
+// ---------- 认证错误识别与 FAQ 引导 ----------
+const AUTH_ERROR_RE = /401|unauthorized|forbidden|invalid.{0,20}(api[ -]?key|token|credential)|authentication (failed|error)|登录已过期|授权已过期|凭证无效/i;
+
+function handleAuthError(gen, source) {
+  if (gen !== serverGeneration) return;
+  if (authErrorShownForGen === gen) return;
+  authErrorShownForGen = gen;
+  logLine(`检测到认证错误（${source}），弹出排查引导`);
+  showDesktopNotification('认证失败', 'Kimi Code 认证错误，点击查看排查建议');
+  const detail = [
+    '可能原因与排查建议：',
+    '',
+    '1. api.kimi.com 与 api.moonshot.cn 的 API 密钥不通用，请确认密钥与供应商域名匹配；',
+    '2. 设备授权超过 30 天未使用会自动过期，请重新登录；',
+    '3. 高速版模型无权限时返回 401，且填错模型 ID 会静默回退不报错，请检查 default_model；',
+    '4. 若使用自定义供应商，请检查 baseURL 与密钥是否正确。',
+  ].join('\n');
+  dialog.showMessageBox({
+    type: 'error',
+    title: '认证失败',
+    message: 'Kimi Code 认证错误',
+    detail,
+    buttons: ['重新登录', '打开设置', '忽略'],
+    defaultId: 0,
+    cancelId: 2,
+  }).then(({ response }) => {
+    if (response === 0 || response === 1) {
+      showSetup('auth-error');
+    }
+  }).catch(() => { /* ignore */ });
+}
+
 function startKimiServer() {
   const cfg = loadConfig();
   const cli = resolveCliPath(cfg);
@@ -360,11 +444,20 @@ function startKimiServer() {
 
   // 版本检测决定参数
   const ver = getCliVersion(cli);
+  const isNewCli = ver && (ver.semver[0] >= 1 || (ver.semver[0] === 0 && ver.semver[1] >= 28));
   let args;
-  if (ver && (ver.semver[0] >= 1 || (ver.semver[0] === 0 && ver.semver[1] >= 28))) {
+  if (isNewCli) {
     args = ['web', '--no-open'];
+    // 自定义启动参数（仅新版 CLI 支持）
+    const port = Number(cfg.port);
+    if (Number.isInteger(port) && port > 0 && port < 65536) args.push('--port', String(port));
+    if (cfg.host && typeof cfg.host === 'string' && cfg.host.trim()) args.push('--host', cfg.host.trim());
+    if (cfg.logLevel && typeof cfg.logLevel === 'string' && cfg.logLevel.trim()) args.push('--log-level', cfg.logLevel.trim());
   } else {
     args = ['web', '--no-open', '--foreground'];
+    if (cfg.port || cfg.host || cfg.logLevel) {
+      logLine('当前 CLI 版本不支持 --port/--host/--log-level，已忽略自定义启动参数');
+    }
   }
   if (pendingSessionId) {
     args.unshift('--session', pendingSessionId);
@@ -392,7 +485,10 @@ function startKimiServer() {
     const text = stripAnsi(chunk.toString('utf8'));
     buf += text;
     text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
-      .forEach((line) => logLine(`kimi: ${line}`));
+      .forEach((line) => {
+        logLine(`kimi: ${line}`);
+        if (AUTH_ERROR_RE.test(line)) handleAuthError(gen, 'CLI 输出');
+      });
     if (!urlFound) {
       const m = buf.match(URL_RE);
       if (m) {
@@ -456,6 +552,38 @@ function startKimiServer() {
 }
 
 // ---------- 轮询 /openapi.json ----------
+// 从 openapi.json paths 探测服务端能力，路径形态自适应（:archive 自定义动词或 /archive 子路径）
+function detectServerCaps(openapi) {
+  serverCaps.archive = false; serverCaps.archivePath = null;
+  serverCaps.delete = false; serverCaps.deletePath = null; serverCaps.deleteMethod = 'post';
+  serverCaps.models = false; serverCaps.modelsPath = null;
+  const paths = openapi && typeof openapi === 'object' ? openapi.paths : null;
+  if (!paths || typeof paths !== 'object') return;
+  for (const [p, ops] of Object.entries(paths)) {
+    if (!ops || typeof ops !== 'object') continue;
+    const methods = Object.keys(ops).map((m) => m.toLowerCase());
+    if (/\/sessions\/\{[^}]+\}:archive\/?$/.test(p) && methods.includes('post')) {
+      serverCaps.archive = true; serverCaps.archivePath = p;
+    } else if (/\/sessions\/\{[^}]+\}\/archive\/?$/.test(p) && methods.includes('post')) {
+      serverCaps.archive = true; serverCaps.archivePath = p;
+    } else if (/\/sessions\/\{[^}]+\}:delete\/?$/.test(p) && methods.includes('post')) {
+      serverCaps.delete = true; serverCaps.deletePath = p; serverCaps.deleteMethod = 'post';
+    } else if (/\/sessions\/\{[^}]+\}\/?$/.test(p) && methods.includes('delete')) {
+      serverCaps.delete = true; serverCaps.deletePath = p; serverCaps.deleteMethod = 'delete';
+    } else if (/\/models/.test(p) && methods.includes('get') && !serverCaps.models) {
+      serverCaps.models = true; serverCaps.modelsPath = p;
+    }
+  }
+  logLine(`服务端能力: archive=${serverCaps.archive} delete=${serverCaps.delete} models=${serverCaps.models}`);
+}
+
+// 将会话 ID 代入路径模板（{xxx} → id），并附加 /api/v1 前缀（若模板缺失）
+function buildSessionActionUrl(base, pathTemplate, sessionId) {
+  const rel = pathTemplate.replace(/\{[^}]+\}/g, encodeURIComponent(sessionId));
+  const full = rel.startsWith('/api/') ? rel : `/api/v1${rel.startsWith('/') ? '' : '/'}${rel}`;
+  return new URL(full, base);
+}
+
 function startPolling(targetUrl, base, token, gen) {
   const maxRetries = 15;
   const retryDelay = 1000;
@@ -494,6 +622,13 @@ function startPolling(targetUrl, base, token, gen) {
       }
       if (res && res.status === 200) {
         clearTimeout(timer);
+        try {
+          detectServerCaps(JSON.parse(res.data));
+        } catch {
+          logLine('openapi.json 解析失败，能力探测跳过（归档/删除/模型列表将禁用）');
+        }
+        // 拉取模型列表并防抖刷新托盘/应用菜单（异步，不阻塞页面加载）
+        fetchModels().then(refreshModelMenus);
         if (sessionLauncherVisible) {
           logLine('服务就绪，但会话启动器当前可见，跳过自动加载');
           return;
@@ -1131,6 +1266,20 @@ function startWsSubscription() {
         return;
       }
 
+      // 会话被删除（其他客户端或本端触发）→ 刷新启动器列表
+      if (event === 'event.session.deleted' || event === 'session.deleted' ||
+          event === 'event.session.archived' || event === 'session.archived') {
+        wsSubscribedSessions.clear();
+        notifySessionChanged();
+        return;
+      }
+
+      // 模型目录变更 → 重新拉取模型列表并刷新菜单
+      if (event === 'event.model_catalog.changed' || event === 'model_catalog.changed') {
+        fetchModels().then(refreshModelMenus);
+        return;
+      }
+
       // 处理任务完成类事件（仅精确匹配完成事件，不匹配 usage_updated/started/progress/任意 task.*）
       const completionEvents = [
         'event.task.completed', 'task.completed', 'task.done',
@@ -1155,6 +1304,7 @@ function startWsSubscription() {
     if (gen !== wsGeneration) return;
     // 日志不泄露 token 或 URL
     logLine(`WebSocket 错误: ${err.message}`);
+    if (AUTH_ERROR_RE.test(err.message || '')) handleAuthError(serverGeneration, 'WebSocket');
     cleanupWsSoft();
     scheduleWsReconnect(gen);
   });
@@ -1162,6 +1312,10 @@ function startWsSubscription() {
   wsClient.on('close', (code, reason) => {
     if (gen !== wsGeneration) return;
     logLine(`WebSocket 连接关闭 (code=${code})`);
+    const reasonText = reason ? reason.toString('utf8') : '';
+    if (code === 1008 || code === 4401 || code === 4403 || AUTH_ERROR_RE.test(reasonText)) {
+      handleAuthError(serverGeneration, 'WebSocket');
+    }
     cleanupWsSoft();
     scheduleWsReconnect(gen);
   });
@@ -1244,6 +1398,183 @@ async function restartServer() {
   return restartPromise;
 }
 
+// ---------- 默认模型切换 ----------
+// 读取当前默认模型，失败/为空时回退内置默认
+function getCurrentDefaultModel() {
+  try {
+    const data = configManager.loadConfigToml().data;
+    const model = data && typeof data.default_model === 'string' ? data.default_model.trim() : '';
+    if (model) return model;
+  } catch { /* 配置读取失败时使用默认值 */ }
+  return 'kimi-for-coding';
+}
+
+// 拉取服务端模型列表（容错解析多种响应形态），失败回退内置候选；结果写入 cachedModels
+async function fetchModels() {
+  let models = [];
+  try {
+    if (serverCaps.models && knownServerBase && knownServerToken) {
+      const url = `${knownServerBase}${serverCaps.modelsPath || '/api/v1/models'}`;
+      const res = await httpGet(url, knownServerToken);
+      if (res && res.status === 200) {
+        try {
+          const body = JSON.parse(res.data);
+          // 兼容数组本身 / obj.models / obj.data 三种形态
+          const arr = Array.isArray(body) ? body
+            : (body && typeof body === 'object'
+              ? (Array.isArray(body.models) ? body.models : (Array.isArray(body.data) ? body.data : null))
+              : null);
+          if (arr) {
+            // 元素为字符串或含 id/model/name 字段的对象，去重去空
+            const parsed = arr.map((item) => {
+              if (typeof item === 'string') return item.trim();
+              if (item && typeof item === 'object') return String(item.id || item.model || item.name || '').trim();
+              return '';
+            }).filter(Boolean);
+            models = [...new Set(parsed)];
+          }
+        } catch {
+          logLine('模型列表响应解析失败，使用回退候选');
+        }
+      }
+    }
+  } catch (err) {
+    logLine(`获取模型列表失败: ${err.message}`);
+  }
+  if (models.length === 0) {
+    // 回退：内置候选（去重去空）
+    models = [...new Set([getCurrentDefaultModel(), 'kimi-for-coding', 'kimi-for-coding-highspeed'].filter(Boolean))];
+  }
+  // 确保当前默认模型始终在列表首位附近
+  const current = getCurrentDefaultModel();
+  if (current && !models.includes(current)) models.unshift(current);
+  cachedModels = models;
+  return models;
+}
+
+// 防抖刷新托盘与应用菜单中的模型下拉
+function refreshModelMenus() {
+  if (modelMenuRefreshTimer) clearTimeout(modelMenuRefreshTimer);
+  modelMenuRefreshTimer = setTimeout(() => {
+    modelMenuRefreshTimer = null;
+    try { updateTrayStatus(); } catch { /* ignore */ } // 内部会重建托盘菜单
+    try { buildMenu(); } catch { /* ignore */ }
+  }, 500);
+}
+
+// 构建「默认模型」子菜单（radio 标记当前默认模型）
+function buildModelSubmenu() {
+  if (!cachedModels || cachedModels.length === 0) {
+    return [{ label: '（服务就绪后可用）', enabled: false }];
+  }
+  const current = getCurrentDefaultModel();
+  return cachedModels.map((m) => ({
+    label: m,
+    type: 'radio',
+    checked: m === current,
+    click: () => switchModel(m),
+  }));
+}
+
+// 切换默认模型：写入 config.toml（doctor 校验失败自动回滚），成功后询问是否重启服务
+async function switchModel(modelId) {
+  if (!modelId || modelId === getCurrentDefaultModel()) return;
+  try {
+    const cfg = loadConfig();
+    const cli = resolveCliPath(cfg);
+    if (!cli) {
+      dialog.showMessageBox({ type: 'error', title: '切换默认模型', message: '未找到 kimi CLI，无法写入配置' });
+      return;
+    }
+    const data = configManager.loadConfigToml().data || {};
+    const prev = typeof data.default_model === 'string' ? data.default_model : '';
+    data.default_model = modelId;
+    await configManager.saveConfigToml(data, cli, buildKimiEnv(cfg));
+    logLine(`默认模型已切换: ${prev || '(空)'} -> ${modelId}`);
+    const { response } = await dialog.showMessageBox({
+      type: 'question',
+      title: '切换默认模型',
+      message: `默认模型已切换为 ${modelId}，立即重启服务生效？`,
+      buttons: ['立即重启', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) {
+      await restartServer();
+    }
+  } catch (err) {
+    // doctor 校验失败时配置已自动回滚
+    logLine(`切换默认模型失败: ${err.message}`);
+    dialog.showMessageBox({ type: 'error', title: '切换默认模型', message: `切换失败：${err.message}` });
+  }
+  refreshModelMenus();
+}
+
+// ---------- 轮换访问令牌 ----------
+// 调用 CLI 生成新 token，更新内存状态并重载窗口（loadMain 内部会重建 WS 订阅）
+async function rotateToken() {
+  if (!knownServerBase) {
+    dialog.showMessageBox({ type: 'warning', title: '轮换访问令牌', message: '服务未就绪，无法轮换令牌' });
+    return;
+  }
+  const confirm = await dialog.showMessageBox({
+    type: 'question',
+    title: '轮换访问令牌',
+    message: '确定要轮换访问令牌吗？',
+    detail: '旧令牌将立即失效，窗口会重新加载，继续？',
+    buttons: ['轮换', '取消'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (confirm.response !== 0) return;
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  if (!cli) {
+    dialog.showMessageBox({ type: 'error', title: '轮换访问令牌', message: '未找到 kimi CLI，无法轮换令牌' });
+    return;
+  }
+  const runResult = await new Promise((resolve) => {
+    let settled = false;
+    const done = (r) => { if (!settled) { settled = true; resolve(r); } };
+    let child;
+    try {
+      child = spawn(cli, ['web', 'rotate-token'], { env: buildKimiEnv(cfg), windowsHide: true });
+    } catch (err) {
+      done({ error: err.message });
+      return;
+    }
+    const timer = setTimeout(() => {
+      forceKill(child.pid);
+      done({ error: '轮换令牌超时（20 秒）' });
+    }, 20000);
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+    child.on('error', (err) => { clearTimeout(timer); done({ error: err.message }); });
+    child.on('exit', (code) => { clearTimeout(timer); done({ code, stderr }); });
+  });
+  if (runResult.error || runResult.code !== 0) {
+    const msg = runResult.error || (runResult.stderr || '').trim() || `轮换进程退出码 ${runResult.code}`;
+    logLine(`轮换访问令牌失败: ${msg}`);
+    dialog.showMessageBox({ type: 'error', title: '轮换访问令牌', message: `轮换失败：${msg}` });
+    return;
+  }
+  // 等待 token 文件落盘后读取新 token
+  await new Promise((r) => setTimeout(r, 500));
+  const newToken = readServerToken();
+  if (!newToken) {
+    logLine('轮换访问令牌失败：未读取到新令牌');
+    dialog.showMessageBox({ type: 'error', title: '轮换访问令牌', message: '轮换失败：未读取到新令牌' });
+    return;
+  }
+  knownServerToken = newToken;
+  // 废弃旧 WS 订阅并清理，loadMain 会以新 token 重建订阅
+  wsGeneration++;
+  cleanupWsPermanent();
+  loadMain(`${knownServerBase}/#token=${encodeURIComponent(newToken)}`);
+  logLine('访问令牌已轮换，窗口已重新加载');
+  dialog.showMessageBox({ type: 'info', title: '轮换访问令牌', message: '访问令牌已轮换，窗口已重新加载' });
+}
+
 // ---------- 系统托盘 ----------
 function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -1282,6 +1613,7 @@ function buildTrayMenu(statusLabel) {
     { label: '显示主窗口', click: showMainWindow },
     { label: '打开会话启动器', click: showSessionLauncher },
     { label: '新建 Web 会话', click: () => { showMainWindow(); restartServer(); } },
+    { label: '默认模型', submenu: buildModelSubmenu() },
     { type: 'separator' },
     { label: '退出', click: () => { quitting = true; app.quit(); } },
   );
@@ -1525,6 +1857,8 @@ function buildMenu() {
         { label: '打开会话启动器', accelerator: 'CmdOrCtrl+Shift+S', click: showSessionLauncher },
         { type: 'separator' },
         { label: '新建 Web 会话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
+        { label: '默认模型', submenu: buildModelSubmenu() },
+        { label: '轮换访问令牌…', click: rotateToken },
         { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
         { type: 'separator' },
         { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
@@ -1564,6 +1898,15 @@ function buildMenu() {
               ? `kimi doctor 诊断通过。\n\n输出：\n${result.output}`
               : `${result.error}\n\n输出：\n${result.output}`;
             dialog.showMessageBox({ type: result.ok ? 'info' : 'error', title, message: title, detail });
+          });
+        } },
+        { label: '打包诊断信息…', click: async () => {
+          const r = await packDiagnostics();
+          dialog.showMessageBox({
+            type: r.ok ? 'info' : 'error',
+            title: '打包诊断信息',
+            message: r.ok ? '诊断包已保存' : '打包失败',
+            detail: r.ok ? r.path : (r.message || ''),
           });
         } },
         {
@@ -1746,6 +2089,34 @@ ipcMain.handle('config:addProviderCatalog', async (_e, args) => {
   }
 });
 
+// ---------- Skills 管理 IPC ----------
+ipcMain.handle('skills:list', () => {
+  try {
+    return skillsManager.scanSkills();
+  } catch (err) {
+    logLine(`skills:list 失败: ${err.message}`);
+    return { ok: false, error: err.message, skills: [] };
+  }
+});
+
+ipcMain.handle('skills:save', (_e, payload) => {
+  try {
+    return skillsManager.saveSkill(payload || {});
+  } catch (err) {
+    logLine(`skills:save 失败: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('skills:delete', (_e, name) => {
+  try {
+    return skillsManager.deleteSkill(name);
+  } catch (err) {
+    logLine(`skills:delete 失败: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('app:info', () => {
   const cfg = loadConfig();
   const cli = resolveCliPath(cfg);
@@ -1770,6 +2141,10 @@ ipcMain.handle('app:info', () => {
       httpsProxy: cfg.httpsProxy || '',
       allProxy: cfg.allProxy || '',
       noProxy: cfg.noProxy || '',
+      port: cfg.port || '',
+      host: cfg.host || '',
+      logLevel: cfg.logLevel || '',
+      kimiCodeHome: cfg.kimiCodeHome || '',
     },
     loadedUrl,
     isDev,
@@ -1778,6 +2153,8 @@ ipcMain.handle('app:info', () => {
 
 ipcMain.handle('setup:save', async (_e, payload) => {
   const p = payload || {};
+  const prev = loadConfig();
+  const portRaw = typeof p.port === 'number' ? p.port : parseInt(ensureString(p.port), 10);
   const cfg = {
     mode: p.mode === 'manual' ? 'manual' : 'auto',
     cliPath: ensureString(p.cliPath),
@@ -1787,9 +2164,16 @@ ipcMain.handle('setup:save', async (_e, payload) => {
     httpsProxy: ensureString(p.httpsProxy),
     allProxy: ensureString(p.allProxy),
     noProxy: ensureString(p.noProxy),
+    port: Number.isInteger(portRaw) && portRaw > 0 && portRaw < 65536 ? portRaw : null,
+    host: ensureString(p.host),
+    logLevel: ensureString(p.logLevel),
+    kimiCodeHome: ensureString(p.kimiCodeHome),
   };
   writeJSON(configFile(), cfg);
   logLine(`配置已保存: mode=${cfg.mode}`);
+  if (cfg.kimiCodeHome !== (prev.kimiCodeHome || '')) {
+    logLine('KIMI_CODE_HOME 已变更，重启应用后完全生效');
+  }
   if (cfg.mode === 'manual' && cfg.manualUrl) {
     stoppingIntentionally = true;
     await stopKimi();
@@ -2029,6 +2413,296 @@ ipcMain.handle('cli:install', (_e, installDir) => {
     });
   });
 });
+
+// ---------- 维护 IPC ----------
+// 语义化版本比较：a>b 返回 1，a<b 返回 -1，相等返回 0（按 . 分段数字比较）
+function compareSemver(a, b) {
+  const pa = String(a).replace(/^v/, '').split('.').map((s) => parseInt(s, 10) || 0);
+  const pb = String(b).replace(/^v/, '').split('.').map((s) => parseInt(s, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const x = pa[i] || 0;
+    const y = pb[i] || 0;
+    if (x > y) return 1;
+    if (x < y) return -1;
+  }
+  return 0;
+}
+
+ipcMain.handle('cli:checkUpdate', async () => {
+  try {
+    const cli = resolveCliPath(loadConfig());
+    const current = (cli ? getCliVersion(cli) : null)?.version || '';
+    let latest = '';
+    try {
+      const latestFile = path.join(getKimiHomeDir(), 'updates', 'latest.json');
+      const data = JSON.parse(fs.readFileSync(latestFile, 'utf8'));
+      latest = String(data.latest_version || data.version || data.tag_name || '').replace(/^v/, '');
+    } catch { /* latest.json 不存在或损坏时视为无更新信息 */ }
+    const updateAvailable = !!(current && latest && compareSemver(current, latest) !== 0);
+    return { ok: true, current, latest, updateAvailable };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('cli:upgrade', async () => {
+  if (restartPromise) {
+    return { ok: false, error: '服务正在重启，请稍后再试' };
+  }
+  const dir = getKimiHomeDir();
+  const ps = path.join(
+    process.env.SystemRoot || 'C:\\Windows',
+    'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe',
+  );
+  const send = (msg) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.send('install:log', msg); } catch { /* ignore */ }
+    }
+    logLine(`upgrade: ${msg}`);
+  };
+  // 与 cli:install 相同的官方安装脚本，覆盖安装即升级
+  const runResult = await new Promise((resolve) => {
+    let settled = false;
+    const done = (r) => { if (!settled) { settled = true; resolve(r); } };
+    let child;
+    try {
+      child = spawn(ps, [
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+        'irm https://code.kimi.com/kimi-code/install.ps1 | iex',
+      ], {
+        env: { ...process.env, KIMI_INSTALL_DIR: dir },
+        windowsHide: true,
+      });
+    } catch (err) {
+      done({ error: err.message });
+      return;
+    }
+    const onData = (chunk) => {
+      chunk.toString('utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean).forEach(send);
+    };
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onData);
+    child.on('error', (err) => done({ error: err.message }));
+    child.on('exit', (code) => done({ code }));
+  });
+  if (runResult.error) {
+    return { ok: false, error: runResult.error };
+  }
+  const exe = path.join(dir, 'bin', process.platform === 'win32' ? 'kimi.exe' : 'kimi');
+  if (runResult.code === 0 && fs.existsSync(exe)) {
+    logLine(`CLI 升级完成: ${exe}`);
+    cliVersionCache = null; // 清除版本缓存，下次重新探测
+    await restartServer();
+    return { ok: true, cliPath: exe };
+  }
+  return { ok: false, error: `升级脚本退出码 ${runResult.code}，未找到 ${exe}` };
+});
+
+// 递归统计目录大小与文件数（单文件失败跳过，全程容错）
+function dirStats(dir) {
+  let bytes = 0;
+  let files = 0;
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      try {
+        if (entry.isDirectory()) {
+          const sub = dirStats(full);
+          bytes += sub.bytes;
+          files += sub.files;
+        } else if (entry.isFile()) {
+          bytes += fs.statSync(full).size;
+          files++;
+        }
+      } catch { /* 单文件失败跳过 */ }
+    }
+  } catch { /* 目录不可读时按 0 计 */ }
+  return { bytes, files };
+}
+
+ipcMain.handle('system:dataDirStats', async () => {
+  try {
+    const root = getKimiHomeDir();
+    const entries = [];
+    if (fs.existsSync(root)) {
+      const defs = [
+        { key: 'sessions', label: '会话数据', cleanable: true },
+        { key: 'logs', label: '日志', cleanable: true },
+        { key: 'bin', label: 'CLI 二进制与缓存', cleanable: true },
+        { key: 'updates', label: '更新缓存', cleanable: true },
+        { key: 'credentials', label: '登录凭据', cleanable: false },
+        { key: 'server', label: '服务状态', cleanable: true },
+      ];
+      for (const def of defs) {
+        try {
+          const dir = path.join(root, def.key);
+          if (fs.existsSync(dir)) {
+            const stats = dirStats(dir);
+            entries.push({ key: def.key, label: def.label, bytes: stats.bytes, files: stats.files, cleanable: def.cleanable });
+          }
+        } catch { /* 单项失败跳过 */ }
+      }
+    }
+    return { ok: true, root, entries };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('system:cleanupDataDirs', async (_e, keys) => {
+  // 白名单：登录凭据与其他目录一律拒绝
+  const ALLOWED = new Set(['sessions', 'logs', 'bin', 'updates', 'server']);
+  const root = getKimiHomeDir();
+  const cleaned = [];
+  const errors = [];
+  const list = Array.isArray(keys) ? keys : [];
+  for (const key of list) {
+    const k = String(key);
+    if (!ALLOWED.has(k)) {
+      errors.push({ key: k, error: '不允许清理的目录' });
+      continue;
+    }
+    try {
+      if (k === 'sessions') {
+        // 会话索引一并删除
+        logLine('正在清理会话数据目录（含会话索引）');
+        try { fs.rmSync(path.join(root, 'session_index.jsonl'), { force: true }); } catch { /* ignore */ }
+      }
+      const dir = path.join(root, k);
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.mkdirSync(dir, { recursive: true });
+      cleaned.push(k);
+      logLine(`数据目录已清理: ${k}`);
+    } catch (err) {
+      logLine(`清理数据目录失败 (${k}): ${err.message}`);
+      errors.push({ key: k, error: err.message });
+    }
+  }
+  return { ok: true, cleaned, errors };
+});
+
+// 打包诊断信息（「帮助」菜单与 IPC 共用）：日志 + doctor 输出 + 最近会话导出，压缩为 zip
+async function packDiagnostics() {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: '保存诊断包',
+    defaultPath: path.join(app.getPath('desktop'), `kimi-diagnostics-${new Date().toISOString().slice(0, 10)}.zip`),
+    filters: [{ name: 'ZIP', extensions: ['zip'] }],
+  });
+  if (result.canceled || !result.filePath) {
+    return { ok: false, message: '已取消' };
+  }
+  const target = result.filePath;
+  let staging = null;
+  const cleanupStaging = () => {
+    if (staging) {
+      try { fs.rmSync(staging, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  };
+  try {
+    staging = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-diag-'));
+    // 应用日志（存在才复制）
+    try {
+      const log = logFile();
+      if (fs.existsSync(log)) fs.copyFileSync(log, path.join(staging, 'app.log'));
+    } catch (err) {
+      logLine(`复制应用日志失败: ${err.message}`);
+    }
+    // kimi doctor 输出
+    try {
+      const doctor = await runKimiDoctor();
+      const doctorText = (doctor.ok ? 'kimi doctor 诊断通过\n\n' : `kimi doctor 诊断失败: ${doctor.error || ''}\n\n`) + (doctor.output || '');
+      fs.writeFileSync(path.join(staging, 'doctor.txt'), doctorText, 'utf8');
+    } catch (err) {
+      logLine(`写入 doctor 输出失败: ${err.message}`);
+    }
+    // 最近会话导出（60s 超时，失败仅记录日志不阻断）
+    try {
+      const sessions = getAllSessions();
+      if (sessions.length > 0) {
+        const cfg = loadConfig();
+        const cli = resolveCliPath(cfg);
+        if (cli) {
+          await new Promise((resolve) => {
+            let settled = false;
+            const done = () => { if (!settled) { settled = true; resolve(); } };
+            let child;
+            try {
+              child = spawn(cli, ['export', sessions[0].sessionId, '-o', staging, '-y'], {
+                stdio: ['ignore', 'pipe', 'pipe'],
+                windowsHide: true,
+                env: buildKimiEnv(cfg),
+              });
+            } catch (err) {
+              logLine(`启动会话导出失败: ${err.message}`);
+              done();
+              return;
+            }
+            const timer = setTimeout(() => {
+              logLine('诊断包会话导出超时（60 秒）');
+              forceKill(child.pid);
+              done();
+            }, 60000);
+            child.on('error', (err) => {
+              clearTimeout(timer);
+              logLine(`会话导出进程错误: ${err.message}`);
+              done();
+            });
+            child.on('exit', (code) => {
+              clearTimeout(timer);
+              if (code === 0) logLine(`最近会话已导出至诊断包: ${sessions[0].sessionId}`);
+              else logLine(`会话导出退出码 ${code}（诊断打包继续）`);
+              done();
+            });
+          });
+        }
+      }
+    } catch (err) {
+      logLine(`导出最近会话失败（诊断打包继续）: ${err.message}`);
+    }
+    // PowerShell 压缩为 zip
+    const ps = path.join(
+      process.env.SystemRoot || 'C:\\Windows',
+      'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe',
+    );
+    // PowerShell 单引号路径转义：' → ''
+    const psStaging = staging.replace(/'/g, "''");
+    const psTarget = target.replace(/'/g, "''");
+    const zipResult = await new Promise((resolve) => {
+      let settled = false;
+      const done = (r) => { if (!settled) { settled = true; resolve(r); } };
+      let child;
+      try {
+        child = spawn(ps, [
+          '-NoProfile', '-Command',
+          `Compress-Archive -Path '${psStaging}\\*' -DestinationPath '${psTarget}' -Force`,
+        ], { windowsHide: true });
+      } catch (err) {
+        done({ error: err.message });
+        return;
+      }
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+      child.on('error', (err) => done({ error: err.message }));
+      child.on('exit', (code) => done({ code, stderr }));
+    });
+    if (!zipResult.error && zipResult.code === 0 && fs.existsSync(target)) {
+      cleanupStaging();
+      logLine(`诊断包已保存: ${target}`);
+      return { ok: true, path: target };
+    }
+    const msg = zipResult.error || (zipResult.stderr || '').trim() || `压缩进程退出码 ${zipResult.code}`;
+    cleanupStaging();
+    logLine(`诊断包打包失败: ${msg}`);
+    return { ok: false, message: msg };
+  } catch (err) {
+    cleanupStaging();
+    logLine(`诊断包打包异常: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+}
+
+ipcMain.handle('system:packDiagnostics', async () => packDiagnostics());
 
 // ---------- 会话管理（阶段2）----------
 const SESSION_TIMEOUT = 30000;
@@ -2294,7 +2968,7 @@ ipcMain.handle('session:visualiseSession', async (_e, sessionId) => {
   });
 });
 
-ipcMain.handle('session:createSessionInDirectory', async () => {
+ipcMain.handle('session:createSessionInDirectory', async (_e, opts) => {
   const dirResult = await dialog.showOpenDialog(mainWindow, {
     title: '选择工作目录',
     properties: ['openDirectory', 'createDirectory'],
@@ -2305,6 +2979,25 @@ ipcMain.handle('session:createSessionInDirectory', async () => {
   const workDir = dirResult.filePaths[0];
   if (!knownServerBase) {
     return { ok: false, message: 'Web 服务未就绪，请先启动会话后再创建' };
+  }
+  // 新会话权限模式：先写入 config.toml（doctor 校验失败自动回滚）
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const permMode = ['manual', 'yolo', 'auto'].includes(o.permissionMode) ? o.permissionMode : null;
+  const planMode = o.planMode === true;
+  if (permMode || planMode) {
+    try {
+      const cfg = loadConfig();
+      const cli = resolveCliPath(cfg);
+      if (!cli) throw new Error('未找到 kimi CLI');
+      const data = configManager.loadConfigToml().data || {};
+      if (permMode) data.default_permission_mode = permMode;
+      if (planMode) data.default_plan_mode = true;
+      await configManager.saveConfigToml(data, cli, buildKimiEnv(cfg));
+      logLine(`新会话模式已写入配置: permission=${permMode || '保持'} plan=${planMode}`);
+    } catch (err) {
+      logLine(`写入新会话模式失败: ${err.message}`);
+      return { ok: false, message: `写入权限模式失败：${err.message}` };
+    }
   }
   const token = knownServerToken || '';
   const encodedDir = encodeURIComponent(workDir);
@@ -2323,6 +3016,100 @@ ipcMain.handle('session:openLauncher', () => {
   return { ok: true };
 });
 
+// ---------- 会话归档/删除（REST 能力自适应）----------
+ipcMain.handle('session:getCaps', () => ({
+  ok: true,
+  caps: {
+    archive: serverCaps.archive,
+    delete: serverCaps.delete,
+    models: serverCaps.models,
+  },
+}));
+
+// 从 session_index.jsonl 剔除指定会话的所有行
+function removeSessionFromIndex(sessionId) {
+  const indexPath = getSessionIndexPath();
+  try {
+    const content = fs.readFileSync(indexPath, 'utf8');
+    const kept = content.split(/\r?\n/).filter((line) => {
+      if (!line.trim()) return false;
+      try {
+        const entry = JSON.parse(line);
+        return entry.sessionId !== sessionId;
+      } catch {
+        return false;
+      }
+    });
+    fs.writeFileSync(indexPath, kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+    return true;
+  } catch (err) {
+    logLine(`更新会话索引失败: ${err.message}`);
+    return false;
+  }
+}
+
+// 通知会话启动器刷新列表
+function notifySessionChanged() {
+  if (sessionLauncherVisible && mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.send('session:changed'); } catch { /* ignore */ }
+  }
+}
+
+ipcMain.handle('session:archiveSession', async (_e, sessionId) => {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return { ok: false, message: '无效的 sessionId' };
+  }
+  if (!serverCaps.archive || !serverCaps.archivePath) {
+    return { ok: false, message: '当前服务端不支持归档操作（openapi 未暴露归档端点）' };
+  }
+  if (!knownServerBase) {
+    return { ok: false, message: 'Web 服务未就绪' };
+  }
+  const url = buildSessionActionUrl(knownServerBase, serverCaps.archivePath, sessionId);
+  logLine(`归档会话: ${sessionId}`);
+  const res = await httpRequest('POST', url, knownServerToken);
+  if (!res) {
+    return { ok: false, message: '归档请求失败（网络错误或超时）' };
+  }
+  if (res.status < 200 || res.status >= 300) {
+    logLine(`归档会话失败: HTTP ${res.status}`);
+    return { ok: false, message: `归档失败 (HTTP ${res.status})` };
+  }
+  removeSessionFromIndex(sessionId);
+  notifySessionChanged();
+  return { ok: true, message: '会话已归档' };
+});
+
+ipcMain.handle('session:deleteSession', async (_e, sessionId) => {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return { ok: false, message: '无效的 sessionId' };
+  }
+  if (!serverCaps.delete || !serverCaps.deletePath) {
+    return { ok: false, message: '当前服务端不支持删除操作（openapi 未暴露删除端点）' };
+  }
+  if (!knownServerBase) {
+    return { ok: false, message: 'Web 服务未就绪' };
+  }
+  // 先归档（若支持），再删除，降低误删损失
+  if (serverCaps.archive && serverCaps.archivePath) {
+    const archiveUrl = buildSessionActionUrl(knownServerBase, serverCaps.archivePath, sessionId);
+    await httpRequest('POST', archiveUrl, knownServerToken);
+  }
+  const url = buildSessionActionUrl(knownServerBase, serverCaps.deletePath, sessionId);
+  logLine(`删除会话: ${sessionId}`);
+  const res = await httpRequest(serverCaps.deleteMethod.toUpperCase(), url, knownServerToken);
+  if (!res) {
+    return { ok: false, message: '删除请求失败（网络错误或超时）' };
+  }
+  if (res.status < 200 || res.status >= 300) {
+    logLine(`删除会话失败: HTTP ${res.status}`);
+    return { ok: false, message: `删除失败 (HTTP ${res.status})` };
+  }
+  removeSessionFromIndex(sessionId);
+  notifySessionChanged();
+  return { ok: true, message: '会话已删除' };
+});
+
 // ---------- 生命周期 ----------
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -2331,6 +3118,7 @@ if (!gotLock) {
   app.on('second-instance', showMainWindow);
 
   app.whenReady().then(() => {
+    applyKimiCodeHomeFromConfig();
     createWindow();
     buildMenu();
     createTray();

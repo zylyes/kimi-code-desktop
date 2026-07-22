@@ -66,6 +66,39 @@
   .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .icon-btn .plus { font-size: 16px; line-height: 1; font-weight: 600; }
 
+  /* 新会话权限模式控件 */
+  .perm-ctl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--field);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .perm-ctl select {
+    max-width: 118px;
+    border: none;
+    background: transparent;
+    color: var(--fg);
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+  }
+  .perm-ctl select option { background: var(--field); color: var(--fg); }
+  .perm-ctl .perm-plan {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .perm-ctl .perm-plan input { accent-color: var(--accent); margin: 0; }
+
   .search-wrap { padding: 0 14px 10px; }
   #search {
     width: 100%;
@@ -312,6 +345,12 @@
     font-weight: 600;
   }
   .btn.primary:hover { filter: brightness(1.1); border-color: var(--accent); }
+  .btn.danger {
+    border-color: rgba(224, 92, 92, 0.5);
+    color: #e05c5c;
+  }
+  .btn.danger:hover { border-color: #e05c5c; background: rgba(224, 92, 92, 0.12); }
+  .btn.danger:disabled:hover { background: var(--field); border-color: var(--line); }
 
   .spinner {
     display: inline-block;
@@ -376,6 +415,15 @@
         <div class="side-title">会话</div>
         <div class="side-tools">
           <button class="icon-btn" id="refreshBtn" type="button" aria-label="刷新会话列表" title="刷新会话列表">刷新</button>
+          <span class="perm-ctl" title="新会话的权限模式（仅对本次创建生效）">
+            <select id="permMode" aria-label="新会话权限模式">
+              <option value="">保持当前配置</option>
+              <option value="manual">manual（每次询问）</option>
+              <option value="yolo">yolo（自动放行非破坏性操作）</option>
+              <option value="auto">auto（完全自动）</option>
+            </select>
+            <label class="perm-plan" title="以计划模式创建（仅对本次创建生效）"><input type="checkbox" id="permPlan" /> Plan</label>
+          </span>
           <button class="icon-btn" id="createBtn" type="button" aria-label="在目录中新建会话" title="在目录中新建会话"><span class="plus" aria-hidden="true">+</span></button>
         </div>
       </div>
@@ -419,6 +467,8 @@
           <button class="btn primary" id="resumeBtn" type="button" aria-label="恢复此会话" title="恢复此会话，继续之前的对话">恢复会话</button>
           <button class="btn" id="exportBtn" type="button" aria-label="导出此会话为 ZIP 压缩包" title="导出此会话为 ZIP 压缩包">导出 ZIP</button>
           <button class="btn" id="visBtn" type="button" aria-label="打开此会话的可视化视图" title="在新窗口中打开此会话的可视化视图">打开可视化</button>
+          <button class="btn" id="archiveBtn" type="button" aria-label="归档此会话" title="归档此会话（服务端支持时可用）">归档</button>
+          <button class="btn danger" id="deleteBtn" type="button" aria-label="删除此会话" title="永久删除此会话（服务端支持时可用）">删除</button>
         </div>
         <div class="action-status" id="actionStatus" aria-live="polite"></div>
       </section>
@@ -440,6 +490,10 @@
     const resumeBtn = $('resumeBtn');
     const exportBtn = $('exportBtn');
     const visBtn = $('visBtn');
+    const archiveBtn = $('archiveBtn');
+    const deleteBtn = $('deleteBtn');
+    // 服务端能力（archive/delete 不支持时保持禁用）
+    let caps = { archive: false, delete: false, models: false };
     const statusEl = $('actionStatus');
 
     let sessions = [];
@@ -646,6 +700,8 @@
       resumeBtn.disabled = !on;
       exportBtn.disabled = !on;
       visBtn.disabled = !on;
+      archiveBtn.disabled = !on || !caps.archive;
+      deleteBtn.disabled = !on || !caps.delete;
     }
 
     function report(kind, msg) {
@@ -684,6 +740,47 @@
     visBtn.addEventListener('click', () =>
       runAction(visBtn, '正在打开…', (id) => api.visualiseSession(id), '可视化视图已打开。'));
 
+    archiveBtn.addEventListener('click', () => {
+      const s = sessions.find((x) => x.id === selectedId);
+      const name = (s && s.title) || selectedId;
+      if (!window.confirm('确定归档会话「' + name + '」吗？\n归档后将从列表移除，可通过 Web UI 恢复。')) return;
+      runAction(archiveBtn, '正在归档…', async (id) => {
+        const r = await api.archiveSession(id);
+        if (r && r.ok) await loadSessions();
+        return r;
+      }, '会话已归档。');
+    });
+    deleteBtn.addEventListener('click', () => {
+      const s = sessions.find((x) => x.id === selectedId);
+      const name = (s && s.title) || selectedId;
+      if (!window.confirm('确定永久删除会话「' + name + '」吗？\n此操作不可撤销！')) return;
+      runAction(deleteBtn, '正在删除…', async (id) => {
+        const r = await api.deleteSession(id);
+        if (r && r.ok) await loadSessions();
+        return r;
+      }, '会话已删除。');
+    });
+
+    // 服务端能力探测：不支持的端点禁用对应按钮
+    async function loadCaps() {
+      if (!api || typeof api.getCaps !== 'function') return;
+      try {
+        const r = await api.getCaps();
+        if (r && r.ok && r.caps) {
+          caps = r.caps;
+          archiveBtn.title = caps.archive ? '归档此会话' : '当前服务端不支持归档';
+          deleteBtn.title = caps.delete ? '永久删除此会话' : '当前服务端不支持删除';
+          if (!panelEl.hidden) setActionsEnabled(true);
+        }
+      } catch { /* 保持默认禁用 */ }
+    }
+    loadCaps();
+
+    // 其他端删除/归档会话后自动刷新列表
+    if (api && typeof api.onSessionChanged === 'function') {
+      api.onSessionChanged(() => { loadCaps(); loadSessions(); });
+    }
+
     async function onCreate() {
       if (!api) return;
       const original = createBtn.innerHTML;
@@ -694,7 +791,15 @@
       sp.setAttribute('aria-hidden', 'true');
       createBtn.appendChild(sp);
       try {
-        const r = await api.createSessionInDirectory();
+        // 收集权限模式选项：仅在非空/勾选时透传，空对象则保持原有无参调用
+        const permMode = $('permMode').value;
+        const plan = $('permPlan').checked;
+        const opts = {};
+        if (permMode) opts.permissionMode = permMode;
+        if (plan) opts.planMode = true;
+        const r = Object.keys(opts).length
+          ? await api.createSessionInDirectory(opts)
+          : await api.createSessionInDirectory();
         if (r && r.ok === false) throw new Error(r.message || '创建未完成');
       } catch (e) {
         countEl.textContent = '创建失败：' + ((e && e.message) || e || '未知错误');
