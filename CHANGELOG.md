@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0] - 2026-07-22
+
+### 新功能
+
+- **会话启动器**：新增 `sessions.html` 原生会话管理界面，通过 `Ctrl+Shift+S` 或托盘/菜单入口打开。
+- **会话历史浏览**：读取 `~/.kimi-code/session_index.jsonl` 索引文件，按更新时间降序排列，支持搜索标题/工作目录/最近提示。
+- **恢复指定会话**：选中会话后以 `kimi --session <id>` 参数重启 Web 服务，直接进入该会话继续对话。
+- **ZIP 导出**：选中会话后调用 `kimi export <sessionId> -o <path> -y`，通过 Electron 保存对话框选择导出路径，60 秒超时保护。
+- **可视化窗口**：选中会话后 spawn `kimi vis <sessionId> --no-open`，捕获可视化地址并在独立 Electron 窗口中打开。
+- **指定目录新建会话**：通过深链 `?action=create-in-dir&workDir=<path>` 导航至 Web UI 创建新会话。
+- **托盘菜单入口**：托盘右键菜单新增"打开会话启动器"项。
+- **菜单栏入口**：菜单栏"会话"子菜单新增"打开会话启动器"项，快捷键 `Ctrl+Shift+S`。
+
+### 改进
+
+- 启动流程增加 `sessionLauncherVisible` 状态标记，会话启动器可见时跳过自动加载，避免覆盖用户操作。
+- 新增 `pendingSessionId` 机制，支持在重启流程中传递待恢复会话 ID。
+- 会话列表支持键盘导航（方向键/Home/End）和搜索过滤。
+- 会话详情面板展示工作目录、更新时间、最近提示，支持一键恢复/导出/可视化。
+
+### 技术细节
+
+- 新增 `showSessionLauncher()`、`getAllSessions()`、`readSessionIndex()`、`enrichSessionFromState()` 等函数。
+- 新增 IPC 通道：`session:getSessions`、`session:refreshSessions`、`session:resumeSession`、`session:exportSession`、`session:visualiseSession`、`session:createSessionInDirectory`、`session:openLauncher`。
+- 新增 `sessions.html`（784 行）完整会话管理前端，含深色主题 UI、搜索、键盘导航、加载状态与错误处理。
+- preload.js 新增 7 个会话相关 API 桥接方法。
+- 新增 `SESSION_TIMEOUT` 常量（30 秒）用于可视化 URL 等待超时。
+- 无破坏性变更。
+
 ## [0.2.0] - 2026-07-21
 
 ### 新功能

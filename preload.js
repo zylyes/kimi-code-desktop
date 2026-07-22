@@ -18,4 +18,12 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
     ipcRenderer.on('server:log', listener);
     return () => ipcRenderer.removeListener('server:log', listener);
   },
+  // 会话启动器 API
+  getSessions: () => ipcRenderer.invoke('session:getSessions'),
+  refreshSessions: () => ipcRenderer.invoke('session:refreshSessions'),
+  resumeSession: (id) => ipcRenderer.invoke('session:resumeSession', id),
+  exportSession: (id) => ipcRenderer.invoke('session:exportSession', id),
+  visualiseSession: (id) => ipcRenderer.invoke('session:visualiseSession', id),
+  createSessionInDirectory: () => ipcRenderer.invoke('session:createSessionInDirectory'),
+  openSessionLauncher: () => ipcRenderer.invoke('session:openLauncher'),
 });

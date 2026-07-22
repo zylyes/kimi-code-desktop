@@ -31,15 +31,15 @@
 
 ## 1. 高价值功能（P0）
 
-### 1.1 会话管理（让套壳变成"启动器"）
+### 1.1 会话管理（让套壳变成"启动器"）✅ **v0.3.0 已实现**
 
 | 功能 | 文档依据 | 实现思路 |
 |---|---|---|
-| 原生历史会话侧边栏（标题/工作目录/更新时间） | `~/.kimi-code/session_index.jsonl` 每行含 `sessionId/sessionDir/workDir`；各会话 `state.json` 含标题、`lastPrompt`、时间 | 只读解析索引文件，渲染会话列表 |
-| 一键继续最近会话 / 恢复指定会话 | `kimi --continue`、`kimi --session <id>` | 列表点击后 spawn 对应命令（注意 `-c` 与 `-S` 互斥） |
-| 在指定目录新建会话 | Web UI URL 参数 `?action=create-in-dir&workDir=<path>`（旧版文档，新版需实测）；REST `POST /api/v1/sessions` | 目录选择器 + 深链导航或 REST 创建 |
-| 导出会话为 ZIP | `kimi export <sessionId> -o <path> -y [--no-include-global-log]` | Electron 保存对话框 + spawn 子命令 |
-| 会话可视化窗口 | `kimi vis [sessionId] --no-open` 打印访问地址 | 复用现有"spawn + 捕获地址 + 窗口加载"架构，零新范式 |
+| ✅ 原生历史会话侧边栏（标题/工作目录/更新时间） | `~/.kimi-code/session_index.jsonl` 每行含 `sessionId/sessionDir/workDir`；各会话 `state.json` 含标题、`lastPrompt`、时间 | 只读解析索引文件，渲染会话列表 |
+| ✅ 一键继续最近会话 / 恢复指定会话 | `kimi --continue`、`kimi --session <id>` | 列表点击后 spawn 对应命令（注意 `-c` 与 `-S` 互斥） |
+| ✅ 在指定目录新建会话 | Web UI URL 参数 `?action=create-in-dir&workDir=<path>`（旧版文档，新版需实测）；REST `POST /api/v1/sessions` | 目录选择器 + 深链导航或 REST 创建 |
+| ✅ 导出会话为 ZIP | `kimi export <sessionId> -o <path> -y [--no-include-global-log]` | Electron 保存对话框 + spawn 子命令 |
+| ✅ 会话可视化窗口 | `kimi vis [sessionId] --no-open` 打印访问地址 | 复用现有"spawn + 捕获地址 + 窗口加载"架构，零新范式 |
 | 会话归档/删除管理器 | REST `:archive` 动作；WS `event.session.deleted`；Web UI 超 15 天自动归档 | 原生面板调 REST 动作 |
 
 ### 1.2 审批与通知（桌面壳的独特价值）
@@ -120,7 +120,7 @@
 ## 4. 建议实施路线
 
 **阶段 1（加固，1-2 天）**：版本适配层 + server.token 直读 + HTTP 就绪探测 + 优雅退出 + 多实例感知 ✅ **v0.2.0 已实现**
-**阶段 2（会话启动器，2-3 天）**：会话侧边栏（session_index.jsonl）+ 继续/恢复会话 + 导出 ZIP + kimi vis 窗口
+**阶段 2（会话启动器，2-3 天）**：会话侧边栏（session_index.jsonl）+ 继续/恢复会话 + 导出 ZIP + kimi vis 窗口 ✅ **v0.3.0 已实现**
 **阶段 3（新手体验，2-3 天）**：首次启动向导（Git Bash 检测/安装/登录）+ 版本显示与升级 + doctor 体检 + 代理设置
 **阶段 4（原生增强，3-5 天）**：WS 连接 → 审批/问答/完成原生通知 + 托盘用量显示 + 全局热键 + 外链接管
 **阶段 5（设置中心，3-5 天）**：config.toml 图形化 + 权限规则编辑器 + 供应商管理器 + MCP/Skills/Hooks 面板

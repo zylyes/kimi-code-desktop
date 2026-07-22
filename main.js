@@ -18,6 +18,7 @@ let urlFound = false;
 let quitting = false;
 let tray = null;
 let trayHintShown = false;
+let sessionLauncherVisible = false; // 会话启动器当前可见（防止 startPolling 覆盖）
 
 // 版本缓存
 let cliVersionCache = null; // { version: string, semver: number[] } | null
@@ -31,6 +32,8 @@ let knownServerToken = null;
 let serverGeneration = 0;
 // 重启互斥锁
 let restartPromise = null;
+// 待恢复的会话 ID（由 resumeSession 设置，startKimiServer 消费）
+let pendingSessionId = null;
 
 // ---------- 路径与持久化 ----------
 const userDataDir = () => app.getPath('userData');
@@ -268,7 +271,12 @@ function startKimiServer() {
   } else {
     args = ['web', '--no-open', '--foreground'];
   }
-  logLine(`启动 CLI: ${cli} web --no-open${args.includes('--foreground') ? ' --foreground' : ''}`);
+  if (pendingSessionId) {
+    args.unshift('--session', pendingSessionId);
+    logLine(`使用会话参数: --session ${pendingSessionId}`);
+    pendingSessionId = null;
+  }
+  logLine(`启动 CLI: ${cli} ${args.join(' ')}`);
 
   let child;
   try {
@@ -387,6 +395,10 @@ function startPolling(targetUrl, base, token, gen) {
       }
       if (res && res.status === 200) {
         clearTimeout(timer);
+        if (sessionLauncherVisible) {
+          logLine('服务就绪，但会话启动器当前可见，跳过自动加载');
+          return;
+        }
         logLine(`服务就绪 (HTTP ${res.status})，加载页面`);
         loadMain(targetUrl);
       } else if (attempts < maxRetries && !timedOut) {
@@ -404,6 +416,7 @@ function startPolling(targetUrl, base, token, gen) {
 // ---------- 页面加载 ----------
 function loadMain(url) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  sessionLauncherVisible = false; // 显式加载 Web UI 时清除启动器可见状态
   loadedUrl = url;
   mainWindow.loadURL(url).catch((err) => {
     logLine(`加载页面失败: ${err.message}`);
@@ -414,6 +427,21 @@ function loadMain(url) {
 function showSetup(reason) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.loadFile(path.join(__dirname, 'setup.html'), { query: { reason: reason || '' } });
+}
+
+// ---------- 会话启动器 ----------
+function showSessionLauncher() {
+  sessionLauncherVisible = true;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    // 不启动 server，用户将在启动器中选取会话恢复
+  }
+  mainWindow.show();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+  mainWindow.loadFile(path.join(__dirname, 'sessions.html')).catch((err) => {
+    logLine(`加载 sessions.html 失败: ${err.message}`);
+  });
 }
 
 // ---------- 重启 ----------
@@ -429,6 +457,7 @@ async function restartServer() {
     urlFound = false;
     knownServerBase = null;
     knownServerToken = null;
+    sessionLauncherVisible = false; // 开始新重启时清除启动器可见状态，确保 startPolling 能加载页面
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.loadFile(path.join(__dirname, 'loading.html'));
     }
@@ -471,6 +500,7 @@ function createTray() {
   tray.setToolTip(APP_NAME);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示主窗口', click: showMainWindow },
+    { label: '打开会话启动器', click: showSessionLauncher },
     { label: '新建 Web 会话', click: () => { showMainWindow(); restartServer(); } },
     { type: 'separator' },
     { label: '退出', click: () => { quitting = true; app.quit(); } },
@@ -542,6 +572,8 @@ function buildMenu() {
     {
       label: '会话',
       submenu: [
+        { label: '打开会话启动器', accelerator: 'CmdOrCtrl+Shift+S', click: showSessionLauncher },
+        { type: 'separator' },
         { label: '新建 Web 会话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
         { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
         { type: 'separator' },
@@ -678,6 +710,299 @@ ipcMain.handle('cli:install', (_e, installDir) => {
       }
     });
   });
+});
+
+// ---------- 会话管理（阶段2）----------
+const SESSION_TIMEOUT = 30000;
+
+function getSessionIndexPath() {
+  return path.join(getKimiHomeDir(), 'session_index.jsonl');
+}
+
+function readSessionIndex() {
+  const indexPath = getSessionIndexPath();
+  try {
+    const content = fs.readFileSync(indexPath, 'utf8');
+    const lines = content.split(/\r?\n/).filter(Boolean);
+    const sessions = [];
+    const seen = new Set();
+    // 从后往前遍历，保留每个 sessionId 的最后一条
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const entry = JSON.parse(lines[i]);
+        if (entry.sessionId && entry.sessionDir && !seen.has(entry.sessionId)) {
+          seen.add(entry.sessionId);
+          sessions.push(entry);
+        }
+      } catch { /* 跳过损坏行 */ }
+    }
+    return sessions.reverse();
+  } catch {
+    return [];
+  }
+}
+
+function enrichSessionFromState(entry) {
+  const statePath = path.join(entry.sessionDir, 'state.json');
+  try {
+    const raw = fs.readFileSync(statePath, 'utf8');
+    const state = JSON.parse(raw);
+    // 兼容 v1/v2 格式
+    let updatedAt = state.updatedAt || state.createdAt || 0;
+    if (typeof updatedAt === 'string') updatedAt = new Date(updatedAt).getTime();
+    if (typeof updatedAt === 'number' && updatedAt > 0 && updatedAt < 1e12) updatedAt *= 1000; // 秒→毫秒
+    const title = state.title || '';
+    const lastPrompt = state.lastPrompt || '';
+    const workDir = state.workDir || state.cwd || entry.workDir || '';
+    return { title, lastPrompt, updatedAt: typeof updatedAt === 'number' ? updatedAt : 0, workDir };
+  } catch {
+    return { title: '', lastPrompt: '', updatedAt: 0, workDir: entry.workDir || '' };
+  }
+}
+
+function getAllSessions() {
+  const indexEntries = readSessionIndex();
+  const sessions = indexEntries.map((entry) => {
+    const enriched = enrichSessionFromState(entry);
+    return {
+      sessionId: entry.sessionId,
+      sessionDir: entry.sessionDir,
+      workDir: enriched.workDir,
+      title: enriched.title || 'New Session',
+      lastPrompt: enriched.lastPrompt || '',
+      updatedAt: enriched.updatedAt,
+    };
+  });
+  sessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return sessions;
+}
+
+// ---------- 会话 IPC ----------
+ipcMain.handle('session:getSessions', () => {
+  try {
+    const sessions = getAllSessions();
+    return { ok: true, sessions };
+  } catch (err) {
+    logLine(`getSessions 失败: ${err.message}`);
+    return { ok: false, message: err.message, sessions: [] };
+  }
+});
+
+ipcMain.handle('session:refreshSessions', () => {
+  try {
+    const sessions = getAllSessions();
+    return { ok: true, sessions };
+  } catch (err) {
+    logLine(`refreshSessions 失败: ${err.message}`);
+    return { ok: false, message: err.message, sessions: [] };
+  }
+});
+
+ipcMain.handle('session:resumeSession', async (_e, sessionId) => {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return { ok: false, message: '无效的 sessionId' };
+  }
+  if (restartPromise) {
+    return { ok: false, message: '服务正在重启中，请稍后再试' };
+  }
+  const indexEntries = readSessionIndex();
+  const entry = indexEntries.find((e) => e.sessionId === sessionId);
+  if (!entry) {
+    return { ok: false, message: `未找到会话: ${sessionId}` };
+  }
+  logLine(`恢复会话: ${sessionId}`);
+  pendingSessionId = sessionId;
+  try {
+    await restartServer();
+    return { ok: true, message: '正在恢复会话...' };
+  } catch (err) {
+    pendingSessionId = null;
+    logLine(`resumeSession 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
+
+ipcMain.handle('session:exportSession', async (_e, sessionId) => {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return { ok: false, message: '无效的 sessionId' };
+  }
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  if (!cli) {
+    return { ok: false, message: '未找到 kimi CLI' };
+  }
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: '导出会话',
+    defaultPath: `kimi-session-${sessionId.slice(0, 8)}.zip`,
+    filters: [{ name: 'ZIP 文件', extensions: ['zip'] }],
+  });
+  if (result.canceled || !result.filePath) {
+    return { ok: false, message: '用户取消了导出' };
+  }
+  return new Promise((resolve) => {
+    let resolved = false;
+    let stdout = '';
+    let stderr = '';
+    const MAX_OUTPUT = 1024 * 1024; // 1MB 上限，防止内存无限增长
+    let child;
+    try {
+      child = spawn(cli, ['export', sessionId, '-o', result.filePath, '-y'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+    } catch (err) {
+      logLine(`启动导出进程失败: ${err.message}`);
+      resolve({ ok: false, message: `启动导出进程失败: ${err.message}` });
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        forceKill(child.pid);
+        logLine(`导出会话 ${sessionId} 超时`);
+        resolve({ ok: false, message: '导出超时' });
+      }
+    }, 60000);
+    const onData = (chunk) => {
+      if (stdout.length < MAX_OUTPUT) {
+        stdout += chunk.toString('utf8');
+      }
+    };
+    const onErrData = (chunk) => {
+      if (stderr.length < MAX_OUTPUT) {
+        stderr += chunk.toString('utf8');
+      }
+    };
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onErrData);
+    child.on('error', (err) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        logLine(`导出会话 ${sessionId} 进程错误: ${err.message}`);
+        resolve({ ok: false, message: err.message });
+      }
+    });
+    child.on('exit', (code) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timer);
+        if (code === 0) {
+          logLine(`导出会话 ${sessionId} -> ${result.filePath}`);
+          resolve({ ok: true, message: '导出成功', filePath: result.filePath });
+        } else {
+          const msg = (stderr || `导出进程退出码 ${code}`).trim();
+          logLine(`导出会话 ${sessionId} 失败: ${msg}`);
+          resolve({ ok: false, message: msg });
+        }
+      }
+    });
+  });
+});
+
+ipcMain.handle('session:visualiseSession', async (_e, sessionId) => {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return { ok: false, message: '无效的 sessionId' };
+  }
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  if (!cli) {
+    return { ok: false, message: '未找到 kimi CLI' };
+  }
+  return new Promise((resolve) => {
+    let visUrlFound = false;
+    let buf = '';
+    let timer = null;
+    let child = null;
+    try {
+      child = spawn(cli, ['vis', sessionId, '--no-open'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+    } catch (err) {
+      resolve({ ok: false, message: `启动可视化失败: ${err.message}` });
+      return;
+    }
+    timer = setTimeout(() => {
+      if (!visUrlFound) {
+        forceKill(child.pid);
+        resolve({ ok: false, message: '等待可视化 URL 超时' });
+      }
+    }, SESSION_TIMEOUT);
+    const onData = (chunk) => {
+      const text = stripAnsi(chunk.toString('utf8'));
+      buf += text;
+      if (!visUrlFound) {
+        const m = buf.match(URL_RE);
+        if (m) {
+          visUrlFound = true;
+          clearTimeout(timer);
+          const visUrl = m[0];
+          logLine(`可视化 URL: ${visUrl}`);
+          const visWindow = new BrowserWindow({
+            width: 1200,
+            height: 800,
+            title: `Kimi Code 可视化 - ${sessionId.slice(0, 8)}`,
+            backgroundColor: '#0e0e10',
+            autoHideMenuBar: true,
+            icon: path.join(__dirname, 'assets', 'icon.png'),
+            webPreferences: {
+              preload: path.join(__dirname, 'preload.js'),
+              contextIsolation: true,
+              nodeIntegration: false,
+              sandbox: false,
+              spellcheck: false,
+              partition: `persist:kimi-vis-${sessionId.slice(0, 8)}`,
+            },
+          });
+          visWindow.loadURL(visUrl).catch((err) => {
+            logLine(`可视化窗口加载失败: ${err.message}`);
+          });
+          visWindow.on('closed', () => { logLine('可视化窗口已关闭'); });
+          resolve({ ok: true, url: visUrl, message: '可视化窗口已打开' });
+        }
+      }
+    };
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onData);
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      if (!visUrlFound) resolve({ ok: false, message: err.message });
+    });
+    child.on('exit', (code) => {
+      clearTimeout(timer);
+      if (!visUrlFound) resolve({ ok: false, message: `kimi vis 已退出 (code=${code})` });
+    });
+  });
+});
+
+ipcMain.handle('session:createSessionInDirectory', async () => {
+  const dirResult = await dialog.showOpenDialog(mainWindow, {
+    title: '选择工作目录',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (dirResult.canceled || !dirResult.filePaths[0]) {
+    return { ok: false, message: '用户取消了选择' };
+  }
+  const workDir = dirResult.filePaths[0];
+  if (!knownServerBase) {
+    return { ok: false, message: 'Web 服务未就绪，请先启动会话后再创建' };
+  }
+  const token = knownServerToken || '';
+  const encodedDir = encodeURIComponent(workDir);
+  const deepLink = `${knownServerBase}/?action=create-in-dir&workDir=${encodedDir}#token=${encodeURIComponent(token)}`;
+  logLine(`创建会话于目录: ${workDir}`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadURL(deepLink).catch((err) => {
+      logLine(`加载深链接失败: ${err.message}`);
+    });
+  }
+  return { ok: true, workDir, message: '正在创建新会话...' };
+});
+
+ipcMain.handle('session:openLauncher', () => {
+  showSessionLauncher();
+  return { ok: true };
 });
 
 // ---------- 生命周期 ----------

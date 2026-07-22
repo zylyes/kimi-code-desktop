@@ -20,6 +20,19 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
    - **在线安装**：选择安装文件夹（默认 `%USERPROFILE%\.kimi-code`），一键运行官方安装脚本，完成后自动连接；
    - 或切换到"手动填写"，粘贴已在终端启动的会话地址。
 9. 登录状态、窗口大小位置持久保存。
+10. **会话启动器**（v0.3.0）：通过 `Ctrl+Shift+S` 或托盘菜单打开会话管理界面，支持浏览历史会话、恢复指定会话、ZIP 导出、可视化窗口、指定目录新建会话。
+
+## 会话启动器
+
+v0.3.0 新增**会话启动器**（`Ctrl+Shift+S`），提供完整的会话管理能力：
+
+- **会话历史浏览**：读取 `~/.kimi-code/session_index.jsonl` 索引文件，按更新时间降序排列，支持搜索标题/目录/最近提示。
+- **恢复指定会话**：选中会话后点击"恢复会话"，以 `kimi --session <id>` 参数重启 Web 服务，直接进入该会话。
+- **ZIP 导出**：选中会话后点击"导出 ZIP"，调用 `kimi export <sessionId> -o <path> -y`，通过保存对话框选择导出路径。
+- **可视化窗口**：选中会话后点击"打开可视化"，spawn `kimi vis <sessionId> --no-open` 捕获地址并在独立 Electron 窗口中打开。
+- **指定目录新建会话**：点击侧边栏 `+` 按钮，选择工作目录后通过深链 `?action=create-in-dir&workDir=<path>` 导航至 Web UI 创建新会话。
+- **托盘/菜单入口**：托盘右键菜单和菜单栏"会话"菜单均提供"打开会话启动器"入口。
+- **快捷键**：`Ctrl+Shift+S` 直接打开会话启动器。
 
 ## 快捷键与菜单
 
@@ -27,6 +40,7 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 
 | 功能 | 快捷键 |
 |---|---|
+| 打开会话启动器 | `Ctrl+Shift+S` |
 | 新建 Web 会话 | `Ctrl+Shift+N` |
 | 手动输入地址 | `Ctrl+L` |
 | 重新加载 | `Ctrl+R` |
@@ -46,10 +60,14 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 ## 从源码运行 / 重新打包
 
 ```bash
-npm install        # 安装依赖
-npm start          # 开发运行
-npm run dist       # 打包便携版 exe 到 release/
+npm install          # 安装依赖
+npm start            # 开发运行
+npm run dist         # 打包便携版 exe → release\v<version>\（版本化输出，推荐）
+npm run pack:versioned           # 与 dist 等效，版本化打包
+npm run pack:versioned:ca        # 若 CA 证书导致下载失败，使用系统证书存储
 ```
+
+> `npm run dist` 现在等同于 `npm run pack:versioned`，产物按版本隔离存储于 `release\v<version>\` 目录。
 
 国内网络建议设置镜像：
 
@@ -70,10 +88,11 @@ npm install
 ## 文件结构
 
 ```
-main.js       Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC）
-preload.js    渲染进程桥接
+main.js       Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC、会话管理）
+preload.js    渲染进程桥接（含会话启动器 API）
 loading.html  启动等待页（实时显示 CLI 日志）
 setup.html    设置页（自动/手动两种连接方式）
+sessions.html 会话启动器（历史浏览、恢复、导出 ZIP、可视化、新建会话）
 assets/       应用图标
 CHANGELOG.md  版本变更历史
 FEATURE-IDEAS.md  功能建议报告与实施状态
