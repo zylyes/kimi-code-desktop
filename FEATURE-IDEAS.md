@@ -5,6 +5,26 @@
 > 交互模式与权限、IDE/ACP 集成、Web UI、帮助中心最佳实践。
 > 调研日期：2026-07-21。本项目当前版本：Electron 套壳，仅做 `kimi web` 进程管理 + 托盘 + 配置持久化。
 
+## 状态图例
+
+| 标记 | 含义 |
+|------|------|
+| ✅ 已发布 | 代码已合入并随对应版本发布 |
+| 🔶 工作区已实现 | 代码完成于当前工作区，待提交/发布 |
+| 🔲 部分实现 | 基本功能可用，部分场景回退或受限 |
+| ⬜ 未实现 | 尚未开发 |
+
+### 当前实现总览
+
+| 阶段 | 状态 | 核心内容 |
+|------|------|----------|
+| 阶段1 | ✅ v0.2.0 | CLI 版本适配层 |
+| 阶段2 | ✅ v0.3.0 | 会话启动器 |
+| 阶段3 | ✅ v0.4.0 | 新手引导 |
+| 阶段4 | 🔶 工作区已实现 | WS 通知、原生问答、托盘用量、全局热键、外链接管 |
+| 阶段5 | ⬜ 未实现 | 图形化设置中心 |
+| 阶段6 | ⬜ 未实现 | ACP 原生 UI |
+
 ---
 
 ## 0. 紧急：CLI 版本适配层（文档揭示的破坏性变化）
@@ -46,10 +66,10 @@
 
 | 功能 | 文档依据 | 实现思路 |
 |---|---|---|
-| 审批请求 → 系统原生通知 | WS `event.approval.requested/resolved/expired`；REST `/sessions/{id}/approvals/{approval_id}` | 连接 WebSocket 订阅审批事件，窗口失焦时弹系统通知 + 任务栏闪烁，点击聚焦 |
-| 结构化问答 → 原生弹窗 | WS `event.question.requested`；REST `/sessions/{id}/questions/*` | 监听问题事件用原生 dialog 展示单选/多选，回写答案 |
-| 任务完成 → 桌面通知 | Hooks `Notification`(task.completed) / `SubagentStop` 事件；tui.toml `[notifications]` 已有此概念 | 装一条 hook 规则指向通知脚本，或直接走 WS 事件 |
-| 托盘显示 token 用量/任务进度 | WS `event.session.usage_updated`、`event.task.*` | 托盘 tooltip/角标展示 |
+| 🔶 审批请求 → 系统原生通知（仅通知，不含原生回复） | WS `event.approval.requested/resolved/expired`；REST `/sessions/{id}/approvals/{approval_id}` | 已连接 WebSocket 订阅审批事件，窗口失焦时弹系统通知 + 任务栏闪烁，点击聚焦窗口；尚不支持原生回复审批 |
+| 🔲 结构化问答 → 原生弹窗（单题/单选已支持） | WS `event.question.requested`；REST `/sessions/{id}/questions/*` | 监听问题事件用原生 dialog 展示，目前仅支持单题、单选、无自定义输入；多题、多选、允许自定义输入时回退 Web UI |
+| 🔶 任务完成 → 桌面通知 | Hooks `Notification`(task.completed) / `SubagentStop` 事件；tui.toml `[notifications]` 已有此概念 | 已通过 WS 事件订阅实现，窗口失焦时弹原生通知 |
+| 🔶 托盘显示 token 用量/任务进度 | WS `event.session.usage_updated`、`event.task.*` | 托盘 tooltip/角标展示；已订阅 usage_updated/task.*，托盘 tooltip+菜单状态项展示 |
 
 ### 1.3 新手引导（帮助中心最高频痛点）✅ **v0.4.0 已实现**
 
@@ -88,8 +108,8 @@
 | MCP 服务器配置 GUI | 两层 `mcp.json`（用户级 `~/.kimi-code/mcp.json` + 项目级）；stdio/HTTP/SSE 三种接入；`enabledTools`/`disabledTools` 等字段 | 表单读写 mcp.json |
 | Hooks 可视化编辑器 + 模板库 | `[[hooks]]` 四字段（event/matcher/command/timeout）；16 个事件；退出码 0 放行 / 2 阻断 | 生成配置条目 + 预置脚本模板 |
 | IDE 一键接入向导 | Zed：`agent_servers` JSON 片段；JetBrains：Configure ACP agents（**必须绝对路径**）；`kimi acp` stdio JSON-RPC | 检测已装编辑器，自动写入/生成配置片段（桌面应用已知 cliPath） |
-| 全局唤起热键（老板键） | — | Electron `globalShortcut` 注册全局热键唤起/隐藏窗口 |
-| 外部链接/Open-in 原生接管 | Web UI 外链与 Open in Terminal/VS Code 依赖浏览器协议处理 | `setWindowOpenHandler` 拦截 http(s) 走 `shell.openExternal`；自定义协议拦截改原生执行 |
+| 🔶 全局唤起热键（Ctrl+Shift+Space） | — | 已注册 Electron `globalShortcut`，Ctrl+Shift+Space 显示/隐藏窗口 |
+| 🔲 外部链接接管（http(s)/mailto/tel 已实现） | Web UI 外链与 Open in Terminal/VS Code 依赖浏览器协议处理 | 已通过 `setWindowOpenHandler` 拦截，外部 http(s)、mailto/tel 走系统浏览器，同源本地 Kimi 页面留在 WebView，未知协议拒绝；自定义 Open-in 协议接管未实现 |
 | 新会话权限模式选择（Plan/YOLO/Auto） | `default_permission_mode`/`default_plan_mode`（注意：`kimi web` **不接受** `--yolo/--plan` flag，只能写 config.toml） | 新建会话前写入配置 |
 | 模型切换下拉 | `/models/*` REST 路由；WS `event.model_catalog.changed`；双档模型 `kimi-for-coding` / `kimi-for-coding-highspeed` | 托盘/菜单下拉切换 `default_model` |
 | 诊断打包（一键问题反馈） | `kimi export -y` 打包会话 ZIP 含诊断日志 | 导出 ZIP + 桌面端 app.log 打包 |
@@ -122,9 +142,25 @@
 **阶段 1（加固，1-2 天）**：版本适配层 + server.token 直读 + HTTP 就绪探测 + 优雅退出 + 多实例感知 ✅ **v0.2.0 已实现**
 **阶段 2（会话启动器，2-3 天）**：会话侧边栏（session_index.jsonl）+ 继续/恢复会话 + 导出 ZIP + kimi vis 窗口 ✅ **v0.3.0 已实现**
 **阶段 3（新手体验，2-3 天）**：首次启动向导（Git Bash 检测/安装/登录）+ 版本显示与升级 + doctor 体检 + 代理设置 ✅ **v0.4.0 已实现**
-**阶段 4（原生增强，3-5 天）**：WS 连接 → 审批/问答/完成原生通知 + 托盘用量显示 + 全局热键 + 外链接管
+**阶段 4（原生增强，3-5 天）**：WS 连接 → 审批/问答/完成原生通知 + 托盘用量显示 + 全局热键 + 外链接管 → 🔶 **工作区已实现，待提交/发布**
 **阶段 5（设置中心，3-5 天）**：config.toml 图形化 + 权限规则编辑器 + 供应商管理器 + MCP/Skills/Hooks 面板
 **阶段 6（长期）**：ACP 客户端原生 UI，渐进替代 WebView
+
+### 阶段 4 实现分项详情
+
+| 子项 | 状态 | 说明 |
+|------|------|------|
+| WS 连接与订阅 | 🔶 已实现 | 使用 `kimi-code.bearer.<token>` 子协议，支持 `client_hello`、会话订阅与断线重连 |
+| 审批原生通知 | 🔶 已实现 | 窗口失焦时弹系统通知 + 任务栏闪烁；不含原生审批回复 |
+| 结构化问答原生弹窗 | 🔶 已实现 | 全类型走原生问答窗口，dialog 仅作回退 |
+| 任务完成桌面通知 | 🔶 已实现 | 通过 WS 事件触发原生通知 |
+| 全局热键 | 🔶 已实现 | Ctrl+Shift+Space 全局显示/隐藏窗口 |
+| 外部链接接管 | 🔲 部分实现 | http(s)、mailto/tel 已接管；vscode/cursor/zed 等编辑器协议已接管；同源 Kimi 页面留在 WebView；未知协议拒绝；自定义 Open-in 协议未实现 |
+| 托盘用量/进度 | 🔶 已实现 | 托盘 tooltip/角标展示 token 用量与任务进度 |
+| 复杂问答原生输入 | 🔶 已实现 | 多题多选、自定义输入的原生界面 |
+| WS 端到端验证 | 🔶 mock 已验证 | mock 全场景通过：client_hello 握手/订阅、用量（12.3k tokens·上下文 35%）、任务 started/progress/completed 计数归零、审批计数、单题/多选/多题问答开窗、answered 释放与 dismiss 关窗、答案提交契约（answers map + method:'click'，多选与多题含 GUI 真实提交落盘）；聚焦回退分支已补日志。真实服务端人工核对待做（见 §5 第 12 条） |
+
+> **注意**：package.json 已升至 0.5.0，阶段4增强已完成于工作区、待提交/发布。阶段1—3 仍为标记版本（v0.2.0/v0.3.0/v0.4.0）已完成。阶段5 与其他未标注完成项目仍未实现。
 
 ---
 
@@ -140,3 +176,13 @@
 8. Web UI 内是否原生支持 `/permission` 切换、`Ctrl-S` Steer 等 TUI 快捷键（决定桌面端快捷键映射的必要性）；
 9. `kimi upgrade` 无非交互 flag，Windows 静默升级应自行重跑 install.ps1 而非驱动交互式命令；
 10. `-c` vs `-C`（--continue 短选项）文档不一致，以 `kimi --help` 实测为准。
+11. WS 事件订阅与 Kimi 服务端的实际端到端交互尚未完整验证——当前仅通过静态检查（`node --check`、`git diff --check`）和打包（`npm run pack:versioned:ca`）确认 `app.asar` 包含 ws 模块，但 `client_hello` 握手、会话订阅、各类事件（审批/问答/任务完成/用量更新）的收发正确性需启动实际 Kimi 服务端实例后逐一验证。mock 服务器（scripts/mock-kimi-server.js）已覆盖 client_hello/订阅/问答/审批/用量/任务事件的自动验证（2026-07-22 全场景通过）；真实服务端核对见第 12 条人工清单。
+12. 真实服务人工核对清单（启动真实 `kimi web` 后逐项核对）：
+    1. 触发一次审批请求 → 核对系统通知弹出（窗口聚焦时应静默、托盘状态"审批 1"）；
+    2. 触发单选问答 → 核对原生问答窗口弹出、点选提交后答案在会话中生效；
+    3. 触发多选问答 → 核对多选勾选 + 自定义输入提交后答案生效；
+    4. 触发多题问答（含纯文本题） → 核对逐题翻页、全部作答一次提交后生效；
+    5. 在 Web UI 中回答同一问题 → 核对原生窗口收到 dismiss 后自动关闭（约 2.5s）；
+    6. 核对托盘 tooltip 的 token 用量与上下文百分比随会话刷新；
+    7. 跑一个子任务至完成 → 核对任务完成桌面通知与托盘任务计数归零；
+    8. 在 Web UI 点击 `vscode://` 等编辑器外链 → 核对接管到对应编辑器打开。

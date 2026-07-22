@@ -26,6 +26,12 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 13. **kimi doctor 诊断**（v0.4.0）：菜单栏"帮助→运行 kimi doctor"或设置页"环境诊断"按钮，一键执行 `kimi doctor` 配置体检，结果弹窗展示。
 14. **代理设置**（v0.4.0）：设置页支持 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`、`NO_PROXY` 四项代理配置，保存后自动注入自动启动的 CLI 子进程环境变量。
 15. **首次运行欢迎引导**（v0.4.0）：首次启动（无配置文件时）自动进入设置页，引导用户完成 Git Bash 检测、CLI 安装、设备码登录等初始配置，而非直接尝试自动连接。
+16. **原生问答窗口全类型接管**（v0.5.0）：`event.question.requested` 统一由原生问答窗口（question.html）处理，支持单选、多选、多题与自定义输入（allow_other）；主进程通过 `question:submit`/`question:fallback`/`question:cancel` IPC 提交答案，原 `dialog` 弹窗仅作窗口创建失败时的回退。窗口失焦时自动回退到 Web UI 回答。
+17. **托盘用量/任务进度显示**（v0.5.0）：订阅 WS `event.session.usage_updated` 与 `event.task.started/progress/completed` 事件，托盘 tooltip 与菜单状态项实时展示 token 用量、上下文占用百分比与任务运行计数，更新带 500ms 防抖。
+18. **编辑器协议接管**（v0.5.0）：外部链接白名单新增 `vscode`、`vscode-insiders`、`cursor`、`windsurf`、`zed`、`sublime`、`atom`、`jetbrains` 等编辑器协议，走系统默认程序打开，Web UI 的 Open in Editor 类按钮可用。
+19. **全局热键**（v0.5.0）：`Ctrl+Shift+Space` 全局显示/隐藏窗口，即使应用不在前台也可快速唤回。
+20. **mock 验证基建**（v0.5.0）：新增 `scripts/mock-kimi-server.js`（默认端口 58999，固定 token `mock-token`），自动覆盖 client_hello/订阅/问答/审批/用量/任务事件验证，`npm run mock` 一键启动。
+21. **测试钩子**（v0.5.0）：支持 `KIMI_DESKTOP_TEST_BASE`、`KIMI_DESKTOP_TEST_TOKEN` 环境变量覆盖服务地址与 token，便于对接 mock 服务做自动化测试。
 
 ## 会话启动器
 
@@ -44,7 +50,8 @@ v0.3.0 新增**会话启动器**（`Ctrl+Shift+S`），提供完整的会话管�
 按 `Alt` 显示菜单栏。
 
 | 功能 | 快捷键 |
-|---|---|
+|---|---|---|
+| 显示/隐藏窗口（全局） | `Ctrl+Shift+Space` |
 | 打开会话启动器 | `Ctrl+Shift+S` |
 | 新建 Web 会话 | `Ctrl+Shift+N` |
 | 手动输入地址 | `Ctrl+L` |
@@ -58,7 +65,8 @@ v0.3.0 新增**会话启动器**（`Ctrl+Shift+S`），提供完整的会话管�
 - **最小化 / 点 X** → 收进托盘，Web 会话保持运行
 - **单击托盘图标** → 秒回窗口（会话原样恢复）
 - **双击托盘图标** → 秒开新 Web 会话
-- **右键托盘图标** → 显示主窗口 / 新建 Web 会话 / 退出
+- **右键托盘图标** → 显示主窗口 / 打开会话启动器 / 新建 Web 会话 / 退出
+- **托盘 tooltip 状态** → 实时显示 token 用量、上下文占用百分比、运行中任务数、待处理审批与问答计数（需 WS 连接就绪后更新）
 
 首次收进托盘时会弹出气泡提示。真正退出请用托盘菜单或应用菜单中的"退出"。
 
@@ -67,6 +75,8 @@ v0.3.0 新增**会话启动器**（`Ctrl+Shift+S`），提供完整的会话管�
 ```bash
 npm install          # 安装依赖
 npm start            # 开发运行
+npm run dev          # 开发模式（--dev 标志）
+npm run mock         # 启动 Mock Kimi 服务端（测试用，端口 58999）
 npm run dist         # 打包便携版 exe → release\v<version>\（版本化输出，推荐）
 npm run pack:versioned           # 与 dist 等效，版本化打包
 npm run pack:versioned:ca        # 若 CA 证书导致下载失败，使用系统证书存储
@@ -93,12 +103,18 @@ npm install
 ## 文件结构
 
 ```
-main.js       Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC、会话管理）
-preload.js    渲染进程桥接（含会话启动器 API）
-loading.html  启动等待页（实时显示 CLI 日志）
-setup.html    设置页（自动/手动两种连接方式）
-sessions.html 会话启动器（历史浏览、恢复、导出 ZIP、可视化、新建会话）
-assets/       应用图标
-CHANGELOG.md  版本变更历史
-FEATURE-IDEAS.md  功能建议报告与实施状态
+main.js              Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC、会话管理、WebSocket 订阅、托盘用量/任务状态、全局热键、问答窗口管理、编辑器协议接管）
+preload.js           渲染进程桥接（含会话启动器 API）
+question.html        原生问答窗口（单选/多选/多题/自定义输入，深色主题 UI）
+question.js          问答窗口渲染逻辑（选项渲染、多题翻页、答案校验、提交/回退/取消）
+question-preload.js  问答窗口预加载桥接（contextIsolation 下暴露 kimiQuestion API）
+loading.html         启动等待页（实时显示 CLI 日志）
+setup.html           设置页（自动/手动两种连接方式）
+sessions.html        会话启动器（历史浏览、恢复、导出 ZIP、可视化、新建会话）
+assets/              应用图标
+scripts/
+  mock-kimi-server.js  Mock Kimi 服务端（HTTP+WS，覆盖 client_hello/订阅/问答/审批/用量/任务事件验证）
+  pack-versioned.ps1   版本化打包脚本
+CHANGELOG.md          版本变更历史
+FEATURE-IDEAS.md      功能建议报告与实施状态
 ```

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>Kimi 的提问</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --fg: #e8e8ea;
+    --muted: #8a8a90;
+    --accent: #3d6bff;
+    --line: #232327;
+    --field: #17171a;
+    --ok: #7ec88a;
+    --err: #e06c75;
+    --warn: #d8b36a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    overflow: hidden;
+    display: flex;
+  }
+
+  .app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px 10px;
+    flex: none;
+  }
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .mark {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+  }
+  .brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+  .counter {
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex: none;
+  }
+
+  /* ---------- 分段进度 ---------- */
+  .progress {
+    display: flex;
+    gap: 6px;
+    padding: 2px 18px 12px;
+    flex: none;
+  }
+  .progress[hidden] { display: none; }
+  .seg {
+    flex: 1;
+    height: 4px;
+    border: none;
+    border-radius: 2px;
+    background: var(--line);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s ease;
+  }
+  .seg:hover { background: #33333a; }
+  .seg.done { background: var(--accent); }
+  .seg.current { box-shadow: 0 0 0 1px var(--accent); }
+  .seg.done.current { background: var(--accent); }
+  .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- 桥接警告 ---------- */
+  .bridge-warn {
+    flex: none;
+    padding: 9px 18px;
+    border-top: 1px solid #4a3b1e;
+    border-bottom: 1px solid #4a3b1e;
+    background: #201a10;
+    color: var(--warn);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  /* ---------- 主区域 ---------- */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 18px 18px;
+  }
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 28px 4px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .qcard { animation: rise 0.22s ease both; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .q-chip {
+    display: inline-block;
+    max-width: 100%;
+    padding: 3px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .q-text {
+    margin-top: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+    word-break: break-word;
+    outline: none;
+  }
+  .q-body {
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.7;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .q-kind { margin-top: 14px; font-size: 11px; color: var(--muted); letter-spacing: 0.02em; }
+
+  /* ---------- 选项卡 ---------- */
+  .options { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--field);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .opt:hover { border-color: #35353c; }
+  .opt:has(input:checked) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 9%, var(--field));
+  }
+  .opt:has(input:focus-visible) { border-color: var(--accent); }
+  .opt:has(input:focus-visible) .tick { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .sr-input {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px;
+    opacity: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .tick {
+    flex: none;
+    width: 16px; height: 16px;
+    margin-top: 2px;
+    border: 1.5px solid var(--muted);
+    border-radius: 50%;
+    position: relative;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .opt.check .tick { border-radius: 5px; }
+  input:checked ~ .tick { border-color: var(--accent); }
+  /* 单选：实心圆点 */
+  input:checked ~ .tick::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  /* 多选：对勾 */
+  .opt.check input:checked ~ .tick { background: var(--accent); }
+  .opt.check input:checked ~ .tick::after {
+    content: "✓";
+    inset: 0;
+    border-radius: 0;
+    background: none;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .opt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .opt-label { font-size: 13px; line-height: 1.5; word-break: break-word; }
+  .opt-desc { font-size: 12px; color: var(--muted); line-height: 1.6; word-break: break-word; }
+  .opt-num {
+    flex: none;
+    margin-top: 2px;
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--muted);
+    font-family: Consolas, "Courier New", monospace;
+    line-height: 1.4;
+  }
+  .opt:has(input:checked) .opt-num { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- 自定义回答 ---------- */
+  .other-wrap { margin-top: 8px; }
+  .other-wrap[hidden] { display: none; }
+  .other-wrap input {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--fg);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+  }
+  .other-wrap input:focus { border-color: var(--accent); }
+  .other-wrap input::placeholder { color: var(--muted); }
+
+  /* ---------- 空态 / 完成态 ---------- */
+  .notice {
+    padding: 28px 4px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+  .notice strong { color: var(--fg); font-weight: 600; }
+
+  /* ---------- 底栏 ---------- */
+  .foot {
+    flex: none;
+    border-top: 1px solid var(--line);
+    padding: 10px 18px 14px;
+  }
+  .hint {
+    min-height: 18px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+    word-break: break-word;
+  }
+  .hint.warn { color: var(--warn); }
+  .hint.err { color: var(--err); }
+  .hint.ok { color: var(--ok); }
+
+  .foot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .foot-right { display: flex; gap: 8px; margin-left: auto; }
+
+  .btn {
+    padding: 9px 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--fg);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .btn:disabled:hover { border-color: var(--line); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn.primary:hover { filter: brightness(1.1); border-color: var(--accent); }
+  .btn.primary:disabled:hover { filter: none; }
+  .btn.ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+  }
+  .btn.ghost:hover { color: var(--fg); border-color: var(--line); }
+
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    flex: none;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: rot 0.8s linear infinite;
+  }
+  .btn.primary .spinner { border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  /* ---------- 已处理遮罩 ---------- */
+  .mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(14, 14, 16, 0.86);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 10;
+  }
+  .mask[hidden] { display: none; }
+  .mask-box {
+    width: 300px;
+    max-width: 100%;
+    padding: 22px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--field);
+    text-align: center;
+  }
+  .mask-title { font-size: 14px; font-weight: 600; }
+  .mask-sub { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .mask-box .btn { margin-top: 16px; }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #33333a; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  @media (max-width: 420px) {
+    .topbar { padding: 12px 14px 8px; }
+    .progress { padding: 2px 14px 10px; }
+    .main { padding: 4px 14px 14px; }
+    .foot { padding: 10px 14px 12px; }
+    .q-text { font-size: 15px; }
+    .foot-right { width: 100%; }
+    .foot-right .btn { flex: 1; }
+    .btn.ghost { width: 100%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qcard { animation: none; }
+    .seg, .opt, .tick { transition: none; }
+    .spinner { animation-duration: 1.6s; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">K</span>
+        <span class="brand-name">Kimi 的提问</span>
+      </div>
+      <div class="counter" id="counter" aria-label="当前题目进度"></div>
+    </header>
+
+    <nav class="progress" id="progress" aria-label="答题进度" hidden></nav>
+
+    <div class="bridge-warn" id="bridgeWarn" hidden>
+      未检测到桌面桥接接口（window.kimiQuestion），当前窗口无法执行任何操作。
+    </div>
+
+    <main class="main" id="main">
+      <div class="loading" id="loading">
+        <span class="spinner" aria-hidden="true"></span>正在加载问题…
+      </div>
+
+      <section class="qcard" id="qcard" hidden>
+        <span class="q-chip" id="qHeader" hidden></span>
+        <h1 class="q-text" id="qText" tabindex="-1"></h1>
+        <p class="q-body" id="qBody" hidden></p>
+        <div class="q-kind" id="qKind"></div>
+        <div class="options" id="options"></div>
+        <div class="other-wrap" id="otherWrap" hidden>
+          <input type="text" id="otherInput" placeholder="填写你的回答…" aria-label="自定义回答" maxlength="2000" spellcheck="false" />
+        </div>
+      </section>
+
+      <div class="notice" id="notice" hidden></div>
+    </main>
+
+    <footer class="foot" id="foot">
+      <div class="hint" id="hint" role="status" aria-live="polite"></div>
+      <div class="foot-row">
+        <button class="btn ghost" id="fallbackBtn" type="button" title="回到 Kimi 网页界面中回答这个问题">在 Kimi 中回答</button>
+        <div class="foot-right">
+          <button class="btn" id="prevBtn" type="button">上一题</button>
+          <button class="btn primary" id="nextBtn" type="button">下一题</button>
+        </div>
+      </div>
+    </footer>
+
+    <div class="mask" id="mask" hidden>
+      <div class="mask-box" role="alertdialog" aria-labelledby="maskTitle" aria-describedby="maskSub">
+        <div class="mask-title" id="maskTitle">该问题已被处理</div>
+        <div class="mask-sub" id="maskSub">它可能已在其他地方得到回答，此窗口即将自动关闭。</div>
+        <button class="btn" id="maskClose" type="button">立即关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="question.js"></script>
+</body>
+</html>

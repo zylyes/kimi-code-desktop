@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0] - 2026-07-22
+
+### 新功能
+
+- **原生问答窗口全类型接管**：`event.question.requested` 统一由原生问答窗口（question.html）处理，支持单选、多选、多题与自定义输入（allow_other）；主进程接线 `question:submit`/`question:fallback`/`question:cancel` IPC 提交答案，原 `dialog` 弹窗仅作窗口创建失败时的回退。
+- **托盘用量/任务进度显示**：订阅 WS `event.session.usage_updated` 与 `event.task.started/progress/completed` 事件，托盘 tooltip 与菜单状态项实时展示 token 用量、上下文占用与任务进度，更新带防抖。
+- **编辑器协议接管**：外部链接白名单新增 `vscode`、`cursor`、`windsurf`、`zed` 等编辑器协议，走系统默认程序打开，Web UI 的 Open in Editor 类按钮可用。
+- **mock 验证基建**：新增 `scripts/mock-kimi-server.js`（默认端口 58999，固定 token `mock-token`），自动覆盖 client_hello/订阅/问答/审批/用量/任务事件验证，`npm run mock` 一键启动。
+- **测试钩子**：支持 `KIMI_DESKTOP_TEST_BASE`、`KIMI_DESKTOP_TEST_TOKEN` 环境变量覆盖服务地址与 token，便于对接 mock 服务做自动化测试。
+
+### 改进
+
+- 打包清单补齐 `question.html`、`question.js`、`question-preload.js`，修复打包后问答窗口文件缺失问题。
+
+### 技术细节
+
+- 新增 IPC 通道：`question:submit`、`question:fallback`、`question:cancel`（渲染→主 invoke）；新增主→渲染事件：`question:init`、`question:dismiss`。
+- 答案提交：`POST /api/v1/sessions/{sid}/questions/{qid}`，三种形态 `{kind:'single', option_id}` / `{kind:'multi', option_ids, other_text?}` / `{kind:'other', text}`；HTTP 2xx 且响应 `code` 为 0 或缺失判定成功。
+- 用量字段容错解析（`total_tokens|totalTokens`、`input_tokens`、`output_tokens`、`context_used`、`context_limit`），托盘菜单新增禁用态状态项展示。
+- 无破坏性变更。
+
 ## [0.4.0] - 2026-07-22
 
 ### 新功能
