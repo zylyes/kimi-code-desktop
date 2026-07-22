@@ -49,9 +49,9 @@ function writeJSON(p, obj) {
   try { fs.writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8'); } catch { /* ignore */ }
 }
 
-function logLine(msg) {
-  // 日志脱敏：所有日志不得包含 token、授权头、完整带 fragment URL
-  const sanitized = String(msg).replace(/(https?:\/\/[^\s"'<>)\]]+)/g, (url) => {
+function sanitizeLog(msg) {
+  // 脱敏：移除 URL 查询参数和 fragment、Authorization/Bearer、token 等敏感信息
+  return String(msg).replace(/(https?:\/\/[^\s"'<>)\]]+)/g, (url) => {
     try {
       const u = new URL(url);
       return `${u.protocol}//${u.host}${u.pathname}`;
@@ -61,14 +61,72 @@ function logLine(msg) {
   }).replace(/Authorization:\s*Bearer\s+\S+/gi, 'Authorization: Bearer ***')
     .replace(/(?:^|[^a-zA-Z])(token[=:])\s*\S+/gi, '$1***')
     .replace(/Bearer\s+[^*\s]\S*/gi, 'Bearer ***');
+}
+
+function ensureString(v) {
+  return typeof v === 'string' ? v : '';
+}
+
+function logLine(msg) {
+  const sanitized = sanitizeLog(msg);
   try { fs.appendFileSync(logFile(), `[${new Date().toISOString()}] ${sanitized}\n`); } catch { /* ignore */ }
   if (mainWindow && !mainWindow.isDestroyed()) {
     try { mainWindow.webContents.send('server:log', sanitized); } catch { /* ignore */ }
   }
+  return sanitized;
 }
 
 function loadConfig() {
-  return Object.assign({ mode: 'auto', cliPath: '', manualUrl: '' }, readJSON(configFile(), {}));
+  return Object.assign({ mode: 'auto', cliPath: '', manualUrl: '', shellPath: '', httpProxy: '', httpsProxy: '', allProxy: '', noProxy: '' }, readJSON(configFile(), {}));
+}
+
+function detectGitBash() {
+  const cfg = loadConfig();
+  const candidates = [];
+  if (cfg.shellPath) candidates.push(cfg.shellPath);
+  if (process.env.KIMI_SHELL_PATH) candidates.push(process.env.KIMI_SHELL_PATH);
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+  const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const gitPaths = [
+    path.join(programFiles, 'Git', 'bin', 'bash.exe'),
+    path.join(programFilesX86, 'Git', 'bin', 'bash.exe'),
+    path.join(localAppData, 'Programs', 'Git', 'bin', 'bash.exe'),
+    path.join(localAppData, 'Git', 'bin', 'bash.exe'),
+  ];
+  candidates.push(...gitPaths);
+  for (const c of candidates) {
+    try { if (c && fs.existsSync(c)) return c; } catch { /* ignore */ }
+  }
+  return null;
+}
+
+function buildKimiEnv(cfg) {
+  const env = { ...process.env };
+  if (cfg.httpProxy) env.HTTP_PROXY = cfg.httpProxy;
+  if (cfg.httpsProxy) env.HTTPS_PROXY = cfg.httpsProxy;
+  if (cfg.allProxy) env.ALL_PROXY = cfg.allProxy;
+  if (cfg.noProxy) env.NO_PROXY = cfg.noProxy;
+  const bashPath = detectGitBash();
+  if (bashPath) {
+    env.KIMI_SHELL_PATH = bashPath;
+  }
+  return env;
+}
+
+function getLoginStatus() {
+  const credentialsDir = path.join(getKimiHomeDir(), 'credentials');
+  let credentialCount = 0;
+  try {
+    if (fs.existsSync(credentialsDir)) {
+      const entries = fs.readdirSync(credentialsDir);
+      for (const entry of entries) {
+        const fullPath = path.join(credentialsDir, entry);
+        try { if (fs.statSync(fullPath).isFile()) credentialCount++; } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
+  return { authenticated: credentialCount > 0, credentialCount };
 }
 
 function defaultCliCandidates() {
@@ -280,7 +338,8 @@ function startKimiServer() {
 
   let child;
   try {
-    child = spawn(cli, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const env = buildKimiEnv(cfg);
+    child = spawn(cli, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env });
   } catch (err) {
     logLine(`CLI 启动失败: ${err.message}`);
     showSetup('spawn-failed');
@@ -426,6 +485,7 @@ function loadMain(url) {
 
 function showSetup(reason) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  sessionLauncherVisible = false; // 从会话启动器进入设置后，确保 startPolling 能加载页面
   mainWindow.loadFile(path.join(__dirname, 'setup.html'), { query: { reason: reason || '' } });
 }
 
@@ -602,14 +662,29 @@ function buildMenu() {
       label: '帮助',
       submenu: [
         { label: '打开数据目录(日志/配置)', click: () => shell.openPath(userDataDir()) },
+        { label: '运行 kimi doctor', click: () => {
+          runKimiDoctor().then((result) => {
+            const title = result.ok ? '诊断完成' : '诊断失败';
+            const detail = result.ok
+              ? `kimi doctor 诊断通过。\n\n输出：\n${result.output}`
+              : `${result.error}\n\n输出：\n${result.output}`;
+            dialog.showMessageBox({ type: result.ok ? 'info' : 'error', title, message: title, detail });
+          });
+        } },
         {
           label: '关于',
-          click: () => dialog.showMessageBox({
-            type: 'info',
-            title: '关于',
-            message: APP_NAME,
-            detail: `版本 ${app.getVersion()}\nKimi Code 网页版的桌面套壳。\n自动启动 kimi web 并嵌入窗口，登录状态持久保存。`,
-          }),
+          click: () => {
+            const cfg = loadConfig();
+            const cli = resolveCliPath(cfg);
+            const ver = cli ? getCliVersion(cli) : null;
+            const cliVerStr = ver ? ver.version : (cli ? '未知' : '未安装');
+            dialog.showMessageBox({
+              type: 'info',
+              title: '关于',
+              message: APP_NAME,
+              detail: `版本 ${app.getVersion()}\nCLI 版本: ${cliVerStr}\nKimi Code 网页版的桌面套壳。\n自动启动 kimi web 并嵌入窗口，登录状态持久保存。`,
+            });
+          },
         },
       ],
     },
@@ -618,21 +693,47 @@ function buildMenu() {
 }
 
 // ---------- IPC ----------
-ipcMain.handle('app:info', () => ({
-  version: app.getVersion(),
-  platform: process.platform,
-  defaultCli: defaultCliCandidates()[0],
-  cliFound: !!resolveCliPath(loadConfig()),
-  config: loadConfig(),
-  loadedUrl,
-  isDev,
-}));
+ipcMain.handle('app:info', () => {
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  const cliVer = cli ? getCliVersion(cli) : null;
+  return {
+    version: app.getVersion(),
+    cliVersion: cliVer ? cliVer.version : (cli ? '' : null),
+    platform: process.platform,
+    defaultCli: defaultCliCandidates()[0],
+    cliFound: !!cli,
+    loginStatus: getLoginStatus(),
+    gitBash: (() => {
+      const p = detectGitBash();
+      return { path: p || '', detected: !!p };
+    })(),
+    config: {
+      mode: cfg.mode,
+      cliPath: cfg.cliPath,
+      manualUrl: cfg.manualUrl,
+      shellPath: cfg.shellPath || '',
+      httpProxy: cfg.httpProxy || '',
+      httpsProxy: cfg.httpsProxy || '',
+      allProxy: cfg.allProxy || '',
+      noProxy: cfg.noProxy || '',
+    },
+    loadedUrl,
+    isDev,
+  };
+});
 
 ipcMain.handle('setup:save', async (_e, payload) => {
+  const p = payload || {};
   const cfg = {
-    mode: payload && payload.mode === 'manual' ? 'manual' : 'auto',
-    cliPath: (payload && payload.cliPath) || '',
-    manualUrl: (payload && payload.manualUrl) || '',
+    mode: p.mode === 'manual' ? 'manual' : 'auto',
+    cliPath: ensureString(p.cliPath),
+    manualUrl: ensureString(p.manualUrl),
+    shellPath: ensureString(p.shellPath),
+    httpProxy: ensureString(p.httpProxy),
+    httpsProxy: ensureString(p.httpsProxy),
+    allProxy: ensureString(p.allProxy),
+    noProxy: ensureString(p.noProxy),
   };
   writeJSON(configFile(), cfg);
   logLine(`配置已保存: mode=${cfg.mode}`);
@@ -666,6 +767,170 @@ ipcMain.handle('dialog:pickDir', async () => {
     properties: ['openDirectory', 'createDirectory'],
   });
   return r.canceled ? '' : r.filePaths[0];
+});
+
+ipcMain.handle('dialog:pickShell', async () => {
+  const r = await dialog.showOpenDialog(mainWindow, {
+    title: '选择 bash.exe',
+    properties: ['openFile'],
+    filters: [{ name: 'Bash', extensions: ['exe'] }],
+  });
+  return r.canceled ? '' : r.filePaths[0];
+});
+
+// ---------- 登录状态 ----------
+let activeLoginProc = null;
+
+ipcMain.handle('auth:login', async () => {
+  if (activeLoginProc) {
+    return { ok: false, error: '已有登录进程正在运行' };
+  }
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  if (!cli) {
+    return { ok: false, error: '未找到 kimi CLI' };
+  }
+  return new Promise((resolve) => {
+    let resolved = false;
+    let child;
+    try {
+      child = spawn(cli, ['login'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: buildKimiEnv(cfg) });
+    } catch (err) {
+      logLine(`启动登录进程失败: ${err.message}`);
+      return resolve({ ok: false, error: err.message });
+    }
+    activeLoginProc = child;
+    let urlOpened = false;
+    const onData = (chunk) => {
+      const text = chunk.toString('utf8');
+      text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).forEach((line) => {
+        logLine(`login: ${line}`);
+        // 向渲染层发送脱敏后的日志行，不泄露完整 URL 或 token
+        const sanitizedLine = sanitizeLog(line);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          try { mainWindow.webContents.send('auth:loginLog', sanitizedLine); } catch { /* ignore */ }
+        }
+        // 首次提取 http(s) URL 后打开浏览器（使用原始行中的完整 URL）
+        if (!urlOpened) {
+          const urlMatch = line.match(/https?:\/\/[^\s"'<>)\]]+/);
+          if (urlMatch) {
+            urlOpened = true;
+            shell.openExternal(urlMatch[0]);
+          }
+        }
+      });
+    };
+    child.stdout.on('data', onData);
+    child.stderr.on('data', onData);
+    child.on('error', (err) => {
+      if (resolved) return;
+      resolved = true;
+      activeLoginProc = null;
+      const loginStatus = getLoginStatus();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try { mainWindow.webContents.send('auth:loginComplete', { ok: false, error: err.message, loginStatus }); } catch { /* ignore */ }
+      }
+      resolve({ ok: false, error: err.message });
+    });
+    child.on('exit', (code) => {
+      if (resolved) return;
+      resolved = true;
+      activeLoginProc = null;
+      const loginStatus = getLoginStatus();
+      const ok = code === 0;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try { mainWindow.webContents.send('auth:loginComplete', { ok, error: ok ? undefined : `登录进程退出码 ${code}`, loginStatus }); } catch { /* ignore */ }
+      }
+      resolve({ ok, error: ok ? undefined : `登录进程退出码 ${code}` });
+    });
+  });
+});
+
+ipcMain.handle('auth:logout', async () => {
+  const credentialsDir = path.join(getKimiHomeDir(), 'credentials');
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['取消', '确认退出'],
+    defaultId: 0,
+    cancelId: 0,
+    title: '退出登录',
+    message: '确定要退出登录吗？这将删除所有已保存的登录凭据。',
+  });
+  if (result.response !== 1) {
+    return { cancelled: true };
+  }
+  try {
+    if (fs.existsSync(credentialsDir)) {
+      fs.rmSync(credentialsDir, { recursive: true, force: true });
+    }
+    logLine('已退出登录，凭据已删除');
+    return { ok: true, loginStatus: getLoginStatus() };
+  } catch (err) {
+    logLine(`退出登录失败: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+// ---------- kimi doctor ----------
+function runKimiDoctor() {
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  if (!cli) {
+    return Promise.resolve({ ok: false, error: '未找到 kimi CLI', output: '' });
+  }
+  return new Promise((resolve) => {
+    let resolved = false;
+    let stdout = '';
+    let stderr = '';
+    const MAX_OUTPUT = 64 * 1024; // 64KiB
+    let child;
+    try {
+      child = spawn(cli, ['doctor'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: buildKimiEnv(cfg) });
+    } catch (err) {
+      logLine(`启动 kimi doctor 失败: ${err.message}`);
+      return resolve({ ok: false, error: err.message, output: '' });
+    }
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        forceKill(child.pid);
+        logLine('kimi doctor 超时');
+        resolve({ ok: false, error: '诊断超时（20 秒）', output: sanitizeLog(stdout.slice(0, MAX_OUTPUT)) });
+      }
+    }, 20000);
+    child.stdout.on('data', (chunk) => {
+      if (stdout.length < MAX_OUTPUT) {
+        stdout += chunk.toString('utf8');
+      }
+    });
+    child.stderr.on('data', (chunk) => {
+      if (stderr.length < MAX_OUTPUT) {
+        stderr += chunk.toString('utf8');
+      }
+    });
+    child.on('error', (err) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      logLine(`kimi doctor 进程错误: ${err.message}`);
+      resolve({ ok: false, error: err.message, output: sanitizeLog(stdout.slice(0, MAX_OUTPUT)) });
+    });
+    child.on('exit', (code) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      const output = sanitizeLog((stdout + stderr).slice(0, MAX_OUTPUT));
+      if (code === 0) {
+        resolve({ ok: true, output });
+      } else {
+        resolve({ ok: false, error: `kimi doctor 退出码 ${code}`, output });
+      }
+    });
+  });
+}
+
+ipcMain.handle('cli:doctor', async () => {
+  return runKimiDoctor();
 });
 
 ipcMain.handle('cli:install', (_e, installDir) => {
@@ -1018,7 +1283,11 @@ if (!gotLock) {
     createTray();
 
     const cfg = loadConfig();
-    if (cfg.mode === 'manual' && cfg.manualUrl) {
+    const configExists = (() => { try { fs.accessSync(configFile()); return true; } catch { return false; } })();
+    if (!configExists) {
+      logLine('首次运行，显示设置页面');
+      showSetup('first-run');
+    } else if (cfg.mode === 'manual' && cfg.manualUrl) {
       logLine(`手动模式，直接加载: ${cfg.manualUrl}`);
       loadMain(cfg.manualUrl);
     } else {

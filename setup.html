@@ -14,16 +14,15 @@
     --field: #17171a;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; }
+  html { height: 100%; }
   body {
+    min-height: 100%;
     background: var(--bg);
     color: var(--fg);
     font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     display: flex;
-    align-items: center;
-    justify-content: center;
   }
-  .panel { width: 460px; }
+  .panel { width: 460px; max-width: 100%; margin: auto; padding: 28px 20px; }
   .mark {
     width: 44px; height: 44px;
     border-radius: 11px;
@@ -52,6 +51,26 @@
     font-size: 12px;
     color: var(--muted);
     margin-bottom: 8px;
+  }
+  .status {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    padding: 2px 12px;
+  }
+  .srow { display: flex; align-items: center; gap: 8px; padding: 9px 0; font-size: 12px; }
+  .srow + .srow { border-top: 1px solid var(--line); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: #7ec88a; }
+  .dot.bad { background: #e06c75; }
+  .sname { color: var(--muted); flex: none; width: 56px; }
+  .sval {
+    flex: 1;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: Consolas, "Courier New", monospace;
   }
   .modes { display: flex; gap: 8px; }
   .mode {
@@ -102,8 +121,21 @@
   }
   button:hover { filter: brightness(1.1); }
   button:disabled { opacity: 0.5; cursor: default; }
+  .btn2 {
+    margin-top: 0;
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    color: var(--fg);
+    font-size: 13px;
+    font-weight: 400;
+  }
+  .btn2:hover { border-color: var(--accent); filter: none; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn2 { flex: 1; }
   .row { display: flex; gap: 8px; }
-  .row input { flex: 1; }
+  .row input { flex: 1; min-width: 0; }
   .mini {
     margin-top: 0;
     width: auto;
@@ -121,6 +153,29 @@
     padding-top: 18px;
     border-top: 1px solid var(--line);
   }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .fl {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-family: Consolas, "Courier New", monospace;
+  }
+  .fb { margin-top: 10px; font-size: 12px; line-height: 1.5; min-height: 15px; }
+  .fb.ok { color: #7ec88a; }
+  .fb.bad { color: #e06c75; }
+  .dhead { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .dhead + .log { margin-top: 8px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .badge.ok { color: #7ec88a; border-color: rgba(126, 200, 138, 0.4); background: rgba(126, 200, 138, 0.08); }
+  .badge.bad { color: #e06c75; border-color: rgba(224, 108, 117, 0.4); background: rgba(224, 108, 117, 0.08); }
   .log {
     margin-top: 12px;
     padding: 10px 12px;
@@ -136,8 +191,12 @@
     word-break: break-all;
     user-select: text;
   }
+  .log.tall { height: auto; max-height: 220px; }
   .ok { margin-top: 12px; color: #7ec88a; font-size: 12px; min-height: 16px; text-align: center; }
   .err { margin-top: 12px; color: #e06c75; font-size: 12px; min-height: 16px; text-align: center; }
+  @media (max-width: 380px) {
+    .grid2 { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -145,6 +204,15 @@
     <div class="mark">K</div>
     <h1>连接 Kimi Code Web</h1>
     <div class="reason" id="reason"></div>
+
+    <div class="group">
+      <label>环境状态</label>
+      <div class="status">
+        <div class="srow"><span class="dot" id="dotCli"></span><span class="sname">CLI 版本</span><span class="sval" id="stCli">检测中…</span></div>
+        <div class="srow"><span class="dot" id="dotGit"></span><span class="sname">Git Bash</span><span class="sval" id="stGit">检测中…</span></div>
+        <div class="srow"><span class="dot" id="dotLogin"></span><span class="sname">登录状态</span><span class="sval" id="stLogin">检测中…</span></div>
+      </div>
+    </div>
 
     <div class="group">
       <label>启动方式</label>
@@ -163,6 +231,51 @@
       <div class="hint" id="cliHint">自动探测位置：<code id="defaultCli"></code></div>
     </div>
 
+    <div class="group" id="shellGroup">
+      <label>Git Bash 路径（留空则自动探测）</label>
+      <div class="row">
+        <input type="text" id="shellPath" spellcheck="false" />
+        <button class="mini" id="browseShell" type="button">浏览…</button>
+      </div>
+      <div class="hint">自动探测位置：<code id="defaultShell">检测中…</code></div>
+    </div>
+
+    <div class="group hidden" id="urlGroup">
+      <label>Web 会话地址</label>
+      <input type="text" id="manualUrl" placeholder="http://127.0.0.1:端口/sessions/…#token=…" spellcheck="false" />
+      <div class="hint">在终端运行 <code>kimi web</code>，复制输出的完整地址（含 #token= 部分）粘贴到这里。</div>
+    </div>
+
+    <div class="group">
+      <label>账号登录</label>
+      <div class="btn-row">
+        <button class="btn2" id="loginBtn" type="button">设备码登录</button>
+        <button class="btn2" id="logoutBtn" type="button">退出登录</button>
+      </div>
+      <div class="log hidden" id="loginLog"></div>
+      <div class="fb" id="loginFb"></div>
+    </div>
+
+    <div class="group">
+      <label>环境诊断</label>
+      <button class="btn2" id="doctorBtn" type="button">运行 kimi doctor</button>
+      <div class="hidden" id="doctorResult">
+        <div class="dhead"><span class="badge" id="doctorBadge"></span></div>
+        <div class="log tall" id="doctorOut"></div>
+      </div>
+    </div>
+
+    <div class="group divider" id="proxyGroup">
+      <label>代理设置（留空则不使用代理）</label>
+      <div class="grid2">
+        <div><span class="fl">HTTP_PROXY</span><input type="text" id="httpProxy" placeholder="http://127.0.0.1:7890" spellcheck="false" /></div>
+        <div><span class="fl">HTTPS_PROXY</span><input type="text" id="httpsProxy" placeholder="http://127.0.0.1:7890" spellcheck="false" /></div>
+        <div><span class="fl">ALL_PROXY</span><input type="text" id="allProxy" placeholder="socks5://127.0.0.1:7890" spellcheck="false" /></div>
+        <div><span class="fl">NO_PROXY</span><input type="text" id="noProxy" placeholder="localhost,127.0.0.1" spellcheck="false" /></div>
+      </div>
+      <div class="hint">作用于自动启动的 CLI 进程，保存后生效；NO_PROXY 用逗号分隔多个地址。</div>
+    </div>
+
     <div class="group divider" id="installGroup">
       <label>未安装 CLI？在线安装 Kimi Code</label>
       <div class="row">
@@ -173,12 +286,6 @@
       <button id="installBtn" type="button" style="margin-top:14px">安装 Kimi Code CLI</button>
       <div class="log hidden" id="installLog"></div>
       <div class="ok" id="installOk"></div>
-    </div>
-
-    <div class="group hidden" id="urlGroup">
-      <label>Web 会话地址</label>
-      <input type="text" id="manualUrl" placeholder="http://127.0.0.1:端口/sessions/…#token=…" spellcheck="false" />
-      <div class="hint">在终端运行 <code>kimi web</code>，复制输出的完整地址（含 #token= 部分）粘贴到这里。</div>
     </div>
 
     <button id="save">保存并连接</button>
@@ -204,13 +311,20 @@
       reasonEl.classList.add('show');
     }
 
-    const modeAuto = document.getElementById('modeAuto');
-    const modeManual = document.getElementById('modeManual');
-    const cliGroup = document.getElementById('cliGroup');
-    const urlGroup = document.getElementById('urlGroup');
-    const cliPathEl = document.getElementById('cliPath');
-    const manualUrlEl = document.getElementById('manualUrl');
-    const errEl = document.getElementById('err');
+    const $ = (id) => document.getElementById(id);
+    const modeAuto = $('modeAuto');
+    const modeManual = $('modeManual');
+    const cliGroup = $('cliGroup');
+    const shellGroup = $('shellGroup');
+    const urlGroup = $('urlGroup');
+    const cliPathEl = $('cliPath');
+    const shellPathEl = $('shellPath');
+    const manualUrlEl = $('manualUrl');
+    const httpProxyEl = $('httpProxy');
+    const httpsProxyEl = $('httpsProxy');
+    const allProxyEl = $('allProxy');
+    const noProxyEl = $('noProxy');
+    const errEl = $('err');
     let mode = 'auto';
 
     function setMode(m) {
@@ -218,47 +332,238 @@
       modeAuto.classList.toggle('active', m === 'auto');
       modeManual.classList.toggle('active', m === 'manual');
       cliGroup.classList.toggle('hidden', m !== 'auto');
+      shellGroup.classList.toggle('hidden', m !== 'auto');
       urlGroup.classList.toggle('hidden', m !== 'manual');
     }
     modeAuto.addEventListener('click', () => setMode('auto'));
     modeManual.addEventListener('click', () => setMode('manual'));
 
-    (async () => {
+    // 环境状态渲染（所有文本只走 textContent）
+    const dotCli = $('dotCli'), stCli = $('stCli');
+    const dotGit = $('dotGit'), stGit = $('stGit');
+    const dotLogin = $('dotLogin'), stLogin = $('stLogin');
+
+    function setStatus(dotEl, valEl, state, text, title) {
+      dotEl.className = 'dot' + (state ? ' ' + state : '');
+      valEl.textContent = text;
+      valEl.title = title || '';
+    }
+
+    function renderLoginStatus(ls) {
+      if (!ls) {
+        setStatus(dotLogin, stLogin, '', '未知');
+        return;
+      }
+      if (ls.authenticated) {
+        const n = ls.credentialCount;
+        setStatus(dotLogin, stLogin, 'ok', '已登录' + (n ? '（' + n + ' 个凭据）' : ''));
+      } else {
+        setStatus(dotLogin, stLogin, 'bad', '未登录');
+      }
+    }
+
+    function renderStatus(info) {
+      if (info.cliVersion) setStatus(dotCli, stCli, 'ok', info.cliVersion);
+      else if (info.cliFound) setStatus(dotCli, stCli, 'ok', '已安装，版本未知');
+      else setStatus(dotCli, stCli, 'bad', '未检测到');
+
+      const gb = info.gitBash;
+      if (gb && gb.path) setStatus(dotGit, stGit, 'ok', gb.path, gb.path);
+      else if (gb) setStatus(dotGit, stGit, 'bad', '未检测到');
+      else setStatus(dotGit, stGit, '', '未知');
+
+      renderLoginStatus(info.loginStatus);
+
+      // 已检测到 CLI 时收起在线安装区块
+      $('installGroup').classList.toggle('hidden', !!info.cliFound);
+    }
+
+    async function refreshStatus() {
+      try {
+        const info = await window.kimiDesktop.getInfo();
+        renderStatus(info);
+      } catch (e) { /* 刷新失败时保留当前显示 */ }
+    }
+
+    async function loadInfo() {
       if (!window.kimiDesktop) return;
       const info = await window.kimiDesktop.getInfo();
-      document.getElementById('defaultCli').textContent = info.defaultCli;
+      $('defaultCli').textContent = info.defaultCli;
       cliPathEl.placeholder = info.defaultCli;
-      if (info.config) {
-        if (info.config.cliPath) cliPathEl.value = info.config.cliPath;
-        if (info.config.manualUrl) manualUrlEl.value = info.config.manualUrl;
-        if (info.config.mode === 'manual') setMode('manual');
+      const gb = info.gitBash;
+      if (gb && gb.path) {
+        $('defaultShell').textContent = gb.path;
+        shellPathEl.placeholder = gb.path;
+      } else {
+        $('defaultShell').textContent = '未检测到，请手动选择 bash.exe';
       }
-      // 已检测到 CLI 时收起在线安装区块
-      if (info.cliFound) document.getElementById('installGroup').classList.add('hidden');
-      else document.getElementById('installDir').placeholder = info.defaultCli.replace(/[\\/]bin[\\/]kimi(\.exe)?$/i, '');
-    })();
+      if (info.config) {
+        const c = info.config;
+        if (c.cliPath) cliPathEl.value = c.cliPath;
+        if (c.manualUrl) manualUrlEl.value = c.manualUrl;
+        if (c.shellPath) shellPathEl.value = c.shellPath;
+        if (c.httpProxy) httpProxyEl.value = c.httpProxy;
+        if (c.httpsProxy) httpsProxyEl.value = c.httpsProxy;
+        if (c.allProxy) allProxyEl.value = c.allProxy;
+        if (c.noProxy) noProxyEl.value = c.noProxy;
+        if (c.mode === 'manual') setMode('manual');
+      }
+      if (!info.cliFound) {
+        $('installDir').placeholder = info.defaultCli.replace(/[\\/]bin[\\/]kimi(\.exe)?$/i, '');
+      }
+      renderStatus(info);
+    }
+    loadInfo();
 
     // 浏览选择已有的 kimi.exe
-    document.getElementById('browseCli').addEventListener('click', async () => {
+    $('browseCli').addEventListener('click', async () => {
       const p = await window.kimiDesktop.pickCli();
       if (p) cliPathEl.value = p;
     });
 
+    // 浏览选择 Git Bash 的 bash.exe
+    $('browseShell').addEventListener('click', async () => {
+      if (typeof window.kimiDesktop.pickShell !== 'function') return;
+      const p = await window.kimiDesktop.pickShell();
+      if (p) shellPathEl.value = p;
+    });
+
     // 选择安装目录
-    document.getElementById('browseDir').addEventListener('click', async () => {
+    $('browseDir').addEventListener('click', async () => {
       const d = await window.kimiDesktop.pickDir();
-      if (d) document.getElementById('installDir').value = d;
+      if (d) $('installDir').value = d;
+    });
+
+    // 账号登录（设备码）
+    const loginBtn = $('loginBtn');
+    const logoutBtn = $('logoutBtn');
+    const loginLog = $('loginLog');
+    const loginFb = $('loginFb');
+    let loggingIn = false;
+
+    function setFb(el, type, text) {
+      el.className = 'fb' + (type ? ' ' + type : '');
+      el.textContent = text || '';
+    }
+
+    function resetLoginBtn() {
+      loggingIn = false;
+      loginBtn.disabled = false;
+      loginBtn.textContent = '设备码登录';
+    }
+
+    if (window.kimiDesktop && typeof window.kimiDesktop.onLoginLog === 'function') {
+      window.kimiDesktop.onLoginLog((msg) => {
+        loginLog.classList.remove('hidden');
+        loginLog.textContent += msg + '\n';
+        loginLog.scrollTop = loginLog.scrollHeight;
+      });
+    }
+    if (window.kimiDesktop && typeof window.kimiDesktop.onLoginComplete === 'function') {
+      window.kimiDesktop.onLoginComplete((r) => {
+        resetLoginBtn();
+        if (r && r.ok) {
+          setFb(loginFb, 'ok', '登录成功');
+          if (r.loginStatus) renderLoginStatus(r.loginStatus);
+          else refreshStatus();
+        } else {
+          setFb(loginFb, 'bad', '登录失败：' + (r && r.error ? r.error : '未知错误'));
+        }
+      });
+    }
+
+    loginBtn.addEventListener('click', async () => {
+      if (loggingIn) return;
+      loggingIn = true;
+      loginBtn.disabled = true;
+      loginBtn.textContent = '等待授权…';
+      setFb(loginFb, '', '');
+      loginLog.classList.remove('hidden');
+      loginLog.textContent = '';
+      try {
+        const r = await window.kimiDesktop.startLogin();
+        if (!r || !r.ok) {
+          resetLoginBtn();
+          setFb(loginFb, 'bad', '无法启动登录：' + (r && r.error ? r.error : '未知错误'));
+        }
+      } catch (e) {
+        resetLoginBtn();
+        setFb(loginFb, 'bad', '无法启动登录：' + (e && e.message ? e.message : '未知错误'));
+      }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+      setFb(loginFb, '', '');
+      try {
+        const r = await window.kimiDesktop.logout();
+        if (r && r.cancelled) return;
+        if (r && r.ok) {
+          setFb(loginFb, 'ok', '已退出登录');
+          if (r.loginStatus) renderLoginStatus(r.loginStatus);
+          else refreshStatus();
+        } else {
+          setFb(loginFb, 'bad', '退出失败：' + (r && r.error ? r.error : '未知错误'));
+        }
+      } catch (e) {
+        setFb(loginFb, 'bad', '退出失败：' + (e && e.message ? e.message : '未知错误'));
+      }
+    });
+
+    // 环境诊断（kimi doctor）
+    const doctorBtn = $('doctorBtn');
+    const doctorResult = $('doctorResult');
+    const doctorBadge = $('doctorBadge');
+    const doctorOut = $('doctorOut');
+
+    doctorBtn.addEventListener('click', async () => {
+      doctorBtn.disabled = true;
+      doctorBtn.textContent = '正在诊断…';
+      doctorResult.classList.remove('hidden');
+      doctorBadge.className = 'badge';
+      doctorBadge.textContent = '运行中';
+      doctorOut.textContent = '';
+      try {
+        const r = await window.kimiDesktop.runDoctor();
+        if (r && r.ok) {
+          doctorBadge.className = 'badge ok';
+          doctorBadge.textContent = '诊断通过';
+        } else {
+          doctorBadge.className = 'badge bad';
+          doctorBadge.textContent = '诊断失败';
+        }
+        doctorOut.textContent = (r && r.output) ? r.output : ('错误：' + (r && r.error ? r.error : '无输出'));
+      } catch (e) {
+        doctorBadge.className = 'badge bad';
+        doctorBadge.textContent = '诊断失败';
+        doctorOut.textContent = e && e.message ? e.message : String(e);
+      }
+      doctorBtn.disabled = false;
+      doctorBtn.textContent = '运行 kimi doctor';
     });
 
     // 在线安装 CLI
-    const installBtn = document.getElementById('installBtn');
-    const installLog = document.getElementById('installLog');
-    const installOk = document.getElementById('installOk');
+    const installBtn = $('installBtn');
+    const installLog = $('installLog');
+    const installOk = $('installOk');
     window.kimiDesktop.onInstallLog((msg) => {
       installLog.classList.remove('hidden');
       installLog.textContent += msg + '\n';
       installLog.scrollTop = installLog.scrollHeight;
     });
+
+    function collectPayload() {
+      return {
+        mode,
+        cliPath: cliPathEl.value.trim(),
+        manualUrl: manualUrlEl.value.trim(),
+        shellPath: shellPathEl.value.trim(),
+        httpProxy: httpProxyEl.value.trim(),
+        httpsProxy: httpsProxyEl.value.trim(),
+        allProxy: allProxyEl.value.trim(),
+        noProxy: noProxyEl.value.trim(),
+      };
+    }
+
     installBtn.addEventListener('click', async () => {
       installBtn.disabled = true;
       installBtn.textContent = '正在安装…';
@@ -266,7 +571,7 @@
       errEl.textContent = '';
       installLog.classList.remove('hidden');
       installLog.textContent = '';
-      const dir = document.getElementById('installDir').value.trim();
+      const dir = $('installDir').value.trim();
       const r = await window.kimiDesktop.installCli(dir);
       installBtn.disabled = false;
       installBtn.textContent = '安装 Kimi Code CLI';
@@ -274,25 +579,38 @@
         installOk.textContent = '安装完成，正在启动…';
         cliPathEl.value = r.cliPath;
         setMode('auto');
-        await window.kimiDesktop.saveSetup({ mode: 'auto', cliPath: r.cliPath, manualUrl: manualUrlEl.value.trim() });
+        await window.kimiDesktop.saveSetup(collectPayload());
+        refreshStatus();
       } else {
         errEl.textContent = '安装失败：' + (r.error || '未知错误');
       }
     });
 
-    document.getElementById('save').addEventListener('click', async () => {
+    function validateProxies(p) {
+      const items = [
+        ['HTTP_PROXY', p.httpProxy],
+        ['HTTPS_PROXY', p.httpsProxy],
+        ['ALL_PROXY', p.allProxy],
+      ];
+      for (const [name, val] of items) {
+        if (val && !/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(val)) {
+          errEl.textContent = name + ' 格式不正确，应类似 http://127.0.0.1:7890 或 socks5://127.0.0.1:7890';
+          return false;
+        }
+      }
+      return true;
+    }
+
+    $('save').addEventListener('click', async () => {
       errEl.textContent = '';
-      const payload = {
-        mode,
-        cliPath: cliPathEl.value.trim(),
-        manualUrl: manualUrlEl.value.trim(),
-      };
+      const payload = collectPayload();
       if (mode === 'manual') {
         if (!/^https?:\/\//i.test(payload.manualUrl)) {
           errEl.textContent = '请填写以 http:// 开头的完整会话地址';
           return;
         }
       }
+      if (!validateProxies(payload)) return;
       await window.kimiDesktop.saveSetup(payload);
     });
   </script>

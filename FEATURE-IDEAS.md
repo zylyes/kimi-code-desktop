@@ -51,18 +51,18 @@
 | 任务完成 → 桌面通知 | Hooks `Notification`(task.completed) / `SubagentStop` 事件；tui.toml `[notifications]` 已有此概念 | 装一条 hook 规则指向通知脚本，或直接走 WS 事件 |
 | 托盘显示 token 用量/任务进度 | WS `event.session.usage_updated`、`event.task.*` | 托盘 tooltip/角标展示 |
 
-### 1.3 新手引导（帮助中心最高频痛点）
+### 1.3 新手引导（帮助中心最高频痛点）✅ **v0.4.0 已实现**
 
 | 功能 | 文档依据 | 实现思路 |
 |---|---|---|
-| 首次启动向导：Git Bash 检测 → CLI 安装 → 登录 → 选工作目录 | getting-started：Windows 必须先装 Git for Windows；preparation 页整页新手扫盲 | 向导页串联现有安装流程 |
-| 登录引导（设备码流程可视化） | `kimi login` 子命令：验证地址+用户码打印到 stderr，轮询授权，退出码 0/1 | spawn `kimi login`，解析 stderr 展示链接/二维码/用户码，自动打开浏览器 |
-| 登录状态检测与登出 | 凭证存 `~/.kimi-code/credentials/<name>.json`（0700/0600）；无 `kimi logout` 子命令，删文件即登出 | 启动时检查 credentials/ 目录 |
-| Git Bash 自检 + `KIMI_SHELL_PATH` 注入 | 非标准路径 Git 需设 `KIMI_SHELL_PATH` 为 bash.exe 绝对路径 | 探测常见路径，失败弹引导，config.json 支持自定义 |
+| ✅ 首次启动向导：Git Bash 检测 → CLI 安装 → 登录 → 选工作目录 | getting-started：Windows 必须先装 Git for Windows；preparation 页整页新手扫盲 | 向导页串联现有安装流程 |
+| ✅ 登录引导（设备码流程可视化） | `kimi login` 子命令：验证地址+用户码打印到 stderr，轮询授权，退出码 0/1 | spawn `kimi login`，解析 stderr 展示链接/二维码/用户码，自动打开浏览器 |
+| ✅ 登录状态检测与登出 | 凭证存 `~/.kimi-code/credentials/<name>.json`（0700/0600）；无 `kimi logout` 子命令，删文件即登出 | 启动时检查 credentials/ 目录 |
+| ✅ Git Bash 自检 + `KIMI_SHELL_PATH` 注入 | 非标准路径 Git 需设 `KIMI_SHELL_PATH` 为 bash.exe 绝对路径 | 探测常见路径，失败弹引导，config.json 支持自定义 |
+| ✅ `kimi doctor` 配置体检入口 | `kimi doctor [config\|tui] [path]` 校验配置，退出码 0/1 | 菜单项 + 结果弹窗 |
+| ✅ 网络自检与代理设置 | 支持 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY`（含 SOCKS）/`NO_PROXY`；api.kimi.com/api.moonshot.cn 不可被代理拦截 | 启动前探测两个 API 域；设置页代理表单注入子进程 env |
 | 认证错误识别与 FAQ 引导 | api.kimi.com 与 api.moonshot.cn 密钥**不通用**（高频坑）；设备 30 天未用授权过期；高速版无权限返回 401 且填错模型 ID **静默回退**不报错 | 监听子进程输出中的 401/认证失败关键字，弹对应排查卡片 |
 | CLI 版本显示 + 一键升级 | `kimi --version`；`kimi upgrade` 对 Windows native 只打印手动命令；`~/.kimi-code/updates/latest.json` 存最新版信息 | 关于页显示版本；有新版时重跑 `install.ps1` 完成升级 |
-| `kimi doctor` 配置体检入口 | `kimi doctor [config\|tui] [path]` 校验配置，退出码 0/1 | 菜单项 + 结果弹窗 |
-| 网络自检与代理设置 | 支持 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY`（含 SOCKS）/`NO_PROXY`；api.kimi.com/api.moonshot.cn 不可被代理拦截 | 启动前探测两个 API 域；设置页代理表单注入子进程 env |
 
 ### 1.4 图形化设置面板（config.toml GUI 化）
 
@@ -121,7 +121,7 @@
 
 **阶段 1（加固，1-2 天）**：版本适配层 + server.token 直读 + HTTP 就绪探测 + 优雅退出 + 多实例感知 ✅ **v0.2.0 已实现**
 **阶段 2（会话启动器，2-3 天）**：会话侧边栏（session_index.jsonl）+ 继续/恢复会话 + 导出 ZIP + kimi vis 窗口 ✅ **v0.3.0 已实现**
-**阶段 3（新手体验，2-3 天）**：首次启动向导（Git Bash 检测/安装/登录）+ 版本显示与升级 + doctor 体检 + 代理设置
+**阶段 3（新手体验，2-3 天）**：首次启动向导（Git Bash 检测/安装/登录）+ 版本显示与升级 + doctor 体检 + 代理设置 ✅ **v0.4.0 已实现**
 **阶段 4（原生增强，3-5 天）**：WS 连接 → 审批/问答/完成原生通知 + 托盘用量显示 + 全局热键 + 外链接管
 **阶段 5（设置中心，3-5 天）**：config.toml 图形化 + 权限规则编辑器 + 供应商管理器 + MCP/Skills/Hooks 面板
 **阶段 6（长期）**：ACP 客户端原生 UI，渐进替代 WebView

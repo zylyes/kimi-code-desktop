@@ -7,6 +7,20 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   restart: () => ipcRenderer.invoke('app:restart'),
   pickCli: () => ipcRenderer.invoke('dialog:pickCli'),
   pickDir: () => ipcRenderer.invoke('dialog:pickDir'),
+  pickShell: () => ipcRenderer.invoke('dialog:pickShell'),
+  runDoctor: () => ipcRenderer.invoke('cli:doctor'),
+  startLogin: () => ipcRenderer.invoke('auth:login'),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  onLoginLog: (fn) => {
+    const listener = (_e, msg) => fn(msg);
+    ipcRenderer.on('auth:loginLog', listener);
+    return () => ipcRenderer.removeListener('auth:loginLog', listener);
+  },
+  onLoginComplete: (fn) => {
+    const listener = (_e, result) => fn(result);
+    ipcRenderer.on('auth:loginComplete', listener);
+    return () => ipcRenderer.removeListener('auth:loginComplete', listener);
+  },
   installCli: (dir) => ipcRenderer.invoke('cli:install', dir),
   onInstallLog: (fn) => {
     const listener = (_e, msg) => fn(msg);
