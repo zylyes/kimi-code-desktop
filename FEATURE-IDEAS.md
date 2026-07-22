@@ -21,8 +21,8 @@
 | 阶段1 | ✅ v0.2.0 | CLI 版本适配层 |
 | 阶段2 | ✅ v0.3.0 | 会话启动器 |
 | 阶段3 | ✅ v0.4.0 | 新手引导 |
-| 阶段4 | 🔶 工作区已实现 | WS 通知、原生问答、托盘用量、全局热键、外链接管 |
-| 阶段5 | ⬜ 未实现 | 图形化设置中心 |
+| 阶段4 | ✅ v0.5.0 | WS 通知、原生问答、托盘用量、全局热键、外链接管 |
+| 阶段5 | 🔶 工作区已实现 | 图形化设置中心（config.toml、权限规则、供应商、MCP） |
 | 阶段6 | ⬜ 未实现 | ACP 原生 UI |
 
 ---
@@ -84,14 +84,15 @@
 | 认证错误识别与 FAQ 引导 | api.kimi.com 与 api.moonshot.cn 密钥**不通用**（高频坑）；设备 30 天未用授权过期；高速版无权限返回 401 且填错模型 ID **静默回退**不报错 | 监听子进程输出中的 401/认证失败关键字，弹对应排查卡片 |
 | CLI 版本显示 + 一键升级 | `kimi --version`；`kimi upgrade` 对 Windows native 只打印手动命令；`~/.kimi-code/updates/latest.json` 存最新版信息 | 关于页显示版本；有新版时重跑 `install.ps1` 完成升级 |
 
-### 1.4 图形化设置面板（config.toml GUI 化）
+### 1.4 图形化设置面板（config.toml GUI 化）✅ **v0.6.0 已实现**
 
 | 功能 | 文档依据 | 实现思路 |
 |---|---|---|
-| 设置面板编辑核心配置 | config.toml 全字段：`default_model`、`default_permission_mode`(manual/yolo/auto)、`default_plan_mode`、`telemetry`、`[thinking]`、`[loop_control]` | TOML 解析库读写 `~/.kimi-code/config.toml` |
-| 权限规则编辑器 + 安全预设 | `[[permission.rules]]`：decision(allow/deny/ask) + pattern（如 `Bash(rm -rf*)`）+ scope | 规则列表 UI + 模板（"拒绝 rm -rf"、"敏感文件 ask"），配合 YOLO/Auto 使用 |
-| 供应商与模型管理器 | `kimi provider list --json` / `remove` / `catalog add`；6 种 provider 类型（kimi/anthropic/openai/openai_responses/google-genai/vertexai） | GUI 列表 + 添加向导（models.dev 目录浏览，填 key 一键导入） |
-| 保存后自动 `kimi doctor` 校验 | 退出码语义 | 每次代写配置后校验，失败提示且不覆盖原文件 |
+| ✅ 设置面板编辑核心配置 | config.toml 全字段：`default_model`、`default_permission_mode`(manual/yolo/auto)、`default_plan_mode`、`telemetry`、`[thinking]`、`[loop_control]` | TOML 解析库读写 `~/.kimi-code/config.toml` |
+| ✅ 权限规则编辑器 + 安全预设 | `[[permission.rules]]`：decision(allow/deny/ask) + pattern（如 `Bash(rm -rf*)`）+ scope | 规则列表 UI + 模板（"拒绝 rm -rf"、"敏感文件 ask"），配合 YOLO/Auto 使用 |
+| ✅ 供应商与模型管理器 | `kimi provider list --json` / `remove` / `catalog add`；6 种 provider 类型（kimi/anthropic/openai/openai_responses/google-genai/vertexai） | GUI 列表 + 添加向导（填类型/key/baseURL/模型一键导入） |
+| ✅ 保存后自动 `kimi doctor` 校验 | 退出码语义 | 每次代写配置后校验，失败提示且不覆盖原文件 |
+| ✅ MCP 服务器配置 GUI | 两层 `mcp.json`（用户级 `~/.kimi-code/mcp.json` + 项目级）；stdio/HTTP/SSE 三种接入；`enabledTools`/`disabledTools` 等字段 | 表单读写 mcp.json |
 
 ---
 
@@ -105,7 +106,7 @@
 | 固定端口 / `--host` / `--log-level` 设置 | `kimi web --port/--host/--allowed-host/--log-level` | config.json 扩展字段拼启动参数 |
 | 旧版 kimi-cli 迁移提示 | 检测 `~/.kimi/` 自动提示；`kimi migrate` 交互迁移（幂等，不删旧数据） | 首次启动检测后引导 |
 | Skills 管理面板 | 四档扫描目录（项目 > 用户 > extra > 内置）；SKILL.md + YAML frontmatter；`extra_skill_dirs` | 扫描目录解析 frontmatter，GUI 新建/编辑/删除 |
-| MCP 服务器配置 GUI | 两层 `mcp.json`（用户级 `~/.kimi-code/mcp.json` + 项目级）；stdio/HTTP/SSE 三种接入；`enabledTools`/`disabledTools` 等字段 | 表单读写 mcp.json |
+| ✅ MCP 服务器配置 GUI | 两层 `mcp.json`（用户级 `~/.kimi-code/mcp.json` + 项目级）；stdio/HTTP/SSE 三种接入；`enabledTools`/`disabledTools` 等字段 | 表单读写 mcp.json |
 | Hooks 可视化编辑器 + 模板库 | `[[hooks]]` 四字段（event/matcher/command/timeout）；16 个事件；退出码 0 放行 / 2 阻断 | 生成配置条目 + 预置脚本模板 |
 | IDE 一键接入向导 | Zed：`agent_servers` JSON 片段；JetBrains：Configure ACP agents（**必须绝对路径**）；`kimi acp` stdio JSON-RPC | 检测已装编辑器，自动写入/生成配置片段（桌面应用已知 cliPath） |
 | 🔶 全局唤起热键（Ctrl+Shift+Space） | — | 已注册 Electron `globalShortcut`，Ctrl+Shift+Space 显示/隐藏窗口 |
@@ -142,8 +143,8 @@
 **阶段 1（加固，1-2 天）**：版本适配层 + server.token 直读 + HTTP 就绪探测 + 优雅退出 + 多实例感知 ✅ **v0.2.0 已实现**
 **阶段 2（会话启动器，2-3 天）**：会话侧边栏（session_index.jsonl）+ 继续/恢复会话 + 导出 ZIP + kimi vis 窗口 ✅ **v0.3.0 已实现**
 **阶段 3（新手体验，2-3 天）**：首次启动向导（Git Bash 检测/安装/登录）+ 版本显示与升级 + doctor 体检 + 代理设置 ✅ **v0.4.0 已实现**
-**阶段 4（原生增强，3-5 天）**：WS 连接 → 审批/问答/完成原生通知 + 托盘用量显示 + 全局热键 + 外链接管 → 🔶 **工作区已实现，待提交/发布**
-**阶段 5（设置中心，3-5 天）**：config.toml 图形化 + 权限规则编辑器 + 供应商管理器 + MCP/Skills/Hooks 面板
+**阶段 4（原生增强，3-5 天）**：WS 连接 → 审批/问答/完成原生通知 + 托盘用量显示 + 全局热键 + 外链接管 → ✅ **v0.5.0 已发布**
+**阶段 5（设置中心，3-5 天）**：config.toml 图形化 + 权限规则编辑器 + 供应商管理器 + MCP 配置 GUI → 🔶 **工作区已实现，待提交/发布**（Skills/Hooks 面板拆分至后续版本）
 **阶段 6（长期）**：ACP 客户端原生 UI，渐进替代 WebView
 
 ### 阶段 4 实现分项详情
@@ -160,7 +161,7 @@
 | 复杂问答原生输入 | 🔶 已实现 | 多题多选、自定义输入的原生界面 |
 | WS 端到端验证 | 🔶 mock 已验证 | mock 全场景通过：client_hello 握手/订阅、用量（12.3k tokens·上下文 35%）、任务 started/progress/completed 计数归零、审批计数、单题/多选/多题问答开窗、answered 释放与 dismiss 关窗、答案提交契约（answers map + method:'click'，多选与多题含 GUI 真实提交落盘）；聚焦回退分支已补日志。真实服务端人工核对待做（见 §5 第 12 条） |
 
-> **注意**：package.json 已升至 0.5.0，阶段4增强已完成于工作区、待提交/发布。阶段1—3 仍为标记版本（v0.2.0/v0.3.0/v0.4.0）已完成。阶段5 与其他未标注完成项目仍未实现。
+> **注意**：package.json 已升至 0.6.0，阶段4（v0.5.0）与阶段5 均已完成于工作区、待提交/发布。阶段1—3 仍为标记版本（v0.2.0/v0.3.0/v0.4.0）已完成。阶段6 与其他未标注完成项目仍未实现。
 
 ---
 

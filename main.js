@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const http = require('http');
 const WebSocket = require('ws');
+const configManager = require('./config-manager');
 
 const APP_NAME = 'Kimi Code Desktop';
 const isDev = process.argv.includes('--dev');
@@ -1587,6 +1588,164 @@ function buildMenu() {
 }
 
 // ---------- IPC ----------
+
+// 配置中心 IPC
+ipcMain.handle('config:loadConfigToml', () => {
+  try {
+    const result = configManager.loadConfigToml();
+    return { ok: true, data: result.data, path: result.path };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:saveConfigToml', async (_e, data) => {
+  try {
+    const cfg = loadConfig();
+    const cli = resolveCliPath(cfg);
+    if (!cli) throw new Error('未找到 kimi CLI');
+    await configManager.saveConfigToml(data, cli, buildKimiEnv(cfg));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:loadTuiToml', () => {
+  try {
+    const result = configManager.loadTuiToml();
+    return { ok: true, data: result.data, path: result.path };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:saveTuiToml', async (_e, data) => {
+  try {
+    const cfg = loadConfig();
+    const cli = resolveCliPath(cfg);
+    if (!cli) throw new Error('未找到 kimi CLI');
+    await configManager.saveTuiToml(data, cli, buildKimiEnv(cfg));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:loadMcpJson', () => {
+  try {
+    const result = configManager.loadMcpJson(true);
+    return { ok: true, data: result.data, path: result.path };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:saveMcpJson', (_e, data) => {
+  try {
+    const result = configManager.saveMcpJson(data, true);
+    return { ok: true, path: result.path };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:listProviders', async () => {
+  try {
+    const cfg = loadConfig();
+    const cli = resolveCliPath(cfg);
+    if (!cli) throw new Error('未找到 kimi CLI');
+    return new Promise((resolve) => {
+      let stdout = '';
+      let stderr = '';
+      let child;
+      try {
+        child = spawn(cli, ['provider', 'list', '--json'], { env: buildKimiEnv(cfg), windowsHide: true });
+      } catch (err) {
+        return resolve({ ok: false, error: err.message });
+      }
+      const timer = setTimeout(() => {
+        try { child.kill(); } catch { /* ignore */ }
+        resolve({ ok: false, error: '获取供应商列表超时' });
+      }, 15000);
+      child.stdout.on('data', (chunk) => { stdout += chunk.toString('utf8'); });
+      child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+      child.on('error', (err) => { clearTimeout(timer); resolve({ ok: false, error: err.message }); });
+      child.on('exit', (code) => {
+        clearTimeout(timer);
+        if (code !== 0) return resolve({ ok: false, error: stderr || `退出码 ${code}` });
+        try {
+          const data = JSON.parse(stdout);
+          resolve({ ok: true, providers: Array.isArray(data) ? data : (data.providers || []) });
+        } catch (e) {
+          resolve({ ok: false, error: '解析供应商 JSON 失败' });
+        }
+      });
+    });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:removeProvider', async (_e, name) => {
+  try {
+    const cfg = loadConfig();
+    const cli = resolveCliPath(cfg);
+    if (!cli) throw new Error('未找到 kimi CLI');
+    return new Promise((resolve) => {
+      let child;
+      try {
+        child = spawn(cli, ['provider', 'remove', String(name)], { env: buildKimiEnv(cfg), windowsHide: true });
+      } catch (err) {
+        return resolve({ ok: false, error: err.message });
+      }
+      const timer = setTimeout(() => {
+        try { child.kill(); } catch { /* ignore */ }
+        resolve({ ok: false, error: '超时' });
+      }, 15000);
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+      child.on('error', (err) => { clearTimeout(timer); resolve({ ok: false, error: err.message }); });
+      child.on('exit', (code) => { clearTimeout(timer); resolve({ ok: code === 0, error: code === 0 ? undefined : (stderr || `退出码 ${code}`) }); });
+    });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('config:addProviderCatalog', async (_e, args) => {
+  try {
+    const cfg = loadConfig();
+    const cli = resolveCliPath(cfg);
+    if (!cli) throw new Error('未找到 kimi CLI');
+    const { type, apiKey, baseUrl, models, modelsDevDir } = args || {};
+    if (!type) throw new Error('缺少供应商类型');
+    const spawnArgs = ['provider', 'catalog', 'add', '--type', String(type)];
+    if (apiKey) spawnArgs.push('--api-key', String(apiKey));
+    if (baseUrl) spawnArgs.push('--base-url', String(baseUrl));
+    if (models) spawnArgs.push('--models', String(models));
+    if (modelsDevDir) spawnArgs.push('--models-dev-dir', String(modelsDevDir));
+    return new Promise((resolve) => {
+      let child;
+      try {
+        child = spawn(cli, spawnArgs, { env: buildKimiEnv(cfg), windowsHide: true });
+      } catch (err) {
+        return resolve({ ok: false, error: err.message });
+      }
+      const timer = setTimeout(() => {
+        try { child.kill(); } catch { /* ignore */ }
+        resolve({ ok: false, error: '添加供应商超时' });
+      }, 30000);
+      let stderr = '';
+      child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
+      child.on('error', (err) => { clearTimeout(timer); resolve({ ok: false, error: err.message }); });
+      child.on('exit', (code) => { clearTimeout(timer); resolve({ ok: code === 0, error: code === 0 ? undefined : (stderr || `退出码 ${code}`) }); });
+    });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('app:info', () => {
   const cfg = loadConfig();
   const cli = resolveCliPath(cfg);

@@ -194,8 +194,157 @@
   .log.tall { height: auto; max-height: 220px; }
   .ok { margin-top: 12px; color: #7ec88a; font-size: 12px; min-height: 16px; text-align: center; }
   .err { margin-top: 12px; color: #e06c75; font-size: 12px; min-height: 16px; text-align: center; }
+
+  /* 标签页 */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-top: 18px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--field);
+    overflow-x: auto;
+  }
+  .tab {
+    flex: 1;
+    min-width: 72px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: center;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* 配置表单 */
+  .form-row { margin-top: 16px; }
+  .form-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--fg);
+    font-size: 13px;
+    outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+  textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    color: var(--fg);
+    font-size: 13px;
+    font-family: Consolas, "Courier New", monospace;
+    outline: none;
+    resize: vertical;
+    min-height: 80px;
+  }
+  textarea:focus { border-color: var(--accent); }
+  .switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+  }
+  .switch-label { font-size: 13px; }
+  .switch-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  input[type="checkbox"] {
+    width: 36px; height: 20px;
+    appearance: none;
+    border-radius: 10px;
+    background: #3a3a40;
+    position: relative;
+    cursor: pointer;
+    outline: none;
+  }
+  input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    top: 2px; left: 2px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s;
+  }
+  input[type="checkbox"]:checked { background: var(--accent); }
+  input[type="checkbox"]:checked::after { transform: translateX(16px); }
+  .section-title {
+    margin-top: 24px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* 规则表格 */
+  .rule-list { margin-top: 10px; }
+  .rule-item {
+    display: grid;
+    grid-template-columns: 90px 1fr 90px 32px;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .rule-item select, .rule-item input { margin: 0; }
+  .rule-item button {
+    margin: 0;
+    padding: 6px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: #e06c75;
+    font-size: 12px;
+  }
+  .rule-item button:hover { border-color: #e06c75; }
+  .btn-add {
+    margin-top: 10px;
+    width: 100%;
+    padding: 10px;
+    background: var(--field);
+    border: 1px dashed var(--line);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .btn-add:hover { border-color: var(--accent); color: var(--fg); }
+
+  /* 列表卡片 */
+  .card-list { margin-top: 10px; }
+  .card {
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--field);
+    margin-bottom: 10px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; }
+  .card-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .card-actions { margin-top: 10px; display: flex; gap: 8px; }
+  .card-actions button {
+    margin: 0;
+    flex: 1;
+    padding: 8px;
+    font-size: 12px;
+  }
+
   @media (max-width: 380px) {
     .grid2 { grid-template-columns: 1fr; }
+    .rule-item { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -205,6 +354,16 @@
     <h1>连接 Kimi Code Web</h1>
     <div class="reason" id="reason"></div>
 
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="env">环境</button>
+      <button class="tab" data-tab="general">通用配置</button>
+      <button class="tab" data-tab="rules">权限规则</button>
+      <button class="tab" data-tab="providers">供应商</button>
+      <button class="tab" data-tab="mcp">MCP</button>
+    </div>
+
+    <!-- 环境面板 -->
+    <div class="tab-panel active" id="panel-env">
     <div class="group">
       <label>环境状态</label>
       <div class="status">
@@ -290,6 +449,91 @@
 
     <button id="save">保存并连接</button>
     <div class="err" id="err"></div>
+    </div>
+
+    <!-- 通用配置面板 -->
+    <div class="tab-panel" id="panel-general">
+      <div class="section-title">config.toml</div>
+      <div class="form-row">
+        <label>默认模型</label>
+        <input type="text" id="cfgDefaultModel" placeholder="kimi-for-coding" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>默认权限模式</label>
+        <select id="cfgPermissionMode">
+          <option value="manual">manual（每次询问）</option>
+          <option value="yolo">yolo（自动放行非破坏性操作）</option>
+          <option value="auto">auto（完全自动）</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>默认计划模式</label>
+        <select id="cfgPlanMode">
+          <option value="true">启用计划模式</option>
+          <option value="false">禁用计划模式</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">遥测</div>
+            <div class="switch-desc">向 Kimi Code 发送匿名使用数据</div>
+          </div>
+          <input type="checkbox" id="cfgTelemetry" />
+        </div>
+      </div>
+      <div class="section-title">思考与循环控制</div>
+      <div class="form-row">
+        <label>思考预算（thinking.budget）</label>
+        <input type="text" id="cfgThinkingBudget" placeholder="例如 1024" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>单次最大迭代数（loop_control.max_iterations）</label>
+        <input type="text" id="cfgMaxIterations" placeholder="例如 50" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>最大工具调用深度（loop_control.max_tool_depth）</label>
+        <input type="text" id="cfgMaxToolDepth" placeholder="例如 10" spellcheck="false" />
+      </div>
+      <button id="saveConfig">保存 config.toml</button>
+      <div class="ok" id="cfgOk"></div>
+      <div class="err" id="cfgErr"></div>
+    </div>
+
+    <!-- 权限规则面板 -->
+    <div class="tab-panel" id="panel-rules">
+      <div class="section-title">权限规则</div>
+      <div class="hint">规则按顺序匹配，decision 支持 allow / deny / ask。</div>
+      <div class="rule-list" id="ruleList"></div>
+      <button class="btn-add" id="addRule">+ 添加规则</button>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn2" id="presetDenyRm" type="button">拒绝 rm -rf</button>
+        <button class="btn2" id="presetSensitive" type="button">敏感文件 ask</button>
+      </div>
+      <button id="saveRules">保存权限规则</button>
+      <div class="ok" id="rulesOk"></div>
+      <div class="err" id="rulesErr"></div>
+    </div>
+
+    <!-- 供应商面板 -->
+    <div class="tab-panel" id="panel-providers">
+      <div class="section-title">供应商与模型</div>
+      <div class="card-list" id="providerList"></div>
+      <button class="btn-add" id="addProvider">+ 添加供应商</button>
+      <div class="ok" id="providersOk"></div>
+      <div class="err" id="providersErr"></div>
+    </div>
+
+    <!-- MCP 面板 -->
+    <div class="tab-panel" id="panel-mcp">
+      <div class="section-title">MCP 服务器</div>
+      <div class="hint">编辑用户级 mcp.json。若当前项目存在项目级 mcp.json，保存时仅影响用户级配置。</div>
+      <div class="card-list" id="mcpList"></div>
+      <button class="btn-add" id="addMcpServer">+ 添加 MCP 服务器</button>
+      <button id="saveMcp">保存 mcp.json</button>
+      <div class="ok" id="mcpOk"></div>
+      <div class="err" id="mcpErr"></div>
+    </div>
   </div>
 
   <script>
@@ -312,6 +556,20 @@
     }
 
     const $ = (id) => document.getElementById(id);
+
+    // 标签页切换
+    const tabs = document.querySelectorAll('.tab');
+    const panels = document.querySelectorAll('.tab-panel');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const key = tab.dataset.tab;
+        tabs.forEach((t) => t.classList.toggle('active', t === tab));
+        panels.forEach((p) => p.classList.toggle('active', p.id === 'panel-' + key));
+        if (key === 'providers') loadProviders();
+        if (key === 'mcp') loadMcp();
+      });
+    });
+
     const modeAuto = $('modeAuto');
     const modeManual = $('modeManual');
     const cliGroup = $('cliGroup');
@@ -613,6 +871,326 @@
       if (!validateProxies(payload)) return;
       await window.kimiDesktop.saveSetup(payload);
     });
+
+    // ==================== 通用配置面板 ====================
+    const cfgDefaultModel = $('cfgDefaultModel');
+    const cfgPermissionMode = $('cfgPermissionMode');
+    const cfgPlanMode = $('cfgPlanMode');
+    const cfgTelemetry = $('cfgTelemetry');
+    const cfgThinkingBudget = $('cfgThinkingBudget');
+    const cfgMaxIterations = $('cfgMaxIterations');
+    const cfgMaxToolDepth = $('cfgMaxToolDepth');
+    const cfgOk = $('cfgOk');
+    const cfgErr = $('cfgErr');
+    let currentConfigData = {};
+
+    function setFeedback(okEl, errEl, type, text) {
+      okEl.textContent = '';
+      errEl.textContent = '';
+      if (type === 'ok') okEl.textContent = text;
+      if (type === 'err') errEl.textContent = text;
+    }
+
+    function numOrNull(v) {
+      const n = Number(v);
+      return v !== '' && !isNaN(n) && isFinite(n) ? n : null;
+    }
+
+    async function loadConfigToml() {
+      if (typeof window.kimiDesktop.loadConfigToml !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.loadConfigToml();
+        if (!r.ok) {
+          setFeedback(cfgOk, cfgErr, 'err', '读取配置失败：' + (r.error || '未知错误'));
+          return;
+        }
+        currentConfigData = r.data || {};
+        const d = currentConfigData;
+        cfgDefaultModel.value = d.default_model || '';
+        cfgPermissionMode.value = d.default_permission_mode || 'manual';
+        cfgPlanMode.value = String(d.default_plan_mode === false ? 'false' : 'true');
+        cfgTelemetry.checked = !!d.telemetry;
+        cfgThinkingBudget.value = (d.thinking && d.thinking.budget != null) ? String(d.thinking.budget) : '';
+        cfgMaxIterations.value = (d.loop_control && d.loop_control.max_iterations != null) ? String(d.loop_control.max_iterations) : '';
+        cfgMaxToolDepth.value = (d.loop_control && d.loop_control.max_tool_depth != null) ? String(d.loop_control.max_tool_depth) : '';
+      } catch (e) {
+        setFeedback(cfgOk, cfgErr, 'err', '读取配置异常：' + e.message);
+      }
+    }
+
+    $('saveConfig').addEventListener('click', async () => {
+      setFeedback(cfgOk, cfgErr, '', '');
+      const payload = { ...currentConfigData };
+      payload.default_model = cfgDefaultModel.value.trim() || undefined;
+      payload.default_permission_mode = cfgPermissionMode.value;
+      payload.default_plan_mode = cfgPlanMode.value === 'true';
+      payload.telemetry = cfgTelemetry.checked;
+      const thinkingBudget = numOrNull(cfgThinkingBudget.value);
+      if (thinkingBudget != null) {
+        payload.thinking = { ...(payload.thinking || {}), budget: thinkingBudget };
+      } else if (payload.thinking) {
+        delete payload.thinking.budget;
+        if (Object.keys(payload.thinking).length === 0) delete payload.thinking;
+      }
+      const maxIter = numOrNull(cfgMaxIterations.value);
+      const maxDepth = numOrNull(cfgMaxToolDepth.value);
+      if (maxIter != null || maxDepth != null) {
+        payload.loop_control = { ...(payload.loop_control || {}) };
+        if (maxIter != null) payload.loop_control.max_iterations = maxIter;
+        else delete payload.loop_control.max_iterations;
+        if (maxDepth != null) payload.loop_control.max_tool_depth = maxDepth;
+        else delete payload.loop_control.max_tool_depth;
+      } else if (payload.loop_control) {
+        delete payload.loop_control;
+      }
+      try {
+        const r = await window.kimiDesktop.saveConfigToml(payload);
+        if (r.ok) {
+          setFeedback(cfgOk, cfgErr, 'ok', 'config.toml 已保存');
+        } else {
+          setFeedback(cfgOk, cfgErr, 'err', '保存失败：' + (r.error || '未知错误'));
+        }
+      } catch (e) {
+        setFeedback(cfgOk, cfgErr, 'err', '保存异常：' + e.message);
+      }
+    });
+
+    // ==================== 权限规则面板 ====================
+    const ruleList = $('ruleList');
+    const rulesOk = $('rulesOk');
+    const rulesErr = $('rulesErr');
+    let currentRules = [];
+
+    function renderRules() {
+      ruleList.innerHTML = '';
+      currentRules.forEach((rule, idx) => {
+        const row = document.createElement('div');
+        row.className = 'rule-item';
+        row.innerHTML = `<select data-idx="${idx}" data-field="decision">
+          <option value="allow" ${rule.decision === 'allow' ? 'selected' : ''}>allow</option>
+          <option value="deny" ${rule.decision === 'deny' ? 'selected' : ''}>deny</option>
+          <option value="ask" ${rule.decision === 'ask' ? 'selected' : ''}>ask</option>
+        </select>
+        <input type="text" data-idx="${idx}" data-field="pattern" value="${escapeHtml(rule.pattern || '')}" placeholder="Bash(rm -rf*)" spellcheck="false" />
+        <input type="text" data-idx="${idx}" data-field="scope" value="${escapeHtml(rule.scope || '')}" placeholder="scope" spellcheck="false" />
+        <button type="button" data-idx="${idx}" class="del-rule">×</button>`;
+        ruleList.appendChild(row);
+      });
+      ruleList.querySelectorAll('select, input').forEach((el) => {
+        el.addEventListener('input', () => {
+          const idx = Number(el.dataset.idx);
+          const field = el.dataset.field;
+          currentRules[idx][field] = el.value;
+        });
+      });
+      ruleList.querySelectorAll('.del-rule').forEach((el) => {
+        el.addEventListener('click', () => {
+          currentRules.splice(Number(el.dataset.idx), 1);
+          renderRules();
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadRules() {
+      if (typeof window.kimiDesktop.loadConfigToml !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.loadConfigToml();
+        if (!r.ok) {
+          setFeedback(rulesOk, rulesErr, 'err', '读取配置失败：' + (r.error || '未知错误'));
+          return;
+        }
+        currentRules = (r.data && r.data.permission && Array.isArray(r.data.permission.rules)) ? r.data.permission.rules : [];
+        renderRules();
+      } catch (e) {
+        setFeedback(rulesOk, rulesErr, 'err', '读取异常：' + e.message);
+      }
+    }
+
+    $('addRule').addEventListener('click', () => {
+      currentRules.push({ decision: 'ask', pattern: '', scope: '' });
+      renderRules();
+    });
+    $('presetDenyRm').addEventListener('click', () => {
+      currentRules.push({ decision: 'deny', pattern: 'Bash(rm -rf*)', scope: '' });
+      renderRules();
+    });
+    $('presetSensitive').addEventListener('click', () => {
+      currentRules.push({ decision: 'ask', pattern: 'Read(*.ssh/*)|Read(*.env*)', scope: '' });
+      renderRules();
+    });
+    $('saveRules').addEventListener('click', async () => {
+      setFeedback(rulesOk, rulesErr, '', '');
+      try {
+        const r = await window.kimiDesktop.loadConfigToml();
+        const data = (r.ok && r.data) ? r.data : {};
+        const cleanedRules = currentRules
+          .map((r) => ({ decision: r.decision, pattern: r.pattern || '', scope: r.scope || '' }))
+          .filter((r) => r.pattern || r.scope);
+        data.permission = { ...(data.permission || {}), rules: cleanedRules };
+        const save = await window.kimiDesktop.saveConfigToml(data);
+        if (save.ok) setFeedback(rulesOk, rulesErr, 'ok', '权限规则已保存');
+        else setFeedback(rulesOk, rulesErr, 'err', '保存失败：' + (save.error || '未知错误'));
+      } catch (e) {
+        setFeedback(rulesOk, rulesErr, 'err', '保存异常：' + e.message);
+      }
+    });
+
+    // ==================== 供应商面板 ====================
+    const providerList = $('providerList');
+    const providersOk = $('providersOk');
+    const providersErr = $('providersErr');
+
+    async function loadProviders() {
+      if (typeof window.kimiDesktop.listProviders !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.listProviders();
+        if (!r.ok) {
+          setFeedback(providersOk, providersErr, 'err', '获取供应商失败：' + (r.error || '未知错误'));
+          providerList.innerHTML = '';
+          return;
+        }
+        const providers = r.providers || [];
+        providerList.innerHTML = '';
+        if (providers.length === 0) {
+          providerList.innerHTML = '<div class="hint">暂无自定义供应商。</div>';
+          return;
+        }
+        providers.forEach((p) => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `<div class="card-title">${escapeHtml(p.name || '未命名')}</div>
+            <div class="card-meta">类型：${escapeHtml(p.type || '-')} · 模型：${escapeHtml((p.models || []).join(', ') || '-')}</div>
+            <div class="card-actions"><button class="btn2 remove-provider" data-name="${escapeHtml(p.name || '')}">删除</button></div>`;
+          providerList.appendChild(card);
+        });
+        providerList.querySelectorAll('.remove-provider').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('确定删除供应商 ' + btn.dataset.name + ' 吗？')) return;
+            try {
+              const res = await window.kimiDesktop.removeProvider(btn.dataset.name);
+              if (res.ok) { setFeedback(providersOk, providersErr, 'ok', '已删除'); loadProviders(); }
+              else setFeedback(providersOk, providersErr, 'err', '删除失败：' + (res.error || '未知错误'));
+            } catch (e) { setFeedback(providersOk, providersErr, 'err', '删除异常：' + e.message); }
+          });
+        });
+      } catch (e) {
+        setFeedback(providersOk, providersErr, 'err', '加载异常：' + e.message);
+      }
+    }
+
+    let addingProvider = false;
+    $('addProvider').addEventListener('click', async () => {
+      if (addingProvider) return;
+      const type = prompt('供应商类型（kimi / anthropic / openai / openai_responses / google-genai / vertexai）：');
+      if (!type) return;
+      const apiKey = prompt('API Key（可为空）：') || '';
+      const baseUrl = prompt('Base URL（可为空）：') || '';
+      const models = prompt('模型列表，逗号分隔（可为空）：') || '';
+      addingProvider = true;
+      $('addProvider').textContent = '添加中…';
+      try {
+        const r = await window.kimiDesktop.addProviderCatalog({ type, apiKey, baseUrl, models });
+        if (r.ok) { setFeedback(providersOk, providersErr, 'ok', '供应商添加成功'); loadProviders(); }
+        else setFeedback(providersOk, providersErr, 'err', '添加失败：' + (r.error || '未知错误'));
+      } catch (e) { setFeedback(providersOk, providersErr, 'err', '添加异常：' + e.message); }
+      addingProvider = false;
+      $('addProvider').textContent = '+ 添加供应商';
+    });
+
+    // ==================== MCP 面板 ====================
+    const mcpList = $('mcpList');
+    const mcpOk = $('mcpOk');
+    const mcpErr = $('mcpErr');
+    let currentMcpData = { mcpServers: {} };
+
+    function renderMcpServers() {
+      mcpList.innerHTML = '';
+      const servers = currentMcpData.mcpServers || {};
+      const names = Object.keys(servers);
+      if (names.length === 0) {
+        mcpList.innerHTML = '<div class="hint">暂无 MCP 服务器。</div>';
+        return;
+      }
+      names.forEach((name) => {
+        const s = servers[name] || {};
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<div class="card-title">${escapeHtml(name)}</div>
+          <div class="card-meta">类型：${escapeHtml(s.type || s.transport || '-')}</div>
+          <div class="card-meta">命令/URL：${escapeHtml(s.command || s.url || '-')}</div>
+          <div class="card-actions">
+            <button class="btn2 edit-mcp" data-name="${escapeHtml(name)}">编辑</button>
+            <button class="btn2 remove-mcp" data-name="${escapeHtml(name)}">删除</button>
+          </div>`;
+        mcpList.appendChild(card);
+      });
+      mcpList.querySelectorAll('.remove-mcp').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          delete currentMcpData.mcpServers[btn.dataset.name];
+          renderMcpServers();
+        });
+      });
+      mcpList.querySelectorAll('.edit-mcp').forEach((btn) => {
+        btn.addEventListener('click', () => editMcpServer(btn.dataset.name));
+      });
+    }
+
+    function editMcpServer(name) {
+      const s = currentMcpData.mcpServers[name] || {};
+      const type = prompt('类型（stdio / http / sse）：', s.type || s.transport || 'stdio');
+      if (!type) return;
+      const command = prompt('命令（stdio）或 URL（http/sse）：', s.command || s.url || '');
+      if (command === null) return;
+      const envInput = prompt('环境变量 JSON（可选）：', s.env ? JSON.stringify(s.env) : '');
+      let env = {};
+      try { if (envInput) env = JSON.parse(envInput); } catch { alert('环境变量 JSON 格式错误，已忽略'); }
+      const updated = { type };
+      if (type === 'stdio') updated.command = command;
+      else updated.url = command;
+      if (Object.keys(env).length) updated.env = env;
+      if (s.enabledTools) updated.enabledTools = s.enabledTools;
+      if (s.disabledTools) updated.disabledTools = s.disabledTools;
+      currentMcpData.mcpServers[name] = updated;
+      renderMcpServers();
+    }
+
+    async function loadMcp() {
+      if (typeof window.kimiDesktop.loadMcpJson !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.loadMcpJson();
+        if (!r.ok) { setFeedback(mcpOk, mcpErr, 'err', '读取失败：' + (r.error || '未知错误')); return; }
+        currentMcpData = r.data || { mcpServers: {} };
+        renderMcpServers();
+      } catch (e) { setFeedback(mcpOk, mcpErr, 'err', '读取异常：' + e.message); }
+    }
+
+    $('addMcpServer').addEventListener('click', () => {
+      const name = prompt('MCP 服务器名称：');
+      if (!name || currentMcpData.mcpServers[name]) {
+        if (name) alert('该名称已存在');
+        return;
+      }
+      currentMcpData.mcpServers[name] = { type: 'stdio', command: '' };
+      renderMcpServers();
+      editMcpServer(name);
+    });
+
+    $('saveMcp').addEventListener('click', async () => {
+      setFeedback(mcpOk, mcpErr, '', '');
+      try {
+        const r = await window.kimiDesktop.saveMcpJson(currentMcpData);
+        if (r.ok) setFeedback(mcpOk, mcpErr, 'ok', 'mcp.json 已保存');
+        else setFeedback(mcpOk, mcpErr, 'err', '保存失败：' + (r.error || '未知错误'));
+      } catch (e) { setFeedback(mcpOk, mcpErr, 'err', '保存异常：' + e.message); }
+    });
+
+    // 初始化配置面板数据
+    loadConfigToml();
+    loadRules();
   </script>
 </body>
 </html>

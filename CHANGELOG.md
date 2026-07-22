@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.0] - 2026-07-22
+
+### 新功能
+
+- **图形化设置中心**：设置页（setup.html）新增标签页导航，集成 config.toml / 权限规则 / 供应商管理 / MCP 服务器四大配置面板。
+- **config.toml GUI 化**：支持编辑 `default_model`、`default_permission_mode`（manual/yolo/auto）、`default_plan_mode`、`telemetry` 开关，以及 `[thinking]` / `[loop_control]` 参数；保存前自动调用 `kimi doctor` 校验，失败时回滚原文件。
+- **权限规则编辑器**：可视化增删改 `[[permission.rules]]`，支持 decision（allow/deny/ask）、pattern、scope，提供"拒绝 rm -rf"与"敏感文件 ask"安全预设。
+- **供应商与模型管理器**：调用 `kimi provider list --json` 展示供应商列表，支持删除供应商与通过向导添加 catalog 供应商（覆盖 6 种 provider 类型）。
+- **MCP 服务器配置 GUI**：读写用户级 `~/.kimi-code/mcp.json`，支持 stdio/http/sse 三种接入方式、命令/URL、环境变量与启停工具列表。
+
+### 改进
+
+- 新增 `config-manager.js` 配置管理模块：统一读写 `config.toml`、`tui.toml`、`mcp.json`，写入前备份、doctor 校验、失败回滚。
+- `package.json` 打包清单补齐 `config-manager.js`，并新增 `@iarna/toml` 依赖。
+- 新增 IPC 通道：`config:loadConfigToml`、`config:saveConfigToml`、`config:loadTuiToml`、`config:saveTuiToml`、`config:loadMcpJson`、`config:saveMcpJson`、`config:listProviders`、`config:removeProvider`、`config:addProviderCatalog`。
+
+### 技术细节
+
+- TOML 解析使用 `@iarna/toml`，支持完整的 parse/stringify。
+- `runDoctor` 在 Windows 上对非 `.exe` CLI 路径自动启用 `shell: true`，提高兼容性。
+- 新增 `test-config-manager.js` 单元测试，覆盖空配置加载、TOML 解析、保存备份、失败回滚、MCP JSON 读写。
+- 无破坏性变更。
+
 ## [0.5.0] - 2026-07-22
 
 ### 新功能

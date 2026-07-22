@@ -32,6 +32,11 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 19. **全局热键**（v0.5.0）：`Ctrl+Shift+Space` 全局显示/隐藏窗口，即使应用不在前台也可快速唤回。
 20. **mock 验证基建**（v0.5.0）：新增 `scripts/mock-kimi-server.js`（默认端口 58999，固定 token `mock-token`），自动覆盖 client_hello/订阅/问答/审批/用量/任务事件验证，`npm run mock` 一键启动。
 21. **测试钩子**（v0.5.0）：支持 `KIMI_DESKTOP_TEST_BASE`、`KIMI_DESKTOP_TEST_TOKEN` 环境变量覆盖服务地址与 token，便于对接 mock 服务做自动化测试。
+22. **图形化设置中心**（v0.6.0）：设置页（setup.html）新增标签页导航，集成 config.toml / 权限规则 / 供应商管理 / MCP 服务器四大配置面板。
+23. **config.toml GUI 编辑**（v0.6.0）：支持编辑 `default_model`、`default_permission_mode`（manual/yolo/auto）、`default_plan_mode`、`telemetry` 开关，以及 `[thinking]` / `[loop_control]` 参数；保存前自动调用 `kimi doctor` 校验，失败时回滚原文件。
+24. **权限规则编辑器**（v0.6.0）：可视化增删改 `[[permission.rules]]`，支持 decision（allow/deny/ask）、pattern、scope，提供"拒绝 rm -rf"与"敏感文件 ask"安全预设。
+25. **供应商与模型管理器**（v0.6.0）：调用 `kimi provider list --json` 展示供应商列表，支持删除供应商与通过向导添加 catalog 供应商（覆盖 6 种 provider 类型）。
+26. **MCP 服务器配置 GUI**（v0.6.0）：读写用户级 `~/.kimi-code/mcp.json`，支持 stdio/http/sse 三种接入方式、命令/URL、环境变量与启停工具列表。
 
 ## 会话启动器
 
@@ -103,18 +108,20 @@ npm install
 ## 文件结构
 
 ```
-main.js              Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC、会话管理、WebSocket 订阅、托盘用量/任务状态、全局热键、问答窗口管理、编辑器协议接管）
-preload.js           渲染进程桥接（含会话启动器 API）
+main.js              Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC、会话管理、WebSocket 订阅、托盘用量/任务状态、全局热键、问答窗口管理、编辑器协议接管、配置中心 IPC）
+preload.js           渲染进程桥接（含会话启动器 API 和配置中心 API）
+config-manager.js    配置管理模块（读写 config.toml、tui.toml、mcp.json，写入前备份、doctor 校验、失败回滚）
 question.html        原生问答窗口（单选/多选/多题/自定义输入，深色主题 UI）
 question.js          问答窗口渲染逻辑（选项渲染、多题翻页、答案校验、提交/回退/取消）
 question-preload.js  问答窗口预加载桥接（contextIsolation 下暴露 kimiQuestion API）
 loading.html         启动等待页（实时显示 CLI 日志）
-setup.html           设置页（自动/手动两种连接方式）
+setup.html           设置页（自动/手动两种连接方式，含标签页导航：环境/通用配置/权限规则/供应商/MCP）
 sessions.html        会话启动器（历史浏览、恢复、导出 ZIP、可视化、新建会话）
 assets/              应用图标
 scripts/
   mock-kimi-server.js  Mock Kimi 服务端（HTTP+WS，覆盖 client_hello/订阅/问答/审批/用量/任务事件验证）
   pack-versioned.ps1   版本化打包脚本
+test-config-manager.js 配置管理模块单元测试
 CHANGELOG.md          版本变更历史
 FEATURE-IDEAS.md      功能建议报告与实施状态
 ```

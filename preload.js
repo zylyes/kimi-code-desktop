@@ -32,6 +32,16 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
     ipcRenderer.on('server:log', listener);
     return () => ipcRenderer.removeListener('server:log', listener);
   },
+  // 配置中心 API
+  loadConfigToml: () => ipcRenderer.invoke('config:loadConfigToml'),
+  saveConfigToml: (data) => ipcRenderer.invoke('config:saveConfigToml', data),
+  loadTuiToml: () => ipcRenderer.invoke('config:loadTuiToml'),
+  saveTuiToml: (data) => ipcRenderer.invoke('config:saveTuiToml', data),
+  loadMcpJson: () => ipcRenderer.invoke('config:loadMcpJson'),
+  saveMcpJson: (data) => ipcRenderer.invoke('config:saveMcpJson', data),
+  listProviders: () => ipcRenderer.invoke('config:listProviders'),
+  removeProvider: (name) => ipcRenderer.invoke('config:removeProvider', name),
+  addProviderCatalog: (args) => ipcRenderer.invoke('config:addProviderCatalog', args),
   // 会话启动器 API
   getSessions: () => ipcRenderer.invoke('session:getSessions'),
   refreshSessions: () => ipcRenderer.invoke('session:refreshSessions'),
