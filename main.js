@@ -129,7 +129,27 @@ function loadConfig() {
     httpProxy: '', httpsProxy: '', allProxy: '', noProxy: '',
     port: null, host: '', logLevel: '', kimiCodeHome: '',
     noAutoUpdate: false, disableTelemetry: false, autoStartCli: true,
+    // 应用设置（设置页「应用设置」面板）
+    theme: 'system', zoomFactor: 1,
+    closeToTray: true, minimizeToTray: true, alwaysOnTop: false,
+    launchAtLogin: false, notificationsEnabled: true, globalHotkeyEnabled: true,
   }, readJSON(configFile(), {}));
+}
+
+// 应用设置即时生效：主题/开机自启/全局热键/窗口置顶/界面缩放（不重启 server）
+function applyAppSettings(cfg) {
+  nativeTheme.themeSource = ['light', 'dark', 'system'].includes(cfg.theme) ? cfg.theme : 'system';
+  try { app.setLoginItemSettings({ openAtLogin: cfg.launchAtLogin === true }); } catch { /* ignore */ }
+  if (cfg.globalHotkeyEnabled === false) {
+    unregisterGlobalShortcut();
+  } else {
+    registerGlobalShortcut();
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setAlwaysOnTop(cfg.alwaysOnTop === true);
+    const z = typeof cfg.zoomFactor === 'number' && Number.isFinite(cfg.zoomFactor) ? cfg.zoomFactor : 1;
+    mainWindow.webContents.setZoomFactor(Math.min(2, Math.max(0.5, z)));
+  }
 }
 
 // 自定义 KIMI_CODE_HOME：尽早注入 process.env，使全进程（含 config-manager）统一生效
@@ -1453,6 +1473,7 @@ function startWsSubscription() {
 }
 
 function showDesktopNotification(title, body) {
+  if (loadConfig().notificationsEnabled === false) return;
   try {
     const notif = new Notification({ title, body, icon: path.join(__dirname, 'assets', 'icon.png') });
     notif.on('click', () => {
@@ -2529,6 +2550,12 @@ function createWindow() {
   });
   if (state.maximized) mainWindow.maximize();
 
+  // 应用设置：窗口置顶与界面缩放
+  const appCfg = loadConfig();
+  mainWindow.setAlwaysOnTop(appCfg.alwaysOnTop === true);
+  const appZoom = typeof appCfg.zoomFactor === 'number' && Number.isFinite(appCfg.zoomFactor) ? appCfg.zoomFactor : 1;
+  mainWindow.webContents.setZoomFactor(Math.min(2, Math.max(0.5, appZoom)));
+
   const saveWindowState = () => {
     if (!mainWindow) return;
     const maximized = mainWindow.isMaximized();
@@ -2537,6 +2564,10 @@ function createWindow() {
   };
 
   mainWindow.on('minimize', (e) => {
+    if (loadConfig().minimizeToTray === false) {
+      saveWindowState();
+      return; // 走系统默认最小化
+    }
     e.preventDefault();
     saveWindowState();
     hideToTray();
@@ -2544,6 +2575,11 @@ function createWindow() {
 
   mainWindow.on('close', (e) => {
     if (!quitting) {
+      if (loadConfig().closeToTray === false) {
+        quitting = true;
+        app.quit(); // 走 before-quit 优雅退出
+        return;
+      }
       e.preventDefault();
       saveWindowState();
       hideToTray();
@@ -2627,6 +2663,23 @@ function createWindow() {
     }
   });
 
+  // 会话页（loopback http(s)）注入浮动设置按钮样式；按钮 DOM 由 preload 注入，
+  // insertCSS 在主进程侧执行，不受页面 CSP 的 style-src 限制
+  mainWindow.webContents.on('did-finish-load', () => {
+    try {
+      const u = new URL(mainWindow.webContents.getURL());
+      const isLoopback = (u.protocol === 'http:' || u.protocol === 'https:')
+        && ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(u.hostname);
+      if (!isLoopback) return;
+      mainWindow.webContents.insertCSS([
+        '#kcd-settings-fab{position:fixed;right:18px;bottom:18px;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;z-index:2147483647;transition:opacity .15s;background:#ffffff;color:#111111;border:1px solid #dcdcdc;box-shadow:0 2px 8px rgba(0,0,0,.12);}',
+        '#kcd-settings-fab:hover{opacity:1;}',
+        '#kcd-settings-fab svg{width:18px;height:18px;pointer-events:none;}',
+        '@media (prefers-color-scheme:dark){#kcd-settings-fab{background:#1f1f1f;color:#ffffff;border-color:#3a3a3a;box-shadow:0 2px 8px rgba(0,0,0,.45);}}',
+      ].join('\n'));
+    } catch { /* ignore */ }
+  });
+
   mainWindow.loadFile(path.join(__dirname, 'loading.html'));
 }
 
@@ -2698,7 +2751,14 @@ function buildMenu() {
         { type: 'separator' },
         {
           label: '窗口置顶', type: 'checkbox', accelerator: 'CmdOrCtrl+T',
-          click: (item) => mainWindow && mainWindow.setAlwaysOnTop(item.checked),
+          checked: loadConfig().alwaysOnTop === true,
+          click: (item) => {
+            if (mainWindow) mainWindow.setAlwaysOnTop(item.checked);
+            // 写回 config.json，供设置页与下次启动读取
+            const c = readJSON(configFile(), {});
+            c.alwaysOnTop = item.checked;
+            writeJSON(configFile(), c);
+          },
         },
         { type: 'separator' },
         { role: 'zoomIn', label: '放大' },
@@ -3092,6 +3152,15 @@ ipcMain.handle('app:info', () => {
       oauthHost: cfg.oauthHost || '',
       selfHostedBaseUrl: cfg.selfHostedBaseUrl || '',
       tempModel: cfg.tempModel || {},
+      // 应用设置（设置页「应用设置」面板初始值）
+      theme: ['light', 'dark', 'system'].includes(cfg.theme) ? cfg.theme : 'system',
+      zoomFactor: typeof cfg.zoomFactor === 'number' && Number.isFinite(cfg.zoomFactor) ? cfg.zoomFactor : 1,
+      closeToTray: cfg.closeToTray !== false,
+      minimizeToTray: cfg.minimizeToTray !== false,
+      alwaysOnTop: cfg.alwaysOnTop === true,
+      launchAtLogin: cfg.launchAtLogin === true,
+      notificationsEnabled: cfg.notificationsEnabled !== false,
+      globalHotkeyEnabled: cfg.globalHotkeyEnabled !== false,
     },
     loadedUrl,
     isDev,
@@ -3138,6 +3207,16 @@ ipcMain.handle('setup:save', async (_e, payload) => {
     })(),
     // 非表单字段随白名单重建保留，避免保存设置后迁移提示复现
     legacyMigrationDismissed: prev.legacyMigrationDismissed === true,
+    // 应用设置键随白名单重建保留，避免「保存并连接」丢失应用设置
+    theme: ['light', 'dark', 'system'].includes(prev.theme) ? prev.theme : 'system',
+    zoomFactor: typeof prev.zoomFactor === 'number' && Number.isFinite(prev.zoomFactor)
+      ? Math.min(2, Math.max(0.5, prev.zoomFactor)) : 1,
+    closeToTray: prev.closeToTray !== false,
+    minimizeToTray: prev.minimizeToTray !== false,
+    alwaysOnTop: prev.alwaysOnTop === true,
+    launchAtLogin: prev.launchAtLogin === true,
+    notificationsEnabled: prev.notificationsEnabled !== false,
+    globalHotkeyEnabled: prev.globalHotkeyEnabled !== false,
   };
   writeJSON(configFile(), cfg);
   logLine(`配置已保存: mode=${cfg.mode}`);
@@ -3157,6 +3236,32 @@ ipcMain.handle('setup:save', async (_e, payload) => {
 
 ipcMain.handle('app:showSetup', () => { showSetup('manual'); return true; });
 ipcMain.handle('app:restart', async () => { await restartServer(); return true; });
+
+// 应用设置保存：白名单合并 8 键（theme 枚举校验、zoomFactor 数字钳制、其余布尔归一），即时生效
+ipcMain.handle('app:saveAppSettings', (_e, payload) => {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const cfg = readJSON(configFile(), {});
+  if (['light', 'dark', 'system'].includes(p.theme)) cfg.theme = p.theme;
+  if (typeof p.zoomFactor === 'number' && Number.isFinite(p.zoomFactor)) {
+    cfg.zoomFactor = Math.min(2, Math.max(0.5, p.zoomFactor));
+  }
+  for (const key of ['closeToTray', 'minimizeToTray', 'alwaysOnTop', 'launchAtLogin', 'notificationsEnabled', 'globalHotkeyEnabled']) {
+    if (typeof p[key] === 'boolean') cfg[key] = p[key];
+  }
+  writeJSON(configFile(), cfg);
+  applyAppSettings(loadConfig());
+  return true;
+});
+
+// 返回会话页：有已加载地址则直接回去，否则重启 server 兜底
+ipcMain.handle('app:backToSession', async () => {
+  if (loadedUrl) {
+    loadMain(loadedUrl);
+  } else {
+    await restartServer();
+  }
+  return true;
+});
 
 ipcMain.handle('app:openAgentsMonitor', (_e, payload) => {
   try {
@@ -4355,7 +4460,7 @@ if (!gotLock) {
     createWindow();
     buildMenu();
     createTray();
-    registerGlobalShortcut();
+    applyAppSettings(loadConfig()); // 含全局热键注册（按 globalHotkeyEnabled 配置）
 
     // 测试钩子：环境变量指定服务时直连，跳过 CLI 启动
     const testBase = (process.env.KIMI_DESKTOP_TEST_BASE || '').trim();

@@ -9,20 +9,50 @@
   /* 颜色一律引用官方主题的设计令牌 var(--*)，本文件不出现任何硬编码颜色 */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { height: 100%; }
-  body {
-    min-height: 100%;
+  body { min-height: 100%; }
+
+  /* 布局骨架：左侧分组导航 + 右侧内容（对齐 sessions.html） */
+  .app { display: flex; height: 100vh; }
+  .sidebar {
+    width: 232px;
+    flex: none;
+    background: var(--bg-primary);
+    border-right: 1px solid var(--separator);
     display: flex;
+    flex-direction: column;
+    overflow-y: auto;
   }
-  .panel { width: 460px; max-width: 100%; margin: auto; padding: 28px 20px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px 12px; }
+  .brand-name { font-size: 16px; font-weight: 600; }
   .mark {
-    width: 44px; height: 44px;
-    border-radius: 11px;
+    width: 32px; height: 32px;
+    border-radius: 9px;
     background: var(--label-primary);
     color: var(--bg-ground);
-    font-size: 24px; font-weight: 700;
+    font-size: 18px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
-    margin-bottom: 18px;
+    flex: none;
   }
+  .nav-group { font-size: 11px; color: var(--label-tertiary); padding: 14px 16px 6px; }
+  .nav-item {
+    display: block;
+    width: calc(100% - 16px);
+    margin: 1px 8px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--label-secondary);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .nav-item:hover { background: var(--bg-secondary-hover); color: var(--label-primary); }
+  .nav-item.active { background: var(--bg-secondary-active); color: var(--label-primary); font-weight: 500; }
+  .content { flex: 1; overflow-y: auto; }
+  .content-inner { max-width: 760px; margin: 0 auto; padding: 24px 28px 48px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   h1 { font-size: 18px; font-weight: 600; }
   .reason {
     margin-top: 10px;
@@ -161,34 +191,7 @@
   .ok { margin-top: 12px; color: var(--color-success); font-size: 12px; min-height: 16px; text-align: center; }
   .err { margin-top: 12px; color: var(--color-error); font-size: 12px; min-height: 16px; text-align: center; }
 
-  /* 标签页 */
-  .tabs {
-    display: flex;
-    gap: 6px;
-    margin-top: 18px;
-    padding: 4px;
-    border: 1px solid var(--separator);
-    border-radius: 10px;
-    background: var(--bg-secondary);
-    overflow-x: auto;
-    scrollbar-width: none; /* 标签条横向滚动但隐藏滚动条（避免主题全局滚动条在条下形成灰条） */
-  }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tab {
-    flex: 1;
-    min-width: 72px;
-    padding: 8px 10px;
-    border: none;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--label-secondary);
-    font-family: inherit;
-    font-size: 12px;
-    cursor: pointer;
-    white-space: nowrap;
-    text-align: center;
-  }
-  .tab.active { background: var(--label-primary); color: var(--bg-ground); }
+  /* 面板切换 */
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
@@ -276,23 +279,115 @@
 </style>
 </head>
 <body>
-  <div class="panel">
-    <div class="mark">K</div>
-    <h1>连接 Kimi Code Web</h1>
-    <div class="reason" id="reason"></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">K</div>
+        <div class="brand-name">设置</div>
+      </div>
+      <div class="nav-group">应用</div>
+      <button class="nav-item" data-tab="app">应用设置</button>
+      <div class="nav-group">环境</div>
+      <button class="nav-item active" data-tab="env">环境</button>
+      <button class="nav-item" data-tab="maint">维护</button>
+      <div class="nav-group">配置</div>
+      <button class="nav-item" data-tab="general">通用配置</button>
+      <button class="nav-item" data-tab="rules">权限规则</button>
+      <button class="nav-item" data-tab="providers">供应商</button>
+      <button class="nav-item" data-tab="mcp">MCP</button>
+      <button class="nav-item" data-tab="skills">Skills</button>
+      <button class="nav-item" data-tab="hooks">Hooks</button>
+      <div class="nav-group">集成</div>
+      <button class="nav-item" data-tab="ide">IDE 接入</button>
+      <button class="nav-item" data-tab="plugins">插件</button>
+    </aside>
+    <main class="content">
+      <div class="content-inner">
+        <div class="topbar">
+          <h1 id="topbarTitle">环境</h1>
+          <button class="btn btn-secondary mini hidden" id="backToSession" type="button">← 返回会话</button>
+        </div>
+        <div class="reason" id="reason"></div>
 
-    <div class="tabs" id="tabs">
-      <button class="tab active" data-tab="env">环境</button>
-      <button class="tab" data-tab="general">通用配置</button>
-      <button class="tab" data-tab="rules">权限规则</button>
-      <button class="tab" data-tab="providers">供应商</button>
-      <button class="tab" data-tab="mcp">MCP</button>
-      <button class="tab" data-tab="skills">Skills</button>
-      <button class="tab" data-tab="hooks">Hooks</button>
-      <button class="tab" data-tab="ide">IDE 接入</button>
-      <button class="tab" data-tab="maint">维护</button>
-      <button class="tab" data-tab="plugins">插件</button>
-    </div>
+        <!-- 应用设置面板 -->
+        <div class="tab-panel" id="panel-app">
+          <div class="section-title">外观</div>
+          <div class="form-row">
+            <label>主题模式</label>
+            <select class="input" id="appTheme">
+              <option value="system">跟随系统</option>
+              <option value="light">浅色</option>
+              <option value="dark">深色</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>界面缩放</label>
+            <select class="input" id="appZoom">
+              <option value="0.8">80%</option>
+              <option value="0.9">90%</option>
+              <option value="1">100%</option>
+              <option value="1.1">110%</option>
+              <option value="1.25">125%</option>
+              <option value="1.5">150%</option>
+            </select>
+          </div>
+          <div class="section-title">窗口</div>
+          <div class="form-row">
+            <div class="switch">
+              <div>
+                <div class="switch-label">关闭窗口时最小化到托盘</div>
+                <div class="switch-desc">关闭后仍在托盘运行，托盘菜单可退出</div>
+              </div>
+              <input type="checkbox" id="appCloseToTray" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="switch">
+              <div>
+                <div class="switch-label">最小化时隐藏到托盘</div>
+              </div>
+              <input type="checkbox" id="appMinimizeToTray" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="switch">
+              <div>
+                <div class="switch-label">窗口置顶</div>
+              </div>
+              <input type="checkbox" id="appAlwaysOnTop" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="switch">
+              <div>
+                <div class="switch-label">开机自动启动</div>
+              </div>
+              <input type="checkbox" id="appLaunchAtLogin" />
+            </div>
+          </div>
+          <div class="section-title">通知与快捷键</div>
+          <div class="form-row">
+            <div class="switch">
+              <div>
+                <div class="switch-label">桌面通知</div>
+                <div class="switch-desc">任务完成/审批等系统通知</div>
+              </div>
+              <input type="checkbox" id="appNotifications" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="switch">
+              <div>
+                <div class="switch-label">全局快捷键</div>
+                <div class="switch-desc">Ctrl+Shift+Space 显示/隐藏窗口</div>
+              </div>
+              <input type="checkbox" id="appHotkey" />
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block" id="saveAppSettings">保存应用设置</button>
+          <div class="ok" id="appOk"></div>
+          <div class="err" id="appErr"></div>
+        </div>
 
     <!-- 环境面板 -->
     <div class="tab-panel active" id="panel-env">
@@ -717,6 +812,8 @@
       <div class="ok" id="pluginsOk"></div>
       <div class="err" id="pluginsErr"></div>
     </div>
+      </div>
+    </main>
   </div>
 
   <script>
@@ -741,14 +838,15 @@
 
     const $ = (id) => document.getElementById(id);
 
-    // 标签页切换（switchTab 供点击与 URL ?tab= 初始定位共用）
-    const tabs = document.querySelectorAll('.tab');
+    // 侧栏导航切换（switchTab 供点击与 URL ?tab= 初始定位共用）
+    const tabs = document.querySelectorAll('.nav-item');
     const panels = document.querySelectorAll('.tab-panel');
     function switchTab(key) {
       const tab = [...tabs].find((t) => t.dataset.tab === key);
       if (!tab) return;
       tabs.forEach((t) => t.classList.toggle('active', t === tab));
       panels.forEach((p) => p.classList.toggle('active', p.id === 'panel-' + key));
+      $('topbarTitle').textContent = tab.textContent;
       if (key === 'providers') loadProviders();
       if (key === 'mcp') loadMcp();
       if (key === 'skills') loadSkills();
@@ -760,6 +858,11 @@
     tabs.forEach((tab) => {
       tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
+
+    // 「返回会话」仅在手动打开设置页（reason=manual）时展示
+    const backToSessionBtn = $('backToSession');
+    if (reasonKey === 'manual') backToSessionBtn.classList.remove('hidden');
+    backToSessionBtn.addEventListener('click', () => window.kimiDesktop.backToSession());
 
     const modeAuto = $('modeAuto');
     const modeManual = $('modeManual');
@@ -793,6 +896,14 @@
     const tempModelCapabilitiesEl = $('tempModelCapabilities');
     const tempModelThinkingEffortEl = $('tempModelThinkingEffort');
     const errEl = $('err');
+    const appThemeEl = $('appTheme');
+    const appZoomEl = $('appZoom');
+    const appCloseToTrayEl = $('appCloseToTray');
+    const appMinimizeToTrayEl = $('appMinimizeToTray');
+    const appAlwaysOnTopEl = $('appAlwaysOnTop');
+    const appLaunchAtLoginEl = $('appLaunchAtLogin');
+    const appNotificationsEl = $('appNotifications');
+    const appHotkeyEl = $('appHotkey');
     let mode = 'auto';
 
     function setMode(m) {
@@ -894,6 +1005,15 @@
         if (tm.maxContextSize != null && tm.maxContextSize !== '') tempModelMaxContextSizeEl.value = tm.maxContextSize;
         if (tm.capabilities) tempModelCapabilitiesEl.value = tm.capabilities;
         if (tm.thinkingEffort) tempModelThinkingEffortEl.value = tm.thinkingEffort;
+        // 应用设置（缺省值与 config.json 默认键一致）
+        appThemeEl.value = c.theme || 'system';
+        appZoomEl.value = String(c.zoomFactor || 1);
+        appCloseToTrayEl.checked = c.closeToTray !== false;
+        appMinimizeToTrayEl.checked = c.minimizeToTray !== false;
+        appAlwaysOnTopEl.checked = !!c.alwaysOnTop;
+        appLaunchAtLoginEl.checked = !!c.launchAtLogin;
+        appNotificationsEl.checked = c.notificationsEnabled !== false;
+        appHotkeyEl.checked = c.globalHotkeyEnabled !== false;
         if (c.mode === 'manual') setMode('manual');
       }
       if (!info.cliFound) {
@@ -1129,6 +1249,32 @@
         return;
       }
       await window.kimiDesktop.saveSetup(payload);
+    });
+
+    // ==================== 应用设置面板 ====================
+    const appOk = $('appOk');
+    const appErr = $('appErr');
+
+    $('saveAppSettings').addEventListener('click', async () => {
+      setFeedback(appOk, appErr, '', '');
+      const payload = {
+        theme: appThemeEl.value,
+        zoomFactor: Number(appZoomEl.value),
+        closeToTray: appCloseToTrayEl.checked,
+        minimizeToTray: appMinimizeToTrayEl.checked,
+        alwaysOnTop: appAlwaysOnTopEl.checked,
+        launchAtLogin: appLaunchAtLoginEl.checked,
+        notificationsEnabled: appNotificationsEl.checked,
+        globalHotkeyEnabled: appHotkeyEl.checked,
+      };
+      // theme / zoomFactor 保存后由主进程即时生效，前端无需处理
+      try {
+        const r = await window.kimiDesktop.saveAppSettings(payload);
+        if (r && r.ok === false) setFeedback(appOk, appErr, 'err', '保存失败：' + (r.error || '未知错误'));
+        else setFeedback(appOk, appErr, 'ok', '应用设置已保存');
+      } catch (e) {
+        setFeedback(appOk, appErr, 'err', '保存异常：' + e.message);
+      }
     });
 
     // ==================== 通用配置面板 ====================

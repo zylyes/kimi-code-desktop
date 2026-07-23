@@ -389,6 +389,7 @@
             <label class="perm-plan" title="以计划模式创建（仅对本次创建生效）"><input type="checkbox" id="permPlan" /> Plan</label>
           </span>
           <button class="icon-btn" id="createBtn" type="button" aria-label="在目录中新建会话" title="在目录中新建会话"><span class="plus" aria-hidden="true">+</span></button>
+          <button class="icon-btn" id="settingsBtn" type="button" aria-label="设置" title="设置"><span aria-hidden="true">⚙</span></button>
         </div>
       </div>
       <div class="search-wrap">
@@ -452,6 +453,7 @@
     const searchEl = $('search');
     const refreshBtn = $('refreshBtn');
     const createBtn = $('createBtn');
+    const settingsBtn = $('settingsBtn');
     const placeholderEl = $('placeholder');
     const panelEl = $('panel');
     const resumeBtn = $('resumeBtn');
@@ -845,6 +847,11 @@
       }
     }
     createBtn.addEventListener('click', onCreate);
+
+    settingsBtn.addEventListener('click', () => {
+      if (!api || typeof api.showSetup !== 'function') return;
+      api.showSetup();
+    });
 
     /* ---------- 加载与刷新 ---------- */
     async function loadSessions() {
