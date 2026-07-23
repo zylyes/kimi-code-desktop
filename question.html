@@ -4,24 +4,11 @@
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
 <title>Kimi 的提问</title>
+<link rel="stylesheet" href="kimi-theme.css" />
 <style>
-  :root {
-    --bg: #0e0e10;
-    --fg: #e8e8ea;
-    --muted: #8a8a90;
-    --accent: #3d6bff;
-    --line: #232327;
-    --field: #17171a;
-    --ok: #7ec88a;
-    --err: #e06c75;
-    --warn: #d8b36a;
-  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body {
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     overflow: hidden;
     display: flex;
   }
@@ -41,8 +28,8 @@
   .mark {
     width: 28px; height: 28px;
     border-radius: 8px;
-    background: var(--accent);
-    color: #fff;
+    background: var(--label-primary);
+    color: var(--bg-ground);
     font-size: 15px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
     flex: none;
@@ -50,7 +37,7 @@
   .brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
   .counter {
     font-size: 12px;
-    color: var(--muted);
+    color: var(--label-secondary);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     flex: none;
@@ -69,25 +56,25 @@
     height: 4px;
     border: none;
     border-radius: 2px;
-    background: var(--line);
+    background: var(--separator);
     cursor: pointer;
     padding: 0;
     transition: background 0.2s ease;
   }
-  .seg:hover { background: #33333a; }
-  .seg.done { background: var(--accent); }
-  .seg.current { box-shadow: 0 0 0 1px var(--accent); }
-  .seg.done.current { background: var(--accent); }
-  .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .seg:hover { background: var(--label-quaternary); }
+  .seg.done { background: var(--label-primary); }
+  .seg.current { box-shadow: 0 0 0 1px var(--label-primary); }
+  .seg.done.current { background: var(--label-primary); }
+  .seg:focus-visible { outline: 2px solid var(--label-primary); outline-offset: 2px; }
 
   /* ---------- 桥接警告 ---------- */
   .bridge-warn {
     flex: none;
     padding: 9px 18px;
-    border-top: 1px solid #4a3b1e;
-    border-bottom: 1px solid #4a3b1e;
-    background: #201a10;
-    color: var(--warn);
+    border-top: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
+    background: color-mix(in srgb, var(--color-error) 10%, var(--bg-ground));
+    color: var(--color-error);
     font-size: 12px;
     line-height: 1.6;
   }
@@ -104,7 +91,7 @@
     align-items: center;
     gap: 10px;
     padding: 28px 4px;
-    color: var(--muted);
+    color: var(--label-secondary);
     font-size: 12px;
   }
 
@@ -118,10 +105,10 @@
     display: inline-block;
     max-width: 100%;
     padding: 3px 10px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--separator);
     border-radius: 999px;
     font-size: 11px;
-    color: var(--muted);
+    color: var(--label-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -137,12 +124,12 @@
   .q-body {
     margin-top: 8px;
     font-size: 12.5px;
-    color: var(--muted);
+    color: var(--label-secondary);
     line-height: 1.7;
     word-break: break-word;
     white-space: pre-wrap;
   }
-  .q-kind { margin-top: 14px; font-size: 11px; color: var(--muted); letter-spacing: 0.02em; }
+  .q-kind { margin-top: 14px; font-size: 11px; color: var(--label-tertiary); letter-spacing: 0.02em; }
 
   /* ---------- 选项卡 ---------- */
   .options { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
@@ -151,19 +138,19 @@
     align-items: flex-start;
     gap: 10px;
     padding: 11px 12px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--field);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    background: var(--bg-primary);
     cursor: pointer;
     transition: border-color 0.15s ease, background 0.15s ease;
   }
-  .opt:hover { border-color: #35353c; }
+  .opt:hover { background: var(--bg-secondary-hover); }
   .opt:has(input:checked) {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 9%, var(--field));
+    border-color: var(--label-primary);
+    background: var(--bg-secondary-active);
   }
-  .opt:has(input:focus-visible) { border-color: var(--accent); }
-  .opt:has(input:focus-visible) .tick { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .opt:has(input:focus-visible) { border-color: var(--label-primary); }
+  .opt:has(input:focus-visible) .tick { outline: 2px solid var(--label-primary); outline-offset: 2px; }
 
   .sr-input {
     position: absolute;
@@ -178,29 +165,29 @@
     flex: none;
     width: 16px; height: 16px;
     margin-top: 2px;
-    border: 1.5px solid var(--muted);
+    border: 1.5px solid var(--label-tertiary);
     border-radius: 50%;
     position: relative;
     transition: border-color 0.15s ease, background 0.15s ease;
   }
   .opt.check .tick { border-radius: 5px; }
-  input:checked ~ .tick { border-color: var(--accent); }
+  input:checked ~ .tick { border-color: var(--label-primary); }
   /* 单选：实心圆点 */
   input:checked ~ .tick::after {
     content: "";
     position: absolute;
     inset: 3px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--label-primary);
   }
   /* 多选：对勾 */
-  .opt.check input:checked ~ .tick { background: var(--accent); }
+  .opt.check input:checked ~ .tick { background: var(--label-primary); }
   .opt.check input:checked ~ .tick::after {
     content: "✓";
     inset: 0;
     border-radius: 0;
     background: none;
-    color: #fff;
+    color: var(--bg-ground);
     font-size: 11px;
     line-height: 1;
     display: flex;
@@ -210,50 +197,38 @@
 
   .opt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .opt-label { font-size: 13px; line-height: 1.5; word-break: break-word; }
-  .opt-desc { font-size: 12px; color: var(--muted); line-height: 1.6; word-break: break-word; }
+  .opt-desc { font-size: 12px; color: var(--label-secondary); line-height: 1.6; word-break: break-word; }
   .opt-num {
     flex: none;
     margin-top: 2px;
     padding: 1px 5px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--separator);
     border-radius: 4px;
     font-size: 10px;
-    color: var(--muted);
+    color: var(--label-tertiary);
     font-family: Consolas, "Courier New", monospace;
     line-height: 1.4;
   }
-  .opt:has(input:checked) .opt-num { border-color: var(--accent); color: var(--accent); }
+  .opt:has(input:checked) .opt-num { border-color: var(--label-primary); color: var(--label-primary); }
 
   /* ---------- 自定义回答 ---------- */
   .other-wrap { margin-top: 8px; }
   .other-wrap[hidden] { display: none; }
-  .other-wrap input {
-    width: 100%;
-    padding: 11px 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
-    color: var(--fg);
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
-  }
-  .other-wrap input:focus { border-color: var(--accent); }
-  .other-wrap input::placeholder { color: var(--muted); }
+  .other-wrap input { width: 100%; }
 
   /* ---------- 空态 / 完成态 ---------- */
   .notice {
     padding: 28px 4px;
     font-size: 13px;
     line-height: 1.7;
-    color: var(--muted);
+    color: var(--label-secondary);
   }
-  .notice strong { color: var(--fg); font-weight: 600; }
+  .notice strong { color: var(--label-primary); font-weight: 600; }
 
   /* ---------- 底栏 ---------- */
   .foot {
     flex: none;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--separator);
     padding: 10px 18px 14px;
   }
   .hint {
@@ -261,67 +236,52 @@
     margin-bottom: 8px;
     font-size: 12px;
     line-height: 1.5;
-    color: var(--muted);
+    color: var(--label-tertiary);
     word-break: break-word;
   }
-  .hint.warn { color: var(--warn); }
-  .hint.err { color: var(--err); }
-  .hint.ok { color: var(--ok); }
+  .hint.warn { color: var(--color-error); }
+  .hint.err { color: var(--color-error); }
+  .hint.ok { color: var(--color-success); }
 
   .foot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .foot-right { display: flex; gap: 8px; margin-left: auto; }
 
-  .btn {
-    padding: 9px 16px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
-    color: var(--fg);
-    font-size: 13px;
-    font-family: inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    white-space: nowrap;
+  /* 主题 .btn 体系之上的窗口级补充（仅布局与 hover，不含颜色硬编码） */
+  #nextBtn { gap: 8px; }
+  .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--bg-secondary-hover);
+    border-color: var(--separator-hover);
   }
-  .btn:hover { border-color: var(--accent); }
-  .btn:disabled { opacity: 0.55; cursor: default; }
-  .btn:disabled:hover { border-color: var(--line); }
-  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .btn.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-    font-weight: 600;
-  }
-  .btn.primary:hover { filter: brightness(1.1); border-color: var(--accent); }
-  .btn.primary:disabled:hover { filter: none; }
   .btn.ghost {
     background: transparent;
-    border-color: transparent;
-    color: var(--muted);
+    color: var(--label-secondary);
   }
-  .btn.ghost:hover { color: var(--fg); border-color: var(--line); }
+  .btn.ghost:hover:not(:disabled) {
+    color: var(--label-primary);
+    background: var(--bg-secondary-hover);
+  }
 
   .spinner {
     display: inline-block;
     width: 12px; height: 12px;
     flex: none;
-    border: 2px solid var(--line);
-    border-top-color: var(--accent);
+    border: 2px solid var(--separator);
+    border-top-color: var(--label-primary);
     border-radius: 50%;
     animation: rot 0.8s linear infinite;
   }
-  .btn.primary .spinner { border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
+  .btn-primary .spinner {
+    border-color: color-mix(in srgb, var(--bg-ground) 35%, transparent);
+    border-top-color: var(--bg-ground);
+  }
   @keyframes rot { to { transform: rotate(360deg); } }
 
   /* ---------- 已处理遮罩 ---------- */
   .mask {
     position: fixed;
     inset: 0;
-    background: rgba(14, 14, 16, 0.86);
+    background: color-mix(in srgb, var(--bg-ground) 86%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -333,19 +293,15 @@
     width: 300px;
     max-width: 100%;
     padding: 22px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--field);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-card);
     text-align: center;
   }
   .mask-title { font-size: 14px; font-weight: 600; }
-  .mask-sub { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .mask-sub { margin-top: 8px; font-size: 12px; color: var(--label-secondary); line-height: 1.6; }
   .mask-box .btn { margin-top: 16px; }
-
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid var(--bg); }
-  ::-webkit-scrollbar-thumb:hover { background: #33333a; }
-  ::-webkit-scrollbar-track { background: transparent; }
 
   @media (max-width: 420px) {
     .topbar { padding: 12px 14px 8px; }
@@ -393,7 +349,7 @@
         <div class="q-kind" id="qKind"></div>
         <div class="options" id="options"></div>
         <div class="other-wrap" id="otherWrap" hidden>
-          <input type="text" id="otherInput" placeholder="填写你的回答…" aria-label="自定义回答" maxlength="2000" spellcheck="false" />
+          <input type="text" class="input" id="otherInput" placeholder="填写你的回答…" aria-label="自定义回答" maxlength="2000" spellcheck="false" />
         </div>
       </section>
 
@@ -405,8 +361,8 @@
       <div class="foot-row">
         <button class="btn ghost" id="fallbackBtn" type="button" title="回到 Kimi 网页界面中回答这个问题">在 Kimi 中回答</button>
         <div class="foot-right">
-          <button class="btn" id="prevBtn" type="button">上一题</button>
-          <button class="btn primary" id="nextBtn" type="button">下一题</button>
+          <button class="btn btn-secondary" id="prevBtn" type="button">上一题</button>
+          <button class="btn btn-primary" id="nextBtn" type="button">下一题</button>
         </div>
       </div>
     </footer>
@@ -415,7 +371,7 @@
       <div class="mask-box" role="alertdialog" aria-labelledby="maskTitle" aria-describedby="maskSub">
         <div class="mask-title" id="maskTitle">该问题已被处理</div>
         <div class="mask-sub" id="maskSub">它可能已在其他地方得到回答，此窗口即将自动关闭。</div>
-        <button class="btn" id="maskClose" type="button">立即关闭</button>
+        <button class="btn btn-secondary" id="maskClose" type="button">立即关闭</button>
       </div>
     </div>
   </div>

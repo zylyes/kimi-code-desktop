@@ -4,24 +4,11 @@
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
 <title>Kimi Code Desktop · Prompt 模板</title>
+<link rel="stylesheet" href="kimi-theme.css" />
 <style>
-  :root {
-    --bg: #0e0e10;
-    --fg: #e8e8ea;
-    --muted: #8a8a90;
-    --accent: #3d6bff;
-    --line: #232327;
-    --field: #17171a;
-    --ok: #7ec88a;
-    --err: #e06c75;
-    --warn: #d8b36a;
-  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body {
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     overflow: hidden;
     display: flex;
   }
@@ -41,8 +28,8 @@
   .mark {
     width: 28px; height: 28px;
     border-radius: 8px;
-    background: var(--accent);
-    color: #fff;
+    background: var(--label-primary);
+    color: var(--bg-ground);
     font-size: 15px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
     flex: none;
@@ -50,7 +37,7 @@
   .brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
   .topbar-note {
     font-size: 12px;
-    color: var(--muted);
+    color: var(--label-secondary);
     white-space: nowrap;
     flex: none;
   }
@@ -60,7 +47,7 @@
     flex: none;
     padding: 0 18px 12px;
     font-size: 12px;
-    color: var(--muted);
+    color: var(--label-secondary);
     line-height: 1.6;
   }
 
@@ -84,16 +71,13 @@
     margin-bottom: 10px;
   }
 
-  /* ---------- 模板卡片 ---------- */
+  /* ---------- 模板卡片（基础外观来自主题样式表的 .card） ---------- */
   .cards { display: flex; flex-direction: column; gap: 8px; }
   .card {
     padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--field);
     transition: border-color 0.15s ease;
   }
-  .card:hover { border-color: #35353c; }
+  .card:hover { border-color: var(--separator-hover); }
   .card-head {
     display: flex;
     align-items: center;
@@ -104,35 +88,22 @@
   .card-body {
     margin-top: 8px;
     font-size: 12.5px;
-    color: var(--muted);
+    color: var(--label-secondary);
     line-height: 1.7;
     word-break: break-word;
     white-space: pre-wrap;
     user-select: text;
   }
 
+  /* ---------- 复制按钮（归入 .btn 体系，此处仅保留尺寸与状态色） ---------- */
   .copy-btn {
     flex: none;
     min-width: 58px;
     padding: 5px 12px;
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    background: var(--bg);
-    color: var(--fg);
     font-size: 12px;
-    font-family: inherit;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease;
   }
-  .copy-btn:hover { border-color: var(--accent); }
-  .copy-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .copy-btn.done { color: var(--ok); border-color: #2c4632; }
-  .copy-btn.fail { color: var(--err); border-color: #4a2626; }
-
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid var(--bg); }
-  ::-webkit-scrollbar-thumb:hover { background: #33333a; }
-  ::-webkit-scrollbar-track { background: transparent; }
+  .copy-btn.done { color: var(--color-success); border-color: var(--color-success); }
+  .copy-btn.fail { color: var(--color-error); border-color: var(--color-error); }
 
   @media (max-width: 420px) {
     .topbar { padding: 12px 14px 8px; }
@@ -166,21 +137,21 @@
           <div class="card">
             <div class="card-head">
               <span class="card-title">先摸清约定再动手</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">请先阅读 AGENTS.md 以及与本次需求相关的代码文件，理解项目现有约定后再动手实现。完成后运行项目的测试套件验证没有回归，最后向我汇报改动摘要与测试结果。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">小步快走，逐步验证</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">把这个需求拆成若干个小步骤，每完成一步就运行相关测试或命令确认无误，再进入下一步。不要一次性写完全部代码；发现方向不对时先停下来和我确认。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">对齐现有代码风格</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">参考项目中同类模块的写法来实现这个功能：命名、错误处理、日志与注释风格都要与现有代码保持一致。不要引入项目尚未依赖的新库；如确有必要，先说明理由并征得我的同意。</p>
           </div>
@@ -194,21 +165,21 @@
           <div class="card">
             <div class="card-head">
               <span class="card-title">先复现，再修复</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">先根据我的描述写一个能稳定复现这个 bug 的最小用例并运行确认，然后定位根本原因并修复。修完后再次运行复现用例确认问题已消除，最后跑一遍全量测试确保没有引入回归。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">定位根因，不掩盖症状</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">不要急于改代码掩盖表面症状。先分析报错日志与调用链，定位根本原因，向我解释清楚成因与影响范围，确认修复方案后再动手改代码。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">补上回归测试</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">修复这个 bug 之后，为它补一个回归测试，把触发场景固化下来，确保同类问题今后能被测试自动捕获。测试要与项目现有测试风格保持一致。</p>
           </div>
@@ -222,21 +193,21 @@
           <div class="card">
             <div class="card-head">
               <span class="card-title">架构全景梳理</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">通读这个仓库，给我一份架构梳理：整体分层、各模块的职责、模块之间的依赖关系，并指出最核心的 3-5 个文件。输出用中文，附上关键文件路径。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">数据流追踪</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">帮我追踪一次完整操作的数据流：从入口开始，依次经过哪些模块与关键函数，最终在哪里结束。列出关键文件与行号，方便我跳过去阅读源码。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">新手上手报告</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">我刚接手这个项目。请阅读 README、AGENTS.md 与核心源码，生成一份上手报告：如何构建与运行、如何跑测试、目录结构说明，以及新人最容易踩的坑。</p>
           </div>
@@ -250,21 +221,21 @@
           <div class="card">
             <div class="card-head">
               <span class="card-title">写个批处理脚本</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">写一个在项目根目录可直接运行的脚本，完成以下重复劳动：……。要求：失败时给出清晰报错并以非零码退出；支持 --dry-run 预览将要执行的操作；可重复执行且不产生副作用。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">搭建 CI 流水线</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">为这个仓库编写 CI 配置：安装依赖、运行 lint 与测试、构建产物。依赖要加缓存以加速构建，任一环节失败时给出清晰可定位的日志。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">批量改动先列清单</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">我需要对仓库做一批批量修改：……。先写脚本扫描并列出所有将被修改的文件清单与示例改动，等我确认后再真正执行。</p>
           </div>
@@ -278,21 +249,21 @@
           <div class="card">
             <div class="card-head">
               <span class="card-title">不改行为的安全重构</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">重构这段代码以提升可读性与结构，但不改变任何外部行为。重构前后各跑一遍相关测试，确认行为完全一致；如有行为差异，停下来向我报告。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">补齐模块文档</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">为这个模块补齐文档：用途说明、公开 API 列表与调用示例、常见问题。风格对齐项目现有文档，用中文撰写，代码示例保持可直接运行。</p>
           </div>
           <div class="card">
             <div class="card-head">
               <span class="card-title">资深视角代码评审</span>
-              <button class="copy-btn" type="button">复制</button>
+              <button class="copy-btn btn btn-secondary" type="button">复制</button>
             </div>
             <p class="card-body">以资深工程师的视角评审本次改动：指出潜在 bug、未处理的边界情况、性能与安全隐患，按严重程度排序，并给出具体可执行的修改建议。</p>
           </div>

@@ -1,6 +1,6 @@
 // Kimi Code Desktop — 网页版桌面套壳
 // 自动启动 `kimi web`，从输出中捕获带 token 的本地地址，并在桌面窗口中打开。
-const { app, BrowserWindow, Menu, Tray, shell, ipcMain, dialog, nativeImage, Notification, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, ipcMain, dialog, nativeImage, nativeTheme, Notification, globalShortcut } = require('electron');
 const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -13,6 +13,7 @@ const instancesManager = require('./instances-manager');
 const ideIntegration = require('./ide-integration');
 const sessionExport = require('./session-export');
 const pluginsManager = require('./plugins-manager');
+const { AcpClient } = require('./acp-client');
 
 const APP_NAME = 'Kimi Code Desktop';
 const isDev = process.argv.includes('--dev');
@@ -1007,6 +1008,11 @@ function fallbackQuestionWindowFailure(sessionId, payload, gen) {
   focusMainWindow();
 }
 
+// 原生窗口背景色跟随系统亮/暗主题
+function windowBackground() {
+  return nativeTheme.shouldUseDarkColors ? '#121212' : '#fbfaf9';
+}
+
 // ---------- 问答窗口 ----------
 function createQuestionWindow(sessionId, payload, gen) {
   const questionId = payload.question_id;
@@ -1026,7 +1032,7 @@ function createQuestionWindow(sessionId, payload, gen) {
       minHeight: 480,
       resizable: true,
       title: 'Kimi 的提问',
-      backgroundColor: '#0e0e10',
+      backgroundColor: windowBackground(),
       autoHideMenuBar: true,
       icon: path.join(__dirname, 'assets', 'icon.png'),
       webPreferences: {
@@ -1519,7 +1525,7 @@ function makeSingletonWindow(title, file) {
       minWidth: 640,
       minHeight: 480,
       title,
-      backgroundColor: '#0e0e10',
+      backgroundColor: windowBackground(),
       autoHideMenuBar: true,
       icon: path.join(__dirname, 'assets', 'icon.png'),
       webPreferences: {
@@ -1555,7 +1561,7 @@ function showAgentsMonitor(sessionDir, title) {
     minWidth: 720,
     minHeight: 480,
     title: title ? `子 Agent 监视 - ${title}` : '子 Agent 监视',
-    backgroundColor: '#0e0e10',
+    backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
@@ -1573,6 +1579,132 @@ function showAgentsMonitor(sessionDir, title) {
     logLine(`加载 agents.html 失败: ${err.message}`);
   });
 }
+
+// ---------- ACP 原型聊天窗（实验）----------
+// 只读原型：直连 `kimi acp`，会话落在系统临时目录，权限请求由 acp-client 一律自动取消（此处仅通知）
+let acpChatWindow = null;
+let acpClient = null;
+
+function disposeAcpClient(reason) {
+  if (acpClient) {
+    try { acpClient.dispose(reason); } catch { /* ignore */ }
+    acpClient = null;
+  }
+}
+
+function sendAcpEvent(payload) {
+  if (acpChatWindow && !acpChatWindow.isDestroyed()) {
+    try { acpChatWindow.webContents.send('acp-chat:event', payload); } catch { /* ignore */ }
+  }
+}
+
+function showAcpChatWindow() {
+  if (acpChatWindow && !acpChatWindow.isDestroyed()) {
+    acpChatWindow.show();
+    if (acpChatWindow.isMinimized()) acpChatWindow.restore();
+    acpChatWindow.focus();
+    return;
+  }
+  const win = new BrowserWindow({
+    width: 960,
+    height: 720,
+    minWidth: 640,
+    minHeight: 480,
+    title: '原生聊天原型（ACP 实验）',
+    backgroundColor: windowBackground(),
+    autoHideMenuBar: true,
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, 'chat-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false,
+    },
+  });
+  acpChatWindow = win;
+  win.on('closed', () => {
+    if (acpChatWindow === win) acpChatWindow = null;
+    disposeAcpClient('窗口关闭');
+  });
+  win.loadFile(path.join(__dirname, 'chat.html')).catch((err) => {
+    logLine(`加载 chat.html 失败: ${err.message}`);
+  });
+}
+
+ipcMain.handle('acp-chat:start', async () => {
+  disposeAcpClient('重新启动 ACP 会话');
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  if (!cli) return { ok: false, error: '未找到 Kimi CLI，请先在设置中完成安装' };
+  let cwd;
+  try {
+    cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-acp-chat-'));
+  } catch (err) {
+    logLine(`ACP 临时目录创建失败: ${err.message}`);
+    return { ok: false, error: `创建临时目录失败: ${err.message}` };
+  }
+  let client;
+  try {
+    client = new AcpClient({ cliPath: cli, cwd, logFn: (m) => logLine(`[acp] ${m}`) });
+  } catch (err) {
+    logLine(`ACP 客户端创建失败: ${err.message}`);
+    return { ok: false, error: `启动 ACP 客户端失败: ${err.message}` };
+  }
+  client.on('update', (update) => {
+    if (!update || typeof update !== 'object') return;
+    const kind = update.sessionUpdate;
+    const text = update.content && update.content.type === 'text' && typeof update.content.text === 'string'
+      ? update.content.text : null;
+    if (kind === 'agent_message_chunk' && text !== null) {
+      sendAcpEvent({ type: 'message-chunk', text });
+    } else if (kind === 'agent_thought_chunk' && text !== null) {
+      sendAcpEvent({ type: 'thought-chunk', text });
+    } else if (kind === 'available_commands_update') {
+      sendAcpEvent({ type: 'commands', count: (update.availableCommands || []).length });
+    }
+    // 其它 sessionUpdate 类型只读原型暂不处理
+  });
+  client.on('permission', () => {
+    logLine('[acp] 权限请求已自动取消（只读原型）');
+    sendAcpEvent({ type: 'permission-auto-cancel' });
+  });
+  client.on('stderr', (line) => logLine(`[acp stderr] ${line}`));
+  client.on('exit', () => {
+    logLine('[acp] 进程已退出');
+    sendAcpEvent({ type: 'status', state: 'exited' });
+    if (acpClient === client) disposeAcpClient('进程退出');
+  });
+  acpClient = client;
+  sendAcpEvent({ type: 'status', state: 'connecting' });
+  try {
+    const init = await client.start();
+    const s = await client.newSession();
+    sendAcpEvent({ type: 'status', state: 'ready', agentInfo: init.agentInfo, sessionId: s.sessionId, configOptions: s.configOptions });
+    return { ok: true, agentInfo: init.agentInfo, sessionId: s.sessionId, configOptions: s.configOptions };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    logLine(`ACP 会话启动失败: ${msg}`);
+    if (acpClient === client) disposeAcpClient('启动失败');
+    sendAcpEvent({ type: 'status', state: 'error', message: msg });
+    return { ok: false, error: msg };
+  }
+});
+
+ipcMain.handle('acp-chat:prompt', async (_e, text) => {
+  if (typeof text !== 'string' || !text.trim()) return { ok: false, error: '消息内容为空' };
+  if (!acpClient) return { ok: false, error: 'ACP 会话未连接，请先启动' };
+  try {
+    const r = await acpClient.prompt(String(text).slice(0, 8000));
+    sendAcpEvent({ type: 'prompt-done', stopReason: r.stopReason });
+    return { ok: true, stopReason: r.stopReason };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    // 进程退出导致的失败：exit 事件已置空 acpClient，补一条状态通知
+    if (!acpClient) sendAcpEvent({ type: 'status', state: 'exited' });
+    return { ok: false, error: msg };
+  }
+});
 
 // ---------- 重启 ----------
 async function restartServer() {
@@ -1901,7 +2033,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     title: APP_NAME,
-    backgroundColor: '#0e0e10',
+    backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
@@ -2064,6 +2196,8 @@ function buildMenu() {
         { label: '默认模型', submenu: buildModelSubmenu() },
         { label: '轮换访问令牌…', click: rotateToken },
         { label: '局域网访问…', click: showLanWindow },
+        { type: 'separator' },
+        { label: '原生聊天原型（ACP 实验）…', click: showAcpChatWindow },
         { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
         { type: 'separator' },
         { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
@@ -3426,7 +3560,7 @@ ipcMain.handle('session:visualiseSession', async (_e, sessionId) => {
             width: 1200,
             height: 800,
             title: `Kimi Code 可视化 - ${sessionId.slice(0, 8)}`,
-            backgroundColor: '#0e0e10',
+            backgroundColor: windowBackground(),
             autoHideMenuBar: true,
             icon: path.join(__dirname, 'assets', 'icon.png'),
             webPreferences: {
@@ -3721,6 +3855,7 @@ if (!gotLock) {
     wsGeneration++;
     cleanupWsPermanent();
     unregisterGlobalShortcut();
+    disposeAcpClient('app 退出');
     // 异步等待停止完成后再退出，防止无限递归
     (async () => {
       await stopKimi();

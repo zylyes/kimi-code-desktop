@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0] - 2026-07-23
+
+### 新功能
+
+- **ACP 原生聊天只读原型窗（实验）**：菜单「会话→原生聊天原型（ACP 实验）…」打开；主进程经新模块 `acp-client.js` 直连 `kimi acp`，initialize → session/new → 流式 prompt 全链路；会话落在系统临时目录（mkdtemp）实现只读隔离；权限请求一律自动取消（仅状态栏提示）；渲染层流式正文 + 思考折叠区 + 渲染节流；`stopReason` 回传后输入框恢复。
+- **全部原生窗口翻新为 kimi.com 官方设计语言**：新增共享样式 `kimi-theme.css`（设计令牌），设置中心/会话启动器/问答窗/模板库/速查窗/局域网/子 Agent 监视/loading 等原生页面统一接入；亮/暗主题跟随系统，各窗口 `backgroundColor` 经 `windowBackground()` 跟随 `nativeTheme`。
+
+### 其他
+
+- 新增 `acp-client.js`（ACP stdio JSON-RPC 客户端：start/newSession/prompt/dispose，update/permission/stderr/exit/raw 事件）与 `chat.html`/`chat.js`/`chat-preload.js` 原型窗前端。
+- 新增 IPC 通道：`acp-chat:start`、`acp-chat:prompt`（渲染→主 invoke）；新增主→渲染事件 `acp-chat:event`（status/message-chunk/thought-chunk/commands/permission-auto-cancel/prompt-done）。
+- main.js 新增 `showAcpChatWindow()`/`disposeAcpClient()`/`sendAcpEvent()`/`windowBackground()`；5 处窗口背景色统一改走 `windowBackground()`；before-quit 增加 ACP 客户端清理。
+- 打包清单（build.files）登记 `kimi-theme.css`、`acp-client.js`、`chat.html`、`chat.js`、`chat-preload.js`。
+- 无破坏性变更。
+
 ## [0.9.0] - 2026-07-23
 
 ### 新功能

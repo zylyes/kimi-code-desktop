@@ -4,30 +4,21 @@
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
 <title>Kimi Code Desktop · 设置</title>
+<link rel="stylesheet" href="kimi-theme.css">
 <style>
-  :root {
-    --bg: #0e0e10;
-    --fg: #e8e8ea;
-    --muted: #8a8a90;
-    --accent: #3d6bff;
-    --line: #232327;
-    --field: #17171a;
-  }
+  /* 颜色一律引用官方主题的设计令牌 var(--*)，本文件不出现任何硬编码颜色 */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { height: 100%; }
   body {
     min-height: 100%;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     display: flex;
   }
   .panel { width: 460px; max-width: 100%; margin: auto; padding: 28px 20px; }
   .mark {
     width: 44px; height: 44px;
     border-radius: 11px;
-    background: var(--accent);
-    color: #fff;
+    background: var(--label-primary);
+    color: var(--bg-ground);
     font-size: 24px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
     margin-bottom: 18px;
@@ -36,9 +27,9 @@
   .reason {
     margin-top: 10px;
     padding: 10px 12px;
-    border: 1px solid #4a3b1e;
-    background: #201a10;
-    color: #d8b36a;
+    border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
+    background: color-mix(in srgb, var(--color-error) 8%, transparent);
+    color: var(--color-error);
     border-radius: 8px;
     font-size: 12px;
     line-height: 1.6;
@@ -49,21 +40,21 @@
   .group label {
     display: block;
     font-size: 12px;
-    color: var(--muted);
+    color: var(--label-secondary);
     margin-bottom: 8px;
   }
   .status {
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    background: var(--bg-secondary);
     padding: 2px 12px;
   }
   .srow { display: flex; align-items: center; gap: 8px; padding: 9px 0; font-size: 12px; }
-  .srow + .srow { border-top: 1px solid var(--line); }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
-  .dot.ok { background: #7ec88a; }
-  .dot.bad { background: #e06c75; }
-  .sname { color: var(--muted); flex: none; width: 56px; }
+  .srow + .srow { border-top: 1px solid var(--separator); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--label-quaternary); flex: none; }
+  .dot.ok { background: var(--color-success); }
+  .dot.bad { background: var(--color-error); }
+  .sname { color: var(--label-tertiary); flex: none; width: 56px; }
   .sval {
     flex: 1;
     text-align: right;
@@ -76,96 +67,69 @@
   .mode {
     flex: 1;
     padding: 12px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--separator);
     border-radius: 8px;
-    background: var(--field);
+    background: var(--bg-secondary);
     cursor: pointer;
     font-size: 13px;
     text-align: center;
-    color: var(--muted);
+    color: var(--label-tertiary);
   }
-  .mode small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); opacity: 0.8; }
-  .mode.active { border-color: var(--accent); color: var(--fg); }
-  input[type="text"],
-  input[type="password"] {
-    width: 100%;
-    padding: 11px 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
-    color: var(--fg);
-    font-size: 13px;
-    font-family: Consolas, "Courier New", monospace;
-    outline: none;
-  }
-  input[type="text"]:focus,
-  input[type="password"]:focus { border-color: var(--accent); }
-  .hint { margin-top: 8px; font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .mode small { display: block; margin-top: 4px; font-size: 11px; color: var(--label-tertiary); opacity: 0.8; }
+  .mode.active { border-color: var(--label-primary); color: var(--label-primary); }
+  /* 输入控件外观由官方 .input 规格提供，这里只保留布局宽度和等宽字体 */
+  input.input,
+  select.input,
+  textarea.input { width: 100%; }
+  input[type="text"].input,
+  input[type="password"].input,
+  textarea.input { font-family: Consolas, "Courier New", monospace; }
+  textarea.input { resize: vertical; min-height: 80px; }
+  .hint { margin-top: 8px; font-size: 11px; color: var(--label-tertiary); line-height: 1.6; }
   .hint code {
-    background: var(--field);
-    border: 1px solid var(--line);
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
     border-radius: 4px;
     padding: 1px 5px;
     font-size: 11px;
   }
   .hidden { display: none; }
-  button {
+  /* 按钮统一走官方 .btn 体系，这里只保留布局与适度 hover */
+  .btn-block {
+    width: 100%;
     margin-top: 26px;
-    width: 100%;
     padding: 12px;
-    border: none;
-    border-radius: 8px;
-    background: var(--accent);
-    color: #fff;
-    font-size: 14px;
     font-weight: 600;
-    cursor: pointer;
   }
-  button:hover { filter: brightness(1.1); }
-  button:disabled { opacity: 0.5; cursor: default; }
-  .btn2 {
-    margin-top: 0;
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-secondary:hover,
+  .btn-danger:hover { background: var(--bg-secondary); }
+  .btn-add {
     width: 100%;
-    padding: 10px 12px;
-    background: var(--field);
-    border: 1px solid var(--line);
-    color: var(--fg);
-    font-size: 13px;
-    font-weight: 400;
+    margin-top: 10px;
+    border-style: dashed;
   }
-  .btn2:hover { border-color: var(--accent); filter: none; }
+  .mini { white-space: nowrap; }
   .btn-row { display: flex; gap: 8px; }
-  .btn-row .btn2 { flex: 1; }
+  .btn-row .btn { flex: 1; }
   .row { display: flex; gap: 8px; }
   .row input { flex: 1; min-width: 0; }
-  .mini {
-    margin-top: 0;
-    width: auto;
-    padding: 0 14px;
-    background: var(--field);
-    border: 1px solid var(--line);
-    color: var(--fg);
-    font-size: 12px;
-    font-weight: 400;
-    white-space: nowrap;
-  }
-  .mini:hover { border-color: var(--accent); filter: none; }
   .divider {
     margin-top: 26px;
     padding-top: 18px;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--separator);
   }
   .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .fl {
     display: block;
     font-size: 11px;
-    color: var(--muted);
+    color: var(--label-tertiary);
     margin-bottom: 6px;
     font-family: Consolas, "Courier New", monospace;
   }
   .fb { margin-top: 10px; font-size: 12px; line-height: 1.5; min-height: 15px; }
-  .fb.ok { color: #7ec88a; }
-  .fb.bad { color: #e06c75; }
+  .fb.ok { color: var(--color-success); }
+  .fb.bad { color: var(--color-error); }
   .dhead { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
   .dhead + .log { margin-top: 8px; }
   .badge {
@@ -173,29 +137,29 @@
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 11px;
-    border: 1px solid var(--line);
-    color: var(--muted);
+    border: 1px solid var(--separator);
+    color: var(--label-tertiary);
   }
-  .badge.ok { color: #7ec88a; border-color: rgba(126, 200, 138, 0.4); background: rgba(126, 200, 138, 0.08); }
-  .badge.bad { color: #e06c75; border-color: rgba(224, 108, 117, 0.4); background: rgba(224, 108, 117, 0.08); }
+  .badge.ok { color: var(--color-success); border-color: color-mix(in srgb, var(--color-success) 40%, transparent); background: color-mix(in srgb, var(--color-success) 8%, transparent); }
+  .badge.bad { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 40%, transparent); background: color-mix(in srgb, var(--color-error) 8%, transparent); }
   .log {
     margin-top: 12px;
     padding: 10px 12px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--separator);
     border-radius: 8px;
     height: 110px;
     overflow-y: auto;
     font-family: Consolas, "Courier New", monospace;
     font-size: 11px;
     line-height: 1.6;
-    color: var(--muted);
+    color: var(--label-tertiary);
     white-space: pre-wrap;
     word-break: break-all;
     user-select: text;
   }
   .log.tall { height: auto; max-height: 220px; }
-  .ok { margin-top: 12px; color: #7ec88a; font-size: 12px; min-height: 16px; text-align: center; }
-  .err { margin-top: 12px; color: #e06c75; font-size: 12px; min-height: 16px; text-align: center; }
+  .ok { margin-top: 12px; color: var(--color-success); font-size: 12px; min-height: 16px; text-align: center; }
+  .err { margin-top: 12px; color: var(--color-error); font-size: 12px; min-height: 16px; text-align: center; }
 
   /* 标签页 */
   .tabs {
@@ -203,9 +167,9 @@
     gap: 6px;
     margin-top: 18px;
     padding: 4px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--separator);
     border-radius: 10px;
-    background: var(--field);
+    background: var(--bg-secondary);
     overflow-x: auto;
   }
   .tab {
@@ -215,60 +179,36 @@
     border: none;
     border-radius: 7px;
     background: transparent;
-    color: var(--muted);
+    color: var(--label-secondary);
+    font-family: inherit;
     font-size: 12px;
     cursor: pointer;
     white-space: nowrap;
     text-align: center;
   }
-  .tab.active { background: var(--accent); color: #fff; }
+  .tab.active { background: var(--label-primary); color: var(--bg-ground); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
   /* 配置表单 */
   .form-row { margin-top: 16px; }
-  .form-row label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  select {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
-    color: var(--fg);
-    font-size: 13px;
-    outline: none;
-  }
-  select:focus { border-color: var(--accent); }
-  textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
-    color: var(--fg);
-    font-size: 13px;
-    font-family: Consolas, "Courier New", monospace;
-    outline: none;
-    resize: vertical;
-    min-height: 80px;
-  }
-  textarea:focus { border-color: var(--accent); }
+  .form-row label { display: block; font-size: 12px; color: var(--label-secondary); margin-bottom: 6px; }
   .switch {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    background: var(--bg-secondary);
   }
   .switch-label { font-size: 13px; }
-  .switch-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .switch-desc { font-size: 11px; color: var(--label-tertiary); margin-top: 2px; }
   input[type="checkbox"] {
     width: 36px; height: 20px;
     appearance: none;
     border-radius: 10px;
-    background: #3a3a40;
+    background: var(--label-quaternary);
     position: relative;
     cursor: pointer;
     outline: none;
@@ -279,18 +219,18 @@
     width: 16px; height: 16px;
     top: 2px; left: 2px;
     border-radius: 50%;
-    background: #fff;
+    background: var(--bg-primary);
     transition: transform 0.15s;
   }
-  input[type="checkbox"]:checked { background: var(--accent); }
+  input[type="checkbox"]:checked { background: var(--label-primary); }
   input[type="checkbox"]:checked::after { transform: translateX(16px); }
   .section-title {
     margin-top: 24px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--fg);
+    color: var(--label-primary);
     padding-bottom: 6px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--separator);
   }
   .dimmed { opacity: 0.45; pointer-events: none; }
 
@@ -302,56 +242,30 @@
     gap: 8px;
     align-items: center;
     padding: 8px 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--separator);
   }
   .rule-item select, .rule-item input { margin: 0; }
-  .rule-item button {
-    margin: 0;
-    padding: 6px;
-    background: transparent;
-    border: 1px solid var(--line);
-    color: #e06c75;
-    font-size: 12px;
-  }
-  .rule-item button:hover { border-color: #e06c75; }
-  .btn-add {
-    margin-top: 10px;
-    width: 100%;
-    padding: 10px;
-    background: var(--field);
-    border: 1px dashed var(--line);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 400;
-  }
-  .btn-add:hover { border-color: var(--accent); color: var(--fg); }
+  .rule-item .btn { padding: 6px; font-size: 12px; }
+  .rule-item .btn-danger:hover { border-color: var(--color-error); background: transparent; }
 
-  /* 列表卡片 */
+  /* 列表卡片（视觉规格由官方 .card 提供，这里只补内边距与间距） */
   .card-list { margin-top: 10px; }
   .card {
     padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--field);
     margin-bottom: 10px;
   }
   .card-title { font-size: 13px; font-weight: 600; }
-  .card-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .card-meta { font-size: 11px; color: var(--label-tertiary); margin-top: 4px; }
   .card-actions { margin-top: 10px; display: flex; gap: 8px; }
-  .card-actions button {
-    margin: 0;
-    flex: 1;
-    padding: 8px;
-    font-size: 12px;
-  }
+  .card-actions .btn { flex: 1; }
 
   /* 插件表格 */
   .ptable { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 12px; }
-  .ptable th, .ptable td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
-  .ptable th { color: var(--muted); font-weight: 400; font-size: 11px; white-space: nowrap; }
+  .ptable th, .ptable td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--separator); vertical-align: top; }
+  .ptable th { color: var(--label-tertiary); font-weight: 400; font-size: 11px; white-space: nowrap; }
   .ptable td { word-break: break-all; }
   .ptable .mini { padding: 6px 10px; }
-  .ptable .cell-note { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .ptable .cell-note { font-size: 11px; color: var(--label-tertiary); line-height: 1.5; }
 
   @media (max-width: 380px) {
     .grid2 { grid-template-columns: 1fr; }
@@ -400,8 +314,8 @@
     <div class="group" id="cliGroup">
       <label>Kimi Code CLI 路径（留空则自动探测）</label>
       <div class="row">
-        <input type="text" id="cliPath" spellcheck="false" />
-        <button class="mini" id="browseCli" type="button">浏览…</button>
+        <input type="text" class="input" id="cliPath" spellcheck="false" />
+        <button class="btn btn-secondary mini" id="browseCli" type="button">浏览…</button>
       </div>
       <div class="hint" id="cliHint">自动探测位置：<code id="defaultCli"></code></div>
     </div>
@@ -409,23 +323,23 @@
     <div class="group" id="shellGroup">
       <label>Git Bash 路径（留空则自动探测）</label>
       <div class="row">
-        <input type="text" id="shellPath" spellcheck="false" />
-        <button class="mini" id="browseShell" type="button">浏览…</button>
+        <input type="text" class="input" id="shellPath" spellcheck="false" />
+        <button class="btn btn-secondary mini" id="browseShell" type="button">浏览…</button>
       </div>
       <div class="hint">自动探测位置：<code id="defaultShell">检测中…</code></div>
     </div>
 
     <div class="group hidden" id="urlGroup">
       <label>Web 会话地址</label>
-      <input type="text" id="manualUrl" placeholder="http://127.0.0.1:端口/sessions/…#token=…" spellcheck="false" />
+      <input type="text" class="input" id="manualUrl" placeholder="http://127.0.0.1:端口/sessions/…#token=…" spellcheck="false" />
       <div class="hint">在终端运行 <code>kimi web</code>，复制输出的完整地址（含 #token= 部分）粘贴到这里。</div>
     </div>
 
     <div class="group">
       <label>账号登录</label>
       <div class="btn-row">
-        <button class="btn2" id="loginBtn" type="button">设备码登录</button>
-        <button class="btn2" id="logoutBtn" type="button">退出登录</button>
+        <button class="btn btn-secondary" id="loginBtn" type="button">设备码登录</button>
+        <button class="btn btn-secondary" id="logoutBtn" type="button">退出登录</button>
       </div>
       <div class="log hidden" id="loginLog"></div>
       <div class="fb" id="loginFb"></div>
@@ -433,7 +347,7 @@
 
     <div class="group">
       <label>环境诊断</label>
-      <button class="btn2" id="doctorBtn" type="button">运行 kimi doctor</button>
+      <button class="btn btn-secondary" id="doctorBtn" type="button">运行 kimi doctor</button>
       <div class="hidden" id="doctorResult">
         <div class="dhead"><span class="badge" id="doctorBadge"></span></div>
         <div class="log tall" id="doctorOut"></div>
@@ -443,10 +357,10 @@
     <div class="group divider" id="proxyGroup">
       <label>代理设置（留空则不使用代理）</label>
       <div class="grid2">
-        <div><span class="fl">HTTP_PROXY</span><input type="text" id="httpProxy" placeholder="http://127.0.0.1:7890" spellcheck="false" /></div>
-        <div><span class="fl">HTTPS_PROXY</span><input type="text" id="httpsProxy" placeholder="http://127.0.0.1:7890" spellcheck="false" /></div>
-        <div><span class="fl">ALL_PROXY</span><input type="text" id="allProxy" placeholder="socks5://127.0.0.1:7890" spellcheck="false" /></div>
-        <div><span class="fl">NO_PROXY</span><input type="text" id="noProxy" placeholder="localhost,127.0.0.1" spellcheck="false" /></div>
+        <div><span class="fl">HTTP_PROXY</span><input type="text" class="input" id="httpProxy" placeholder="http://127.0.0.1:7890" spellcheck="false" /></div>
+        <div><span class="fl">HTTPS_PROXY</span><input type="text" class="input" id="httpsProxy" placeholder="http://127.0.0.1:7890" spellcheck="false" /></div>
+        <div><span class="fl">ALL_PROXY</span><input type="text" class="input" id="allProxy" placeholder="socks5://127.0.0.1:7890" spellcheck="false" /></div>
+        <div><span class="fl">NO_PROXY</span><input type="text" class="input" id="noProxy" placeholder="localhost,127.0.0.1" spellcheck="false" /></div>
       </div>
       <div class="hint">作用于自动启动的 CLI 进程，保存后生效；NO_PROXY 用逗号分隔多个地址。</div>
     </div>
@@ -454,16 +368,16 @@
     <div class="group divider" id="advancedGroup">
       <label>高级启动参数（留空则用默认，仅新版 CLI 生效）</label>
       <div class="grid2">
-        <div><span class="fl">固定端口</span><input type="text" id="advPort" placeholder="默认 58627，被占自动 +1" spellcheck="false" /></div>
-        <div><span class="fl">监听地址 --host</span><input type="text" id="advHost" placeholder="默认 127.0.0.1" spellcheck="false" /></div>
-        <div><span class="fl">日志级别</span><select id="advLogLevel">
+        <div><span class="fl">固定端口</span><input type="text" class="input" id="advPort" placeholder="默认 58627，被占自动 +1" spellcheck="false" /></div>
+        <div><span class="fl">监听地址 --host</span><input type="text" class="input" id="advHost" placeholder="默认 127.0.0.1" spellcheck="false" /></div>
+        <div><span class="fl">日志级别</span><select class="input" id="advLogLevel">
           <option value="">默认</option>
           <option value="debug">debug</option>
           <option value="info">info</option>
           <option value="warn">warn</option>
           <option value="error">error</option>
         </select></div>
-        <div><span class="fl">KIMI_CODE_HOME</span><input type="text" id="advKimiHome" placeholder="默认 %USERPROFILE%\.kimi-code" spellcheck="false" /></div>
+        <div><span class="fl">KIMI_CODE_HOME</span><input type="text" class="input" id="advKimiHome" placeholder="默认 %USERPROFILE%\.kimi-code" spellcheck="false" /></div>
       </div>
       <div class="hint">修改 KIMI_CODE_HOME 后需重启应用完全生效；监听地址改为 0.0.0.0 会向局域网暴露服务，请确认已了解风险。</div>
     </div>
@@ -480,9 +394,9 @@
         </div>
       </div>
       <div class="grid2" style="margin-top:10px">
-        <div><span class="fl">自定义插件市场 URL</span><input type="text" id="pluginMarketplaceUrl" placeholder="KIMI_CODE_PLUGIN_MARKETPLACE_URL" spellcheck="false" /></div>
-        <div><span class="fl">自建 OAuth 主机</span><input type="text" id="oauthHost" placeholder="KIMI_CODE_OAUTH_HOST" spellcheck="false" /></div>
-        <div><span class="fl">自建服务 Base URL</span><input type="text" id="selfHostedBaseUrl" placeholder="KIMI_CODE_BASE_URL" spellcheck="false" /></div>
+        <div><span class="fl">自定义插件市场 URL</span><input type="text" class="input" id="pluginMarketplaceUrl" placeholder="KIMI_CODE_PLUGIN_MARKETPLACE_URL" spellcheck="false" /></div>
+        <div><span class="fl">自建 OAuth 主机</span><input type="text" class="input" id="oauthHost" placeholder="KIMI_CODE_OAUTH_HOST" spellcheck="false" /></div>
+        <div><span class="fl">自建服务 Base URL</span><input type="text" class="input" id="selfHostedBaseUrl" placeholder="KIMI_CODE_BASE_URL" spellcheck="false" /></div>
       </div>
       <div class="hint">自建服务 Base URL 为 OAuth 托管服务地址，勿与 KIMI_BASE_URL 混淆。</div>
     </div>
@@ -490,19 +404,19 @@
     <div class="group divider" id="tempModelGroup">
       <label>临时模型（KIMI_MODEL_* 进程级注入，不写 config.toml）</label>
       <div class="grid2">
-        <div><span class="fl">模型 ID</span><input type="text" id="tempModelName" placeholder="例如 my-model" spellcheck="false" /></div>
-        <div><span class="fl">API Key</span><input type="password" id="tempModelApiKey" placeholder="sk-…" spellcheck="false" /></div>
-        <div><span class="fl">供应商类型</span><select id="tempModelProviderType">
+        <div><span class="fl">模型 ID</span><input type="text" class="input" id="tempModelName" placeholder="例如 my-model" spellcheck="false" /></div>
+        <div><span class="fl">API Key</span><input type="password" class="input" id="tempModelApiKey" placeholder="sk-…" spellcheck="false" /></div>
+        <div><span class="fl">供应商类型</span><select class="input" id="tempModelProviderType">
           <option value="">默认</option>
           <option value="kimi">kimi</option>
           <option value="anthropic">anthropic</option>
           <option value="openai">openai</option>
         </select></div>
-        <div><span class="fl">Base URL</span><input type="text" id="tempModelBaseUrl" placeholder="https://…" spellcheck="false" /></div>
-        <div><span class="fl">显示名</span><input type="text" id="tempModelDisplayName" placeholder="界面展示名称" spellcheck="false" /></div>
-        <div><span class="fl">最大上下文</span><input type="text" id="tempModelMaxContextSize" placeholder="例如 131072" spellcheck="false" /></div>
-        <div><span class="fl">能力标签</span><input type="text" id="tempModelCapabilities" placeholder="image_in,thinking" spellcheck="false" /></div>
-        <div><span class="fl">Thinking effort</span><select id="tempModelThinkingEffort">
+        <div><span class="fl">Base URL</span><input type="text" class="input" id="tempModelBaseUrl" placeholder="https://…" spellcheck="false" /></div>
+        <div><span class="fl">显示名</span><input type="text" class="input" id="tempModelDisplayName" placeholder="界面展示名称" spellcheck="false" /></div>
+        <div><span class="fl">最大上下文</span><input type="text" class="input" id="tempModelMaxContextSize" placeholder="例如 131072" spellcheck="false" /></div>
+        <div><span class="fl">能力标签</span><input type="text" class="input" id="tempModelCapabilities" placeholder="image_in,thinking" spellcheck="false" /></div>
+        <div><span class="fl">Thinking effort</span><select class="input" id="tempModelThinkingEffort">
           <option value="">默认</option>
           <option value="low">low</option>
           <option value="medium">medium</option>
@@ -540,16 +454,16 @@
     <div class="group divider" id="installGroup">
       <label>未安装 CLI？在线安装 Kimi Code</label>
       <div class="row">
-        <input type="text" id="installDir" spellcheck="false" />
-        <button class="mini" id="browseDir" type="button">选择文件夹…</button>
+        <input type="text" class="input" id="installDir" spellcheck="false" />
+        <button class="btn btn-secondary mini" id="browseDir" type="button">选择文件夹…</button>
       </div>
       <div class="hint">安装目录默认为 <code>%USERPROFILE%\.kimi-code</code>，可选择其他文件夹。</div>
-      <button id="installBtn" type="button" style="margin-top:14px">安装 Kimi Code CLI</button>
+      <button class="btn btn-primary btn-block" id="installBtn" type="button" style="margin-top:14px">安装 Kimi Code CLI</button>
       <div class="log hidden" id="installLog"></div>
       <div class="ok" id="installOk"></div>
     </div>
 
-    <button id="save">保存并连接</button>
+    <button class="btn btn-primary btn-block" id="save">保存并连接</button>
     <div class="err" id="err"></div>
     </div>
 
@@ -558,11 +472,11 @@
       <div class="section-title">config.toml</div>
       <div class="form-row">
         <label>默认模型</label>
-        <input type="text" id="cfgDefaultModel" placeholder="kimi-for-coding" spellcheck="false" />
+        <input type="text" class="input" id="cfgDefaultModel" placeholder="kimi-for-coding" spellcheck="false" />
       </div>
       <div class="form-row">
         <label>默认权限模式</label>
-        <select id="cfgPermissionMode">
+        <select class="input" id="cfgPermissionMode">
           <option value="manual">manual（每次询问）</option>
           <option value="yolo">yolo（自动放行非破坏性操作）</option>
           <option value="auto">auto（完全自动）</option>
@@ -570,7 +484,7 @@
       </div>
       <div class="form-row">
         <label>默认计划模式</label>
-        <select id="cfgPlanMode">
+        <select class="input" id="cfgPlanMode">
           <option value="true">启用计划模式</option>
           <option value="false">禁用计划模式</option>
         </select>
@@ -587,17 +501,17 @@
       <div class="section-title">思考与循环控制</div>
       <div class="form-row">
         <label>思考预算（thinking.budget）</label>
-        <input type="text" id="cfgThinkingBudget" placeholder="例如 1024" spellcheck="false" />
+        <input type="text" class="input" id="cfgThinkingBudget" placeholder="例如 1024" spellcheck="false" />
       </div>
       <div class="form-row">
         <label>单次最大迭代数（loop_control.max_iterations）</label>
-        <input type="text" id="cfgMaxIterations" placeholder="例如 50" spellcheck="false" />
+        <input type="text" class="input" id="cfgMaxIterations" placeholder="例如 50" spellcheck="false" />
       </div>
       <div class="form-row">
         <label>最大工具调用深度（loop_control.max_tool_depth）</label>
-        <input type="text" id="cfgMaxToolDepth" placeholder="例如 10" spellcheck="false" />
+        <input type="text" class="input" id="cfgMaxToolDepth" placeholder="例如 10" spellcheck="false" />
       </div>
-      <button id="saveConfig">保存 config.toml</button>
+      <button class="btn btn-primary btn-block" id="saveConfig">保存 config.toml</button>
       <div class="ok" id="cfgOk"></div>
       <div class="err" id="cfgErr"></div>
     </div>
@@ -607,12 +521,12 @@
       <div class="section-title">权限规则</div>
       <div class="hint">规则按顺序匹配，decision 支持 allow / deny / ask。</div>
       <div class="rule-list" id="ruleList"></div>
-      <button class="btn-add" id="addRule">+ 添加规则</button>
+      <button class="btn btn-secondary btn-add" id="addRule">+ 添加规则</button>
       <div class="btn-row" style="margin-top:12px">
-        <button class="btn2" id="presetDenyRm" type="button">拒绝 rm -rf</button>
-        <button class="btn2" id="presetSensitive" type="button">敏感文件 ask</button>
+        <button class="btn btn-secondary" id="presetDenyRm" type="button">拒绝 rm -rf</button>
+        <button class="btn btn-secondary" id="presetSensitive" type="button">敏感文件 ask</button>
       </div>
-      <button id="saveRules">保存权限规则</button>
+      <button class="btn btn-primary btn-block" id="saveRules">保存权限规则</button>
       <div class="ok" id="rulesOk"></div>
       <div class="err" id="rulesErr"></div>
     </div>
@@ -621,7 +535,7 @@
     <div class="tab-panel" id="panel-providers">
       <div class="section-title">供应商与模型</div>
       <div class="card-list" id="providerList"></div>
-      <button class="btn-add" id="addProvider">+ 添加供应商</button>
+      <button class="btn btn-secondary btn-add" id="addProvider">+ 添加供应商</button>
       <div class="ok" id="providersOk"></div>
       <div class="err" id="providersErr"></div>
     </div>
@@ -631,8 +545,8 @@
       <div class="section-title">MCP 服务器</div>
       <div class="hint">编辑用户级 mcp.json。若当前项目存在项目级 mcp.json，保存时仅影响用户级配置。</div>
       <div class="card-list" id="mcpList"></div>
-      <button class="btn-add" id="addMcpServer">+ 添加 MCP 服务器</button>
-      <button id="saveMcp">保存 mcp.json</button>
+      <button class="btn btn-secondary btn-add" id="addMcpServer">+ 添加 MCP 服务器</button>
+      <button class="btn btn-primary btn-block" id="saveMcp">保存 mcp.json</button>
       <div class="ok" id="mcpOk"></div>
       <div class="err" id="mcpErr"></div>
     </div>
@@ -642,23 +556,23 @@
       <div class="section-title">Skills 技能</div>
       <div class="hint">用户级技能（~/.kimi-code/skills/）可编辑与删除；extra_skill_dirs 中的技能只读。</div>
       <div class="card-list" id="skillList"></div>
-      <button class="btn-add" id="addSkill">+ 新建技能</button>
+      <button class="btn btn-secondary btn-add" id="addSkill">+ 新建技能</button>
       <div id="skillEditor" class="hidden" style="margin-top:14px">
         <div class="form-row">
           <label>名称（小写字母/数字/连字符）</label>
-          <input type="text" id="skillName" placeholder="my-skill" spellcheck="false" />
+          <input type="text" class="input" id="skillName" placeholder="my-skill" spellcheck="false" />
         </div>
         <div class="form-row">
           <label>描述</label>
-          <input type="text" id="skillDesc" placeholder="一句话描述技能用途" spellcheck="false" />
+          <input type="text" class="input" id="skillDesc" placeholder="一句话描述技能用途" spellcheck="false" />
         </div>
         <div class="form-row">
           <label>正文（SKILL.md Markdown 内容）</label>
-          <textarea id="skillBody" rows="10" spellcheck="false" placeholder="# 技能说明&#10;&#10;在这里编写指令、示例与参考材料…"></textarea>
+          <textarea class="input" id="skillBody" rows="10" spellcheck="false" placeholder="# 技能说明&#10;&#10;在这里编写指令、示例与参考材料…"></textarea>
         </div>
         <div class="btn-row">
-          <button class="btn2" id="saveSkillBtn" type="button">保存技能</button>
-          <button class="btn2" id="cancelSkillBtn" type="button">取消</button>
+          <button class="btn btn-secondary" id="saveSkillBtn" type="button">保存技能</button>
+          <button class="btn btn-secondary" id="cancelSkillBtn" type="button">取消</button>
         </div>
       </div>
       <div class="ok" id="skillsOk"></div>
@@ -670,14 +584,14 @@
       <div class="section-title">Hooks 钩子</div>
       <div class="hint">hooks 写入 config.toml 的 [[hooks]]：事件触发时执行命令，退出码 0 放行 / 2 阻断。保存前自动运行 kimi doctor 校验。</div>
       <div class="card-list" id="hookList"></div>
-      <button class="btn-add" id="addHook">+ 添加 Hook</button>
+      <button class="btn btn-secondary btn-add" id="addHook">+ 添加 Hook</button>
       <div class="form-row" style="margin-top:10px">
         <label>从模板填充</label>
-        <select id="hookTemplate">
+        <select class="input" id="hookTemplate">
           <option value="">选择模板…</option>
         </select>
       </div>
-      <button id="saveHooks">保存 Hooks</button>
+      <button class="btn btn-primary btn-block" id="saveHooks">保存 Hooks</button>
       <div class="ok" id="hooksOk"></div>
       <div class="err" id="hooksErr"></div>
     </div>
@@ -697,13 +611,13 @@
           <div class="card-meta" id="zedMetaExec">检测中…</div>
           <div class="card-meta" id="zedMetaCfg"></div>
           <div class="card-actions hidden" id="zedActions">
-            <button class="btn2" id="zedApplyBtn" type="button">一键写入配置</button>
+            <button class="btn btn-secondary" id="zedApplyBtn" type="button">一键写入配置</button>
           </div>
           <div class="hidden" id="zedManual" style="margin-top:10px">
             <div class="hint">自动写入不可用，请手动将以下片段合并到 Zed 的 settings.json：</div>
             <pre class="log tall" id="zedSnippet"></pre>
             <div class="card-actions">
-              <button class="btn2" id="zedCopyBtn" type="button">复制片段</button>
+              <button class="btn btn-secondary" id="zedCopyBtn" type="button">复制片段</button>
             </div>
           </div>
         </div>
@@ -715,7 +629,7 @@
           <div class="hint" style="margin-top:8px">JetBrains 系列 IDE 通过 ACP 接入，操作步骤如下：</div>
           <pre class="log tall" id="jbSnippet"></pre>
           <div class="card-actions">
-            <button class="btn2" id="jbCopyBtn" type="button">复制指引</button>
+            <button class="btn btn-secondary" id="jbCopyBtn" type="button">复制指引</button>
           </div>
         </div>
 
@@ -725,7 +639,7 @@
           <div class="hint">适用于其它支持 ACP（Agent Client Protocol）的客户端，按其配置格式接入以下片段：</div>
           <pre class="log tall" id="genericSnippet"></pre>
           <div class="card-actions">
-            <button class="btn2" id="genericCopyBtn" type="button">复制片段</button>
+            <button class="btn btn-secondary" id="genericCopyBtn" type="button">复制片段</button>
           </div>
         </div>
       </div>
@@ -742,8 +656,8 @@
         <div class="hint" id="upgradeInfo">检测中…</div>
       </div>
       <div class="btn-row">
-        <button class="btn2" id="checkUpgradeBtn" type="button">检查更新</button>
-        <button class="btn2 hidden" id="upgradeBtn" type="button">一键升级</button>
+        <button class="btn btn-secondary" id="checkUpgradeBtn" type="button">检查更新</button>
+        <button class="btn btn-secondary hidden" id="upgradeBtn" type="button">一键升级</button>
       </div>
       <div class="form-row">
         <div class="switch">
@@ -762,8 +676,8 @@
       <div class="hint" id="dataDirPath"></div>
       <div class="card-list" id="dataDirList"></div>
       <div class="btn-row">
-        <button class="btn2" id="refreshDataDirBtn" type="button">刷新统计</button>
-        <button class="btn2" id="cleanupDataDirBtn" type="button">清理勾选目录</button>
+        <button class="btn btn-secondary" id="refreshDataDirBtn" type="button">刷新统计</button>
+        <button class="btn btn-secondary" id="cleanupDataDirBtn" type="button">清理勾选目录</button>
       </div>
       <div class="ok" id="dataDirOk"></div>
       <div class="err" id="dataDirErr"></div>
@@ -771,7 +685,7 @@
       <div class="section-title" style="margin-top:18px">诊断打包</div>
       <div class="hint">打包应用日志、kimi doctor 输出与最近一次会话导出，用于问题反馈。</div>
       <div class="btn-row">
-        <button class="btn2" id="packDiagBtn" type="button">打包诊断信息…</button>
+        <button class="btn btn-secondary" id="packDiagBtn" type="button">打包诊断信息…</button>
       </div>
       <div class="ok" id="diagOk"></div>
       <div class="err" id="diagErr"></div>
@@ -783,7 +697,7 @@
       <div class="hint hidden" id="pluginsScanHint">未找到 installed.json，列表来自 plugins/managed/ 目录扫描</div>
       <div id="pluginList"></div>
       <div class="btn-row" style="margin-top:12px">
-        <button class="btn2" id="refreshPluginsBtn" type="button">刷新</button>
+        <button class="btn btn-secondary" id="refreshPluginsBtn" type="button">刷新</button>
       </div>
       <div class="hint" id="pluginsRoot"></div>
       <div class="ok" id="pluginsOk"></div>
@@ -1293,14 +1207,14 @@
       currentRules.forEach((rule, idx) => {
         const row = document.createElement('div');
         row.className = 'rule-item';
-        row.innerHTML = `<select data-idx="${idx}" data-field="decision">
+        row.innerHTML = `<select class="input" data-idx="${idx}" data-field="decision">
           <option value="allow" ${rule.decision === 'allow' ? 'selected' : ''}>allow</option>
           <option value="deny" ${rule.decision === 'deny' ? 'selected' : ''}>deny</option>
           <option value="ask" ${rule.decision === 'ask' ? 'selected' : ''}>ask</option>
         </select>
-        <input type="text" data-idx="${idx}" data-field="pattern" value="${escapeHtml(rule.pattern || '')}" placeholder="Bash(rm -rf*)" spellcheck="false" />
-        <input type="text" data-idx="${idx}" data-field="scope" value="${escapeHtml(rule.scope || '')}" placeholder="scope" spellcheck="false" />
-        <button type="button" data-idx="${idx}" class="del-rule">×</button>`;
+        <input type="text" class="input" data-idx="${idx}" data-field="pattern" value="${escapeHtml(rule.pattern || '')}" placeholder="Bash(rm -rf*)" spellcheck="false" />
+        <input type="text" class="input" data-idx="${idx}" data-field="scope" value="${escapeHtml(rule.scope || '')}" placeholder="scope" spellcheck="false" />
+        <button type="button" data-idx="${idx}" class="btn btn-danger del-rule">×</button>`;
         ruleList.appendChild(row);
       });
       ruleList.querySelectorAll('select, input').forEach((el) => {
@@ -1391,7 +1305,7 @@
           card.className = 'card';
           card.innerHTML = `<div class="card-title">${escapeHtml(p.name || '未命名')}</div>
             <div class="card-meta">类型：${escapeHtml(p.type || '-')} · 模型：${escapeHtml((p.models || []).join(', ') || '-')}</div>
-            <div class="card-actions"><button class="btn2 remove-provider" data-name="${escapeHtml(p.name || '')}">删除</button></div>`;
+            <div class="card-actions"><button class="btn btn-secondary remove-provider" data-name="${escapeHtml(p.name || '')}">删除</button></div>`;
           providerList.appendChild(card);
         });
         providerList.querySelectorAll('.remove-provider').forEach((btn) => {
@@ -1450,8 +1364,8 @@
           <div class="card-meta">类型：${escapeHtml(s.type || s.transport || '-')}</div>
           <div class="card-meta">命令/URL：${escapeHtml(s.command || s.url || '-')}</div>
           <div class="card-actions">
-            <button class="btn2 edit-mcp" data-name="${escapeHtml(name)}">编辑</button>
-            <button class="btn2 remove-mcp" data-name="${escapeHtml(name)}">删除</button>
+            <button class="btn btn-secondary edit-mcp" data-name="${escapeHtml(name)}">编辑</button>
+            <button class="btn btn-secondary remove-mcp" data-name="${escapeHtml(name)}">删除</button>
           </div>`;
         mcpList.appendChild(card);
       });
@@ -1566,15 +1480,15 @@
         const eventOptions = HOOK_EVENTS.map((e) =>
           `<option value="${e.value}" ${hook.event === e.value ? 'selected' : ''}>${e.value}</option>`).join('');
         const eventHint = (HOOK_EVENTS.find((e) => e.value === hook.event) || {}).hint || '';
-        card.innerHTML = `<div class="form-row"><label>事件</label><select data-idx="${idx}" data-field="event">${eventOptions}</select>
+        card.innerHTML = `<div class="form-row"><label>事件</label><select class="input" data-idx="${idx}" data-field="event">${eventOptions}</select>
             <div class="hint">${escapeHtml(eventHint)}</div></div>
           <div class="form-row"><label>matcher（正则，留空匹配全部）</label>
-            <input type="text" data-idx="${idx}" data-field="matcher" value="${escapeHtml(hook.matcher || '')}" placeholder="Bash" spellcheck="false" /></div>
+            <input type="text" class="input" data-idx="${idx}" data-field="matcher" value="${escapeHtml(hook.matcher || '')}" placeholder="Bash" spellcheck="false" /></div>
           <div class="form-row"><label>command（必填，退出码 0 放行 / 2 阻断）</label>
-            <input type="text" data-idx="${idx}" data-field="command" value="${escapeHtml(hook.command || '')}" spellcheck="false" /></div>
+            <input type="text" class="input" data-idx="${idx}" data-field="command" value="${escapeHtml(hook.command || '')}" spellcheck="false" /></div>
           <div class="form-row"><label>timeout（秒，1-600，默认 30）</label>
-            <input type="text" data-idx="${idx}" data-field="timeout" value="${hook.timeout != null ? escapeHtml(String(hook.timeout)) : ''}" placeholder="30" spellcheck="false" /></div>
-          <div class="card-actions"><button class="btn2 del-hook" data-idx="${idx}">删除</button></div>`;
+            <input type="text" class="input" data-idx="${idx}" data-field="timeout" value="${hook.timeout != null ? escapeHtml(String(hook.timeout)) : ''}" placeholder="30" spellcheck="false" /></div>
+          <div class="card-actions"><button class="btn btn-secondary del-hook" data-idx="${idx}">删除</button></div>`;
         hookList.appendChild(card);
       });
       hookList.querySelectorAll('select, input').forEach((el) => {
@@ -1671,8 +1585,8 @@
           <div class="card-meta">${escapeHtml(s.description || '（无描述）')}</div>
           <div class="card-meta">来源：${srcLabel} · ${escapeHtml(s.path)}</div>
           <div class="card-actions">
-            ${s.readonly ? '' : `<button class="btn2 edit-skill" data-name="${escapeHtml(s.dirName)}">编辑</button>
-            <button class="btn2 remove-skill" data-name="${escapeHtml(s.dirName)}">删除</button>`}
+            ${s.readonly ? '' : `<button class="btn btn-secondary edit-skill" data-name="${escapeHtml(s.dirName)}">编辑</button>
+            <button class="btn btn-secondary remove-skill" data-name="${escapeHtml(s.dirName)}">删除</button>`}
           </div>`;
         skillList.appendChild(card);
       });
@@ -1976,7 +1890,7 @@
         if (p.missing) {
           action = '<span class="cell-note">目录缺失</span>';
         } else if (p.canToggle) {
-          action = `<button class="mini toggle-plugin" type="button" data-id="${escapeHtml(p.id)}" data-enabled="${p.enabled ? '1' : ''}">${p.enabled ? '禁用' : '启用'}</button>`;
+          action = `<button class="btn btn-secondary mini toggle-plugin" type="button" data-id="${escapeHtml(p.id)}" data-enabled="${p.enabled ? '1' : ''}">${p.enabled ? '禁用' : '启用'}</button>`;
         } else {
           action = '<span class="cell-note">需在会话中用 /plugins 命令管理</span>';
         }
