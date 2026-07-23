@@ -13,7 +13,8 @@ const path = require('path');
 const TOTAL_TIMEOUT_MS = 90_000;     // 总超时：到点无条件 kill 子进程并退出
 const FRAMING_PROBE_MS = 20_000;     // ndjson 首发 initialize 的响应窗口，超时改试 LSP 分帧
 const POST_PROMPT_GRACE_MS = 3_000;  // 收到 prompt 响应后再留的尾巴时间，用于收残余通知
-const PROMPT_TEXT = 'Reply with exactly: ACP-PROBE-OK';
+// 探测口令可用环境变量 KIMI_ACP_PROBE_PROMPT 覆盖（默认保持原口令不变）
+const PROMPT_TEXT = process.env.KIMI_ACP_PROBE_PROMPT || 'Reply with exactly: ACP-PROBE-OK';
 const RAW_DUMP_LIMIT = 300;          // 无法解析的原始输出截断长度
 const PARAMS_DUMP_LIMIT = 500;       // 通知 params 摘要截断长度
 const FULL_DUMP_LIMIT = 4000;        // server→client 请求完整结构的截断上限

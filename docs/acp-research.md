@@ -64,6 +64,43 @@
 - **本次未触发** `session/request_permission` 与 `tool_call`/`tool_call_update`（日志:L641）：探测口令是纯文本对话，agent 未调用工具。审批请求的字段级形态仍待第二次探测（见 §未验证项）。
 - 脚本已就位：收到 `request_permission` 会记录完整结构并按协议回 `{outcome:{outcome:'cancelled'}}`，其它 server→client 请求回 `-32601`（本次均未发生）。
 
+### 第二次探测（2026-07-23）：request_permission 与 tool_call 字段级形态
+
+> 原始输出日志：[`docs/acp-probe2-output.txt`](./acp-probe2-output.txt)（1282 行，下文以 `日志2:Lxx` 引用行号）。
+> 探测 prompt 经环境变量 `KIMI_ACP_PROBE_PROMPT` 覆盖为「Create a file named acp-probe-test.txt containing OK, then reply with exactly: ACP-PROBE-OK」，其余流程与第一次相同。
+
+**结论：成功触发 4 次 `session/request_permission`（日志2:L392/L438/L663/L1092，全部回 `cancelled` 且被 agent 正常接受）与 tool_call 全形态通知（5 条 tool_call + 155 条 tool_call_update）。但本轮会话实际处于 plan mode，4 次审批均为 ExitPlanMode 计划审批，`allow_always`/`reject_always` 类 options 与「写工作区文件」的权限请求未实测到；agent 因反复被拒始终未执行写文件，探针口令未回显、无 stopReason，90s 总超时到达后按探测设计强杀（退出码 2，日志2:L1270-1282）。**
+
+#### session/request_permission 实测结构（日志2:L392）
+
+- params 为 `{sessionId, options, toolCall}`（实测 options 排在 toolCall 前，字段顺序无关）。
+- `options` 实测 3 项（ExitPlanMode 场景）：
+
+| optionId | name | kind |
+| --- | --- | --- |
+| `plan_approve` | `Approve` | `allow_once` |
+| `plan_revise` | `Revise` | `reject_once` |
+| `plan_reject_and_exit` | `Reject and Exit` | `reject_once` |
+
+- option `kind` 取值与 ACP 规范一致（`allow_once`/`reject_once` 实测出现；`allow_always`/`reject_always` 本轮未出现，按规范防御性处理）。
+- 内嵌 `toolCall` 为**部分字段形态**：实测仅 `{toolCallId, title, content}`，**无 kind/status/locations/rawInput**——渲染层必须容忍缺字段。
+- `content` 数组项形态为 `{type:'content', content:{type:'text', text}}`；ExitPlanMode 审批带 2 项（计划正文 + 「Requesting approval to …」说明文案）。
+- 回 `{outcome:{outcome:'cancelled'}}` 后 agent 将该 tool_call 置 `completed`（输出「Plan approval dismissed. Plan mode remains active.」，日志2:L396），随后重新发起审批（共 4 轮直至总超时）——证明 cancelled 响应格式正确，且 **agent 会重试，客户端决策逻辑需防重入**。
+
+#### tool_call / tool_call_update 实测形态
+
+- `tool_call` 首发（日志2:L245/L390）：`{toolCallId, title, kind, status:'pending', content:[{type:'content', content:{type:'text', text:''}}]}`。`toolCallId` 形如 `0:tool_U1mRunMVzcmoiFq3gHv7BPCk`（带轮次前缀）；`kind` 实测取值 `edit`（Write）、`other`（ExitPlanMode）；首发无 locations/rawInput。
+- `tool_call_update` 三种实测形态：
+  1. **流式入参**（155 条中绝大多数）：`{toolCallId, status:'in_progress', content:[…]}`，content 文本是工具入参 JSON 的**累积快照而非增量**（`{"path":"` → `{"path":"C` → …，日志2:L246-386），逐字推送，UI 必须节流/合并。
+  2. **补齐元数据**：`{toolCallId, title:'Writing C:/…', kind:'edit', status:'in_progress', rawInput:{path, content}}`（日志2:L387）；ExitPlanMode 的 rawInput 为 `{}`（日志2:L395）。
+  3. **完成**：`{toolCallId, status:'completed', content:[…结果摘要], rawOutput:'结果摘要'}`（日志2:L388/L396；content 文本与 rawOutput 相同）。未观察到 `failed` 状态与 `locations` 字段。
+- 计划文件写入（Write 到 `~/.kimi-code/sessions/.../plans/*.md`）**未触发权限请求**直接执行——CLI 对自身内部路径自动放行；写会话工作区文件的权限请求形态本轮未覆盖。
+
+#### 附注
+
+- 会话实际处于 plan mode（agent 自述 + ExitPlanMode 工具出现），但 `session/new` 的 mode configOption 显示 `default`（日志2:L89-131）——configOption 值与实际权限模式可能不一致（或 CLI 恢复了持久化模式），待查。
+- stdout 依旧 0 段不可解析输出；除 request_permission 外无其它 server→client 请求（日志2:L1277-1278）。
+
 ## ② ACP 与现有 REST+WS 路线的能力差分析
 
 | 维度 | 现有 REST+WS（`kimi server` + WebView） | ACP（spawn `kimi acp`，stdio JSON-RPC） |
@@ -101,7 +138,7 @@
 
 - `session/request_permission` → 原生模态窗，交互模式复用 question.html 的窗体/桥接套路；options 的 once/always 语义映射为按钮组。
 - 渲染 `tool_call` / `tool_call_update`（工具名、状态流转、结果摘要）。
-- 前置工作：**第二次探测**拿到 request_permission 的真实字段结构（见下），避免照规范空想。
+- 前置工作：~~第二次探测拿到 request_permission 的真实字段结构~~（已完成 2026-07-23，见 §①「第二次探测」）。
 
 ### v0.12.0+ — 渐进替代 WebView（预估 5-8 天）
 
@@ -113,7 +150,7 @@
 
 ### 未验证项与后续探测清单
 
-1. `session/request_permission` 字段级结构（本次 agent 未调工具）——下次用「创建一个文件」类 prompt 触发，脚本已具备记录 + 取消能力。
+1. ~~`session/request_permission` 字段级结构~~ **已验证（第二次探测，见 §①「第二次探测」）**：params=`{sessionId, options, toolCall}`，options 的 kind 实测 `allow_once`/`reject_once`。残留缺口：`allow_always`/`reject_always` 与写工作区文件类权限请求未触发（本轮会话处于 plan mode）。
 2. `session/set_config_option`（configOptions 的写入侧）与 `session/list` / `session/resume` 的实际行为。
 3. 客户端声明 `fs/terminal: true` 后 `fs/read_text_file`、`terminal/*` 请求的形态（桌面端是否要接管文件读写）。
 4. Content-Length 分帧回退路径仅有代码、未对真实对端验证（ndjson 已够用，此项仅作健壮性储备）。
@@ -121,5 +158,6 @@
 
 ## 附：探测产物
 
-- 探测脚本：`scripts/acp-probe.js`（纯 Node 无依赖，可重复运行）
+- 探测脚本：`scripts/acp-probe.js`（纯 Node 无依赖，可重复运行；探测 prompt 可用环境变量 `KIMI_ACP_PROBE_PROMPT` 覆盖，默认口令不变）
 - 输出日志：`docs/acp-probe-output.txt`（647 行时间线，毫秒级方向标记）
+- 第二次探测日志：`docs/acp-probe2-output.txt`（1282 行，文件创建类 prompt，含 4 次 request_permission 完整结构与 tool_call 全形态）

@@ -171,7 +171,9 @@
     border-radius: 10px;
     background: var(--bg-secondary);
     overflow-x: auto;
+    scrollbar-width: none; /* 标签条横向滚动但隐藏滚动条（避免主题全局滚动条在条下形成灰条） */
   }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab {
     flex: 1;
     min-width: 72px;

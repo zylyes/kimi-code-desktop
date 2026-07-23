@@ -2,6 +2,7 @@
 // 只读原型：全部动态文本经 textContent 写入，杜绝 innerHTML 注入；
 // message/thought 流式分片只进字符串缓冲，按 ~50ms 合帧统一写 DOM，
 // 每类缓冲每帧最多一次 textContent 赋值（479 条/轮的思考分片也只写一次）。
+// 工具调用渲染为卡片节点插入当前轮次容器，由 tool-call-update 就地更新状态与输出。
 (function () {
   'use strict';
 
@@ -25,6 +26,7 @@
   // ---------- 运行状态 ----------
   var connState = 'connecting'; // connecting | ready | error | exited
   var busy = false; // prompt 在途
+  var permissionPending = false; // 权限审批等待中（视为 busy 态）
   var currentTurn = null; // 当前 assistant 轮次容器
   var stickToBottom = true; // 用户未上翻时跟随滚动
 
@@ -43,6 +45,8 @@
       cls = 'exited'; text = '已退出';
     } else if (connState === 'connecting') {
       cls = 'connecting'; text = '正在连接…';
+    } else if (permissionPending) {
+      cls = 'busy'; text = '等待审批…';
     } else if (busy) {
       cls = 'busy'; text = '正在生成…';
     } else {
@@ -50,13 +54,13 @@
     }
     statusDot.className = 'dot ' + cls;
     statusText.textContent = text;
-    // 仅 ready 且非在途时可输入
-    input.disabled = !(connState === 'ready' && !busy);
+    // 仅 ready 且非在途、无待审批时可输入
+    input.disabled = !(connState === 'ready' && !busy && !permissionPending);
     refreshSendBtn();
   }
 
   function refreshSendBtn() {
-    sendBtn.disabled = !(connState === 'ready' && !busy && input.value.trim());
+    sendBtn.disabled = !(connState === 'ready' && !busy && !permissionPending && input.value.trim());
   }
 
   // ---------- 错误提示条 ----------
@@ -121,6 +125,7 @@
     messagesInner.appendChild(wrap);
 
     return {
+      wrap: wrap,
       thought: thought,
       thoughtEl: thoughtBody,
       textEl: textEl,
@@ -165,6 +170,80 @@
     flushTimer = setTimeout(flushBuffers, FLUSH_MS);
   }
 
+  // ---------- 工具调用卡片 ----------
+  // toolCallId → 卡片引用映射：普通对象即可，session 生命周期内有效，窗口关闭即弃
+  var toolCards = {};
+
+  // 状态文案与色点 class（复用状态条 .dot 色系语义，不新增颜色）
+  var TOOL_STATUS = {
+    pending: { text: '待处理', cls: 'connecting' },
+    in_progress: { text: '执行中', cls: 'busy' },
+    completed: { text: '已完成', cls: 'ready' },
+    failed: { text: '失败', cls: 'error' },
+  };
+
+  function applyToolStatus(ref, status) {
+    var s = TOOL_STATUS[status] || TOOL_STATUS.pending;
+    ref.dot.className = 'dot tool-dot ' + s.cls;
+    ref.statusText.textContent = s.text;
+  }
+
+  // 卡片结构：标题行（状态点 + 标题 + kind 徽标 + 状态文本）
+  // + details 折叠的 detail 文本 + tool-call-update 追加的输出摘要区
+  function createToolCard(call) {
+    var card = document.createElement('div');
+    card.className = 'tool-card';
+
+    var head = document.createElement('div');
+    head.className = 'tool-head';
+    var dot = document.createElement('span');
+    var title = document.createElement('span');
+    title.className = 'tool-title';
+    title.textContent = typeof call.title === 'string' && call.title ? call.title : '工具调用';
+    var statusText = document.createElement('span');
+    statusText.className = 'tool-status';
+    head.appendChild(dot);
+    head.appendChild(title);
+    if (typeof call.kind === 'string' && call.kind) {
+      var kind = document.createElement('span');
+      kind.className = 'tool-kind';
+      kind.textContent = call.kind;
+      head.appendChild(kind);
+    }
+    head.appendChild(statusText);
+    card.appendChild(head);
+
+    var detail = document.createElement('details');
+    detail.className = 'tool-detail';
+    detail.hidden = true; // 有内容才展示
+    var summary = document.createElement('summary');
+    summary.textContent = '详情';
+    var detailBody = document.createElement('div');
+    detailBody.className = 'tool-detail-body';
+    detail.appendChild(summary);
+    detail.appendChild(detailBody);
+    card.appendChild(detail);
+
+    var output = document.createElement('div');
+    output.className = 'tool-output';
+    output.hidden = true;
+    card.appendChild(output);
+
+    var ref = {
+      el: card,
+      dot: dot,
+      statusText: statusText,
+      outputEl: output,
+      outputStr: '',
+    };
+    applyToolStatus(ref, typeof call.status === 'string' ? call.status : 'pending');
+    if (typeof call.detail === 'string' && call.detail) {
+      detailBody.textContent = call.detail; // 主进程已预提取并截断
+      detail.hidden = false;
+    }
+    return ref;
+  }
+
   // ---------- 状态事件 ----------
   function onStatus(p) {
     connState = p.state || 'connecting';
@@ -182,9 +261,11 @@
       }
     } else if (connState === 'error') {
       busy = false;
+      permissionPending = false;
       showError(typeof p.message === 'string' && p.message ? p.message : '连接出错');
     } else if (connState === 'exited') {
       busy = false;
+      permissionPending = false;
     }
     refreshUi();
   }
@@ -213,12 +294,50 @@
         commandsInfoEl.textContent = '命令 ' + (typeof p.count === 'number' ? p.count : 0);
         commandsInfoEl.hidden = false;
         break;
-      case 'permission-auto-cancel':
-        appendSystemNotice('已自动取消一次权限请求（原型只读模式）');
+      case 'tool-call': {
+        var call = p.call && typeof p.call === 'object' ? p.call : null;
+        if (!call || typeof call.toolCallId !== 'string' || !call.toolCallId) break;
+        flushBuffers(); // 在途流式文本先落 DOM，保持「文本在前、卡片在后」
+        var turn = ensureTurn();
+        var ref = createToolCard(call);
+        toolCards[call.toolCallId] = ref;
+        turn.wrap.appendChild(ref.el);
+        // 卡片之后的正文另起新段，维持流式文本与卡片的相对顺序
+        var textEl = document.createElement('div');
+        textEl.className = 'assistant-text';
+        turn.wrap.appendChild(textEl);
+        turn.textEl = textEl;
+        turn.textStr = '';
+        maybeScrollToBottom();
+        break;
+      }
+      case 'tool-call-update': {
+        var updRef = typeof p.toolCallId === 'string' ? toolCards[p.toolCallId] : null;
+        if (!updRef) break; // 无对应卡片（事件乱序/缺失），直接忽略
+        if (typeof p.status === 'string' && p.status) applyToolStatus(updRef, p.status);
+        if (typeof p.output === 'string' && p.output) {
+          // 输出摘要追加进输出区：单片与总量均封顶 2000 字符
+          updRef.outputStr += p.output.slice(0, 2000);
+          if (updRef.outputStr.length > 2000) updRef.outputStr = updRef.outputStr.slice(0, 2000);
+          updRef.outputEl.textContent = updRef.outputStr;
+          updRef.outputEl.hidden = false;
+        }
+        maybeScrollToBottom();
+        break;
+      }
+      case 'permission-pending':
+        permissionPending = true; // 视为 busy 态，输入框保持禁用
+        refreshUi();
+        break;
+      case 'permission-resolved':
+        permissionPending = false;
+        refreshUi();
+        if (p.cancelled === true) appendSystemNotice('权限请求已取消');
         break;
       case 'prompt-done':
         flushBuffers();
         busy = false;
+        permissionPending = false;
         refreshUi();
         break;
     }

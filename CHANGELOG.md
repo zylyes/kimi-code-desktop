@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.0] - 2026-07-23
+
+### 新功能
+
+- **ACP 原生审批弹窗**：`session/request_permission` 接入原生模态审批窗（options 的 once/always 语义映射按钮组，详情区展示命令/路径等工具上下文，Esc/关窗即取消；窗口创建失败回退系统对话框；聊天窗失焦时系统通知 + 任务栏闪框）。
+- **ACP 工具调用卡片**：`tool_call`/`tool_call_update` 渲染为状态流转卡片（pending→in_progress→completed/failed，折叠详情与输出摘要）。
+
+### 其他
+
+- `acp-client.js` 新增 `setPermissionHandler` 异步权限决策（未设 handler 保持自动取消安全基线）。
+- 新增权限窗三件套 `permission.html`/`permission.js`/`permission-preload.js` 与新 IPC 通道 `acp-permission:init`（主→渲染）、`acp-permission:respond`（渲染→主 invoke）。
+- `acp-chat:event` 新增 `tool-call`/`tool-call-update`/`permission-pending`/`permission-resolved` 四类 payload，移除 `permission-auto-cancel`。
+- `test-acp-client.js` 扩展权限决策回环断言。
+- 第二次 ACP 探测产物 `docs/acp-probe2-output.txt` 与 `docs/acp-research.md` 补充。
+- 打包清单（build.files）登记 permission 三件套。
+- 无破坏性变更。
+
 ## [0.10.0] - 2026-07-23
 
 ### 新功能

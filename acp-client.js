@@ -2,8 +2,11 @@
 // 由 scripts/acp-probe.js 探测脚本产品化而来：与 `kimi acp` 子进程通过 stdio
 // JSON-RPC 2.0 通信，ndjson 分帧首发 initialize，20s 无响应则改试 Content-Length(LSP) 分帧。
 // 纯 Node CommonJS，无第三方依赖，不 require electron（供 Electron 主进程与单元测试共用）。
-// 安全基线：对 agent 的权限请求一律先 emit('permission') 再自动回 cancelled，
-// 绝不放行工具执行；其余 server→client 请求回 JSON-RPC 错误 -32601。
+// 权限决策：未设 handler 时对 agent 的权限请求一律先 emit('permission') 再自动回
+// cancelled，绝不放行工具执行（只读安全基线）；setPermissionHandler(fn) 后由
+// fn(params) 异步决策，结构非法 / optionId 越界 / 抛异常 / 10 分钟防御性超时一律降级
+// cancelled，每个请求只响应一次，dispose 时挂起决策按 cancelled 收尾。
+// 其余 server→client 请求回 JSON-RPC 错误 -32601。
 // 与 probe 的差异：不 process.exit、不设全局兜底超时，任何内部异常只通过
 // logFn / 'error' 事件暴露（'error' 无监听时降级为日志，避免 EventEmitter throw）。
 const { spawn } = require('child_process');
@@ -13,6 +16,7 @@ const { EventEmitter } = require('events');
 const FRAMING_PROBE_MS = 20_000; // ndjson 首发 initialize 的响应窗口，超时改试 LSP 分帧
 const FRAMING_RETRY_DELAY_MS = 500; // kill 旧进程后等它退出的间隔
 const SESSION_NEW_TIMEOUT_MS = 30_000; // session/new 超时（prompt 不设固定超时，LLM 耗时长）
+const PERMISSION_DECISION_TIMEOUT_MS = 600_000; // 权限决策的防御性超时（10 分钟），超时按 cancelled 收尾
 const LOG_DUMP_LIMIT = 300; // 日志里消息摘要的截断长度
 
 // initialize 请求参数：按 ACP 协议声明客户端不具备 fs / terminal 能力
@@ -95,7 +99,7 @@ class FrameParser {
 // 事件一览：
 //   'update'      (update)              session/update 通知里的 update 对象
 //   'notification'(method, params)      其它 server→client 通知
-//   'permission'  (params)              session/request_permission（随后自动回 cancelled）
+//   'permission'  (params)              session/request_permission（日志/通知用；决策见 setPermissionHandler）
 //   'stderr'      (text)                子进程 stderr 数据
 //   'raw'         (text)                stdout 中无法按 JSON 解析的段
 //   'exit'        (code, signal)        子进程退出或 spawn 失败（分帧切换重启时不发）
@@ -118,6 +122,8 @@ class AcpClient extends EventEmitter {
     this._restarting = false; // 分帧切换重启期间不对外发 'exit'
     this._exitEmitted = false; // 每个子进程生命周期只发一次 'exit'
     this.pending = new Map(); // id -> { method, resolve, reject, sentAt, timer }
+    this._permissionHandler = null; // setPermissionHandler 注入的异步权限决策回调
+    this._pendingPermissions = new Map(); // requestId -> { settleCancelled }，挂起的权限决策
   }
 
   _log(msg) {
@@ -300,16 +306,69 @@ class AcpClient extends EventEmitter {
     }
   }
 
-  // agent -> client 请求：权限请求先 emit('permission') 再一律回 cancelled（原型安全基线，
-  // 绝不放行工具执行）；客户端声明无 fs/terminal 能力，其余请求回方法未实现错误
+  // agent -> client 请求：权限请求走 _onPermissionRequest（先 emit('permission') 再决策）；
+  // 客户端声明无 fs/terminal 能力，其余请求回方法未实现错误
   _onServerRequest(msg) {
     if (msg.method === 'session/request_permission') {
-      this._safeEmit('permission', msg.params);
-      // ACP 协议结构：{ outcome: { outcome: 'cancelled' } } 表示用户取消
-      this._sendResult(msg.id, { outcome: { outcome: 'cancelled' } });
+      this._onPermissionRequest(msg);
     } else {
       this._sendError(msg.id, -32601, 'acp-client: capability not implemented');
     }
+  }
+
+  // 权限决策：未设 handler 维持只读安全基线（一律自动 cancelled，绝不放行工具执行）；
+  // 设了 handler 则异步决策，结构非法 / optionId 越界 / 抛异常 / 10 分钟防御性超时一律
+  // 降级 cancelled。settled 闭包保证每个请求只响应一次；挂起决策登记在
+  // _pendingPermissions，dispose 时统一按 cancelled 收尾
+  _onPermissionRequest(msg) {
+    const params = msg.params || {};
+    this._safeEmit('permission', params); // 日志/通知用，无论有无 handler 都 emit
+    const cancelled = { outcome: { outcome: 'cancelled' } }; // ACP 协议结构：用户取消
+    if (typeof this._permissionHandler !== 'function') {
+      this._sendResult(msg.id, cancelled);
+      return;
+    }
+    let settled = false;
+    let timer = null;
+    const settle = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      this._pendingPermissions.delete(msg.id);
+      this._sendResult(msg.id, result);
+    };
+    this._pendingPermissions.set(msg.id, { settleCancelled: () => settle(cancelled) });
+    // 防御性超时：handler 永不返回时按 cancelled 收尾，不让请求挂死
+    timer = setTimeout(() => {
+      this._log(`权限决策 ${PERMISSION_DECISION_TIMEOUT_MS}ms 内未返回，按 cancelled 收尾`);
+      settle(cancelled);
+    }, PERMISSION_DECISION_TIMEOUT_MS);
+    if (timer.unref) timer.unref(); // 超时不应拖着进程不退出
+    Promise.resolve()
+      .then(() => this._permissionHandler(params))
+      .then((result) => settle(this._normalizePermissionOutcome(result, params)))
+      .catch((e) => {
+        this._log(`权限决策回调抛异常，按 cancelled 收尾: ${e && e.message ? e.message : e}`);
+        settle(cancelled);
+      });
+  }
+
+  // 校验 handler 的决策结构：只认 { outcome: { outcome: 'selected', optionId } } 与
+  // { outcome: { outcome: 'cancelled' } }；selected 的 optionId 必须 ∈ params.options
+  // （无 options 或不在其中一律降级 cancelled）
+  _normalizePermissionOutcome(result, params) {
+    const cancelled = { outcome: { outcome: 'cancelled' } };
+    const outcome = result && result.outcome;
+    if (!outcome || typeof outcome !== 'object') return cancelled;
+    if (outcome.outcome === 'cancelled') return cancelled;
+    if (outcome.outcome !== 'selected') return cancelled;
+    const options = Array.isArray(params.options) ? params.options : [];
+    const hit = options.some((o) => o && o.optionId === outcome.optionId);
+    if (!hit) {
+      this._log(`权限决策 optionId 不在 options 内，降级 cancelled: ${truncate(JSON.stringify(outcome.optionId), LOG_DUMP_LIMIT)}`);
+      return cancelled;
+    }
+    return { outcome: { outcome: 'selected', optionId: outcome.optionId } };
   }
 
   _onRaw(text) {
@@ -358,10 +417,19 @@ class AcpClient extends EventEmitter {
     });
   }
 
-  // 幂等清理：kill 子进程、拒绝全部 pending、移除监听
+  // 设置权限决策回调：fn(params) 返回 Promise，resolve
+  // { outcome: { outcome: 'selected', optionId } }（optionId 必须 ∈ params.options）
+  // 或 { outcome: { outcome: 'cancelled' } }；传非函数值则恢复自动 cancelled 基线
+  setPermissionHandler(fn) {
+    this._permissionHandler = typeof fn === 'function' ? fn : null;
+  }
+
+  // 幂等清理：挂起的权限决策按 cancelled 收尾、kill 子进程、拒绝全部 pending、移除监听
   dispose(reason) {
     if (this.disposed) return;
     this.disposed = true;
+    // 趁子进程仍在，先给挂起的权限请求补 cancelled 响应（写失败也只进日志，不挂死）
+    for (const entry of [...this._pendingPermissions.values()]) entry.settleCancelled();
     this._killChild(reason || 'dispose');
     this._rejectAllPending(new Error(`AcpClient 已 dispose（${reason || '无原因'}）`));
     this.removeAllListeners();

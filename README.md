@@ -63,6 +63,8 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 50. **插件管理面板**（v0.9.0）：设置中心新增第 10 个标签页「插件」，扫描 `plugins/managed/<id>/` 清单并合并启用状态，支持启用/禁用（.bak 备份）。
 51. **ACP 原生聊天只读原型窗（实验）**（v0.10.0）：菜单「会话→原生聊天原型（ACP 实验）…」打开；主进程经 `acp-client.js` 模块直连 `kimi acp` 子进程，initialize → session/new → 流式 prompt 全链路；会话落在系统临时目录（mkdtemp）实现只读隔离；权限请求一律自动取消（仅状态栏提示）；渲染层流式正文 + 思考折叠区 + 渲染节流；`stopReason` 回传后输入框恢复。
 52. **全窗口 kimi.com 官方风格翻新**（v0.10.0）：新增共享样式 `kimi-theme.css`（设计令牌），设置中心/会话启动器/问答窗/模板库/速查窗/局域网/子 Agent 监视/loading 等原生页面统一接入 kimi.com 官方黑白灰设计语言；亮/暗主题跟随系统，各窗口 `backgroundColor` 经 `windowBackground()` 函数跟随 `nativeTheme` 动态切换。
+53. **ACP 原生审批弹窗**（v0.11.0）：`session/request_permission` 接入原生模态审批窗，once/always 语义映射按钮组，详情区展示命令/路径等工具上下文，Esc/关窗即取消；窗口创建失败回退系统对话框；聊天窗失焦时系统通知 + 任务栏闪框。
+54. **ACP 工具调用卡片**（v0.11.0）：`tool_call`/`tool_call_update` 渲染为状态流转卡片（pending→in_progress→completed/failed，折叠详情与输出摘要）。
 
 ## 会话启动器
 
@@ -155,6 +157,7 @@ help.html            命令与快捷键速查（F1 快捷键打开）
 agents.html          子 Agent 任务监视器（时间线渲染各 Agent 卡片与后台任务）
 lan.html             局域网访问面板（网卡 URL 展示 + 二维码 + 安全警示）
 chat.html + chat.js + chat-preload.js  ACP 原生聊天原型前端（流式正文渲染、思考折叠区、节流合并、状态栏）
+permission.html + permission.js + permission-preload.js  ACP 原生审批弹窗（once/always 按钮组、工具上下文展示、Esc/关窗取消）
 kimi-theme.css       全应用共享设计令牌样式表（kimi.com 官方黑白灰设计语言，亮/暗双主题跟随系统）
 assets/              应用图标
 scripts/

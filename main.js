@@ -1581,11 +1581,12 @@ function showAgentsMonitor(sessionDir, title) {
 }
 
 // ---------- ACP 原型聊天窗（实验）----------
-// 只读原型：直连 `kimi acp`，会话落在系统临时目录，权限请求由 acp-client 一律自动取消（此处仅通知）
+// 直连 `kimi acp`，会话落在系统临时目录；工具执行权限经原生审批窗确认（见下方「ACP 权限审批窗」）
 let acpChatWindow = null;
 let acpClient = null;
 
 function disposeAcpClient(reason) {
+  cancelAllAcpPermissions(reason || '客户端销毁');
   if (acpClient) {
     try { acpClient.dispose(reason); } catch { /* ignore */ }
     acpClient = null;
@@ -1597,6 +1598,254 @@ function sendAcpEvent(payload) {
     try { acpChatWindow.webContents.send('acp-chat:event', payload); } catch { /* ignore */ }
   }
 }
+
+// ---------- ACP 权限审批窗 ----------
+// session/request_permission 的原生审批：一次一个窗串行处理，并发请求防御性排队；
+// 窗口创建/加载失败回退原生对话框，再失败按取消处理
+let acpPermissionWindow = null;
+let acpPermissionPending = null; // 当前在途 { settle, params }
+let acpPermissionQueue = [];     // 防御性 FIFO 队列
+
+// 从 toolCall 防御性提取可读详情：execute 优先命令行，edit/write 优先文件路径，
+// 否则取 rawInput 的美化 JSON；统一截断 2000 字符
+function extractAcpToolDetail(toolCall) {
+  const tc = toolCall && typeof toolCall === 'object' ? toolCall : {};
+  const raw = tc.rawInput && typeof tc.rawInput === 'object' ? tc.rawInput : null;
+  const firstString = (vals) => {
+    for (const v of vals) if (typeof v === 'string' && v.trim()) return v;
+    return '';
+  };
+  const kind = ensureString(tc.kind);
+  let text = '';
+  if (kind === 'execute') {
+    text = raw ? firstString([raw.command, raw.commandLine, raw.cmd, raw.script]) : '';
+  } else if (kind === 'edit' || kind === 'write') {
+    const locs = Array.isArray(tc.locations) ? tc.locations : [];
+    const locPath = locs.length && locs[0] && typeof locs[0].path === 'string' ? locs[0].path : '';
+    text = firstString([locPath, raw ? firstString([raw.path, raw.file_path, raw.filePath, raw.filename]) : '']);
+  }
+  if (!text && raw) {
+    try { text = JSON.stringify(raw, null, 2); } catch { text = ''; }
+  }
+  // 实测（docs/acp-probe2-output.txt）：request_permission 内嵌 toolCall 常无 kind/rawInput，
+  // 关键上下文（如计划正文）在 content 块里，按 ACP 内容块形态提取文本兜底
+  if (!text && Array.isArray(tc.content)) {
+    const parts = [];
+    for (const block of tc.content) {
+      if (!block || typeof block !== 'object') continue;
+      if (block.type === 'content' && block.content && block.content.type === 'text' && typeof block.content.text === 'string') {
+        if (block.content.text.trim()) parts.push(block.content.text);
+      } else if (block.type === 'text' && typeof block.text === 'string') {
+        if (block.text.trim()) parts.push(block.text);
+      }
+    }
+    text = parts.join('\n\n');
+  }
+  if (typeof text !== 'string') text = String(text || '');
+  return text.length > 2000 ? `${text.slice(0, 1997)}...` : text;
+}
+
+// tool_call_update 的 rawOutput 文本提取（截断 2000，空串由调用方省略字段）
+function extractAcpRawOutput(rawOutput) {
+  let text = '';
+  if (typeof rawOutput === 'string') text = rawOutput;
+  else if (rawOutput && typeof rawOutput === 'object') {
+    if (typeof rawOutput.text === 'string') text = rawOutput.text;
+    else if (typeof rawOutput.content === 'string') text = rawOutput.content;
+    else if (typeof rawOutput.output === 'string') text = rawOutput.output;
+  }
+  return text.length > 2000 ? `${text.slice(0, 1997)}...` : text;
+}
+
+// 权限窗 init payload：白名单字段 + 防御性清洗截断
+function buildAcpPermissionPayload(params) {
+  const p = params && typeof params === 'object' ? params : {};
+  const tc = p.toolCall && typeof p.toolCall === 'object' ? p.toolCall : {};
+  const title = ensureString(tc.title).slice(0, 200) || '操作审批';
+  const kind = ensureString(tc.kind).slice(0, 40);
+  const locations = (Array.isArray(tc.locations) ? tc.locations : [])
+    .filter((l) => l && typeof l === 'object' && typeof l.path === 'string')
+    .slice(0, 20)
+    .map((l) => {
+      const item = { path: l.path.slice(0, 500) };
+      if (Number.isInteger(l.line)) item.line = l.line;
+      return item;
+    });
+  const options = (Array.isArray(p.options) ? p.options : [])
+    .filter((o) => o && typeof o === 'object' && typeof o.optionId === 'string')
+    .slice(0, 8)
+    .map((o) => ({
+      optionId: o.optionId.slice(0, 100),
+      name: ensureString(o.name).slice(0, 80) || o.optionId.slice(0, 100),
+      kind: ensureString(o.kind).slice(0, 40),
+    }));
+  return { title, kind, detail: extractAcpToolDetail(tc), locations, options };
+}
+
+function closeAcpPermissionWindow() {
+  if (acpPermissionWindow && !acpPermissionWindow.isDestroyed()) {
+    try { acpPermissionWindow.close(); } catch { /* ignore */ }
+  }
+  acpPermissionWindow = null;
+}
+
+// 清理在途 + 排队的权限审批（一律按 cancelled 收尾）并关闭权限窗
+function cancelAllAcpPermissions(reason) {
+  if (acpPermissionPending) {
+    logLine(`[acp] 权限审批按取消收尾（${reason}）`);
+    acpPermissionPending.settle({ outcome: 'cancelled' });
+  }
+  const queued = acpPermissionQueue;
+  acpPermissionQueue = [];
+  for (const item of queued) {
+    try { item.resolve({ outcome: { outcome: 'cancelled' } }); } catch { /* ignore */ }
+  }
+  closeAcpPermissionWindow();
+}
+
+// 权限审批入口（acp-client 的 permission handler）：永不 reject，结果恒为 ACP outcome
+function requestAcpPermission(params) {
+  return new Promise((resolve) => {
+    acpPermissionQueue.push({ params, resolve });
+    pumpAcpPermissionQueue();
+  });
+}
+
+function pumpAcpPermissionQueue() {
+  if (acpPermissionPending) return; // 一次只审批一个
+  const next = acpPermissionQueue.shift();
+  if (!next) return;
+  const { params, resolve } = next;
+  let settled = false; // 每个请求只收尾一次
+  const settle = (inner) => {
+    if (settled) return;
+    settled = true;
+    acpPermissionPending = null;
+    const ok = inner && inner.outcome === 'selected' && typeof inner.optionId === 'string';
+    sendAcpEvent(ok
+      ? { type: 'permission-resolved', optionId: inner.optionId }
+      : { type: 'permission-resolved', cancelled: true });
+    closeAcpPermissionWindow();
+    resolve({ outcome: ok ? { outcome: 'selected', optionId: inner.optionId } : { outcome: 'cancelled' } });
+    pumpAcpPermissionQueue(); // 处理队列下一条
+  };
+  acpPermissionPending = { settle, params };
+  const payload = buildAcpPermissionPayload(params);
+  logLine(`[acp] 权限审批请求: ${payload.title} (${payload.kind || 'unknown'})`);
+  sendAcpEvent({ type: 'permission-pending', title: payload.title, kind: payload.kind });
+  // 聊天窗失焦时任务栏闪烁 + 桌面通知
+  if (!acpChatWindow || acpChatWindow.isDestroyed() || !acpChatWindow.isFocused()) {
+    if (acpChatWindow && !acpChatWindow.isDestroyed()) {
+      try { acpChatWindow.flashFrame(true); } catch { /* ignore */ }
+    }
+    showDesktopNotification('操作审批', payload.title);
+  }
+  openAcpPermissionWindow(payload, settle);
+}
+
+function openAcpPermissionWindow(payload, settle) {
+  let win = null;
+  try {
+    win = new BrowserWindow({
+      width: 520,
+      height: 480,
+      minWidth: 420,
+      minHeight: 360,
+      resizable: true,
+      parent: acpChatWindow && !acpChatWindow.isDestroyed() ? acpChatWindow : undefined,
+      title: '操作审批',
+      backgroundColor: windowBackground(),
+      autoHideMenuBar: true,
+      icon: path.join(__dirname, 'assets', 'icon.png'),
+      webPreferences: {
+        preload: path.join(__dirname, 'permission-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        spellcheck: false,
+      },
+    });
+  } catch (err) {
+    logLine(`权限窗口创建失败: ${err.message}`);
+    fallbackAcpPermissionDialog(payload, settle);
+    return;
+  }
+  acpPermissionWindow = win;
+  let fellBack = false; // 加载失败回退对话框时，关窗不再按取消收尾
+  win.on('closed', () => {
+    if (acpPermissionWindow === win) acpPermissionWindow = null;
+    // 关窗 / Esc = 取消
+    if (!fellBack) settle({ outcome: 'cancelled' });
+  });
+  win.webContents.on('did-finish-load', () => {
+    if (win.isDestroyed()) return;
+    // 仅在仍为当前在途审批时下发（防御时序竞争）
+    if (!acpPermissionPending || acpPermissionPending.settle !== settle) return;
+    try { win.webContents.send('acp-permission:init', payload); } catch { /* ignore */ }
+  });
+  win.loadFile(path.join(__dirname, 'permission.html')).catch((err) => {
+    logLine(`权限窗口加载失败: ${err.message}`);
+    fellBack = true;
+    if (!win.isDestroyed()) win.close();
+    // 仅在审批仍在途时回退（用户可能已关窗完成决策）
+    if (acpPermissionPending && acpPermissionPending.settle === settle) {
+      fallbackAcpPermissionDialog(payload, settle);
+    }
+  });
+}
+
+// 权限窗不可用时的回退：原生对话框（按钮 = 各 option.name + 拒绝），再失败按取消
+function fallbackAcpPermissionDialog(payload, settle) {
+  const buttons = payload.options.map((o) => (o.name.length > 60 ? `${o.name.slice(0, 57)}...` : o.name));
+  buttons.push('拒绝');
+  const opts = {
+    type: 'question',
+    buttons,
+    defaultId: -1, // 无默认选中
+    cancelId: buttons.length - 1, // 「拒绝」作为取消
+    title: '操作审批',
+    message: payload.title,
+    detail: (payload.detail || payload.kind || '').slice(0, 2000),
+    noLink: true,
+  };
+  logLine(`显示权限审批对话框: options=${payload.options.length}`);
+  const parentWin = acpChatWindow && !acpChatWindow.isDestroyed() ? acpChatWindow : null;
+  const shown = parentWin ? dialog.showMessageBox(parentWin, opts) : dialog.showMessageBox(opts);
+  shown.then((result) => {
+    const idx = result && typeof result.response === 'number' ? result.response : -1;
+    if (idx >= 0 && idx < payload.options.length) {
+      settle({ outcome: 'selected', optionId: payload.options[idx].optionId });
+    } else {
+      settle({ outcome: 'cancelled' });
+    }
+  }).catch((err) => {
+    logLine(`权限审批对话框失败: ${err.message}`);
+    settle({ outcome: 'cancelled' });
+  });
+}
+
+ipcMain.handle('acp-permission:respond', (_e, optionId) => {
+  if (!acpPermissionPending) {
+    logLine('[acp] 收到陈旧的权限审批响应，已忽略');
+    return { ok: false, error: '无在途审批' };
+  }
+  if (optionId === null) {
+    acpPermissionPending.settle({ outcome: 'cancelled' });
+    return { ok: true };
+  }
+  // optionId 必须在当前请求的可选项内（与 acp-client 的校验一致，防伪造/防事件误报）
+  const validIds = (Array.isArray(acpPermissionPending.params && acpPermissionPending.params.options)
+    ? acpPermissionPending.params.options : [])
+    .filter((o) => o && typeof o.optionId === 'string')
+    .map((o) => o.optionId);
+  if (typeof optionId !== 'string' || !validIds.includes(optionId)) {
+    logLine('[acp] 权限审批响应 optionId 非法（不在可选项内），按取消处理');
+    acpPermissionPending.settle({ outcome: 'cancelled' });
+    return { ok: true };
+  }
+  acpPermissionPending.settle({ outcome: 'selected', optionId });
+  return { ok: true };
+});
 
 function showAcpChatWindow() {
   if (acpChatWindow && !acpChatWindow.isDestroyed()) {
@@ -1662,12 +1911,29 @@ ipcMain.handle('acp-chat:start', async () => {
       sendAcpEvent({ type: 'thought-chunk', text });
     } else if (kind === 'available_commands_update') {
       sendAcpEvent({ type: 'commands', count: (update.availableCommands || []).length });
+    } else if (kind === 'tool_call') {
+      // 工具调用卡片：字段直接挂在 update 上，detail 与审批窗共用同一提取逻辑
+      sendAcpEvent({
+        type: 'tool-call',
+        call: {
+          toolCallId: ensureString(update.toolCallId).slice(0, 100),
+          title: ensureString(update.title).slice(0, 200),
+          kind: ensureString(update.kind).slice(0, 40),
+          status: ensureString(update.status).slice(0, 40),
+          detail: extractAcpToolDetail(update),
+        },
+      });
+    } else if (kind === 'tool_call_update') {
+      const ev = { type: 'tool-call-update', toolCallId: ensureString(update.toolCallId).slice(0, 100) };
+      if (typeof update.status === 'string') ev.status = update.status.slice(0, 40);
+      const out = extractAcpRawOutput(update.rawOutput);
+      if (out) ev.output = out;
+      sendAcpEvent(ev);
     }
-    // 其它 sessionUpdate 类型只读原型暂不处理
+    // 其它 sessionUpdate 类型暂不处理
   });
   client.on('permission', () => {
-    logLine('[acp] 权限请求已自动取消（只读原型）');
-    sendAcpEvent({ type: 'permission-auto-cancel' });
+    logLine('[acp] 收到权限请求（交由审批窗处理）');
   });
   client.on('stderr', (line) => logLine(`[acp stderr] ${line}`));
   client.on('exit', () => {
@@ -1675,6 +1941,8 @@ ipcMain.handle('acp-chat:start', async () => {
     sendAcpEvent({ type: 'status', state: 'exited' });
     if (acpClient === client) disposeAcpClient('进程退出');
   });
+  // 权限请求交由原生审批窗异步决策（acp-client 侧有超时/非法结构兜底）
+  client.setPermissionHandler((params) => requestAcpPermission(params));
   acpClient = client;
   sendAcpEvent({ type: 'status', state: 'connecting' });
   try {

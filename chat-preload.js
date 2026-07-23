@@ -20,7 +20,8 @@ contextBridge.exposeInMainWorld('kimiChat', {
   // 返回 Promise<{ ok, stopReason?, error? }>
   sendPrompt: (text) => ipcRenderer.invoke('acp-chat:prompt', sanitizeText(text)),
   // 主进程 → 渲染层：订阅 acp-chat:event 事件流（status / message-chunk /
-  // thought-chunk / commands / permission-auto-cancel / prompt-done）
+  // thought-chunk / commands / tool-call / tool-call-update /
+  // permission-pending / permission-resolved / prompt-done）
   // 返回退订函数；fn 不是函数时返回空函数
   onEvent: (fn) => {
     if (!isFn(fn)) return () => {};
