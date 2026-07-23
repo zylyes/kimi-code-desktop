@@ -9,9 +9,6 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body {
-    background: var(--bg-ground);
-    color: var(--label-primary);
-    font-family: var(--font-family);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -58,11 +55,11 @@
     margin-top: 28px;
     padding: 12px 14px;
     border: 1px solid var(--separator);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     height: 120px;
     overflow: hidden;
     text-align: left;
-    font-family: Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
     font-size: 11px;
     line-height: 1.7;
     color: var(--label-tertiary);

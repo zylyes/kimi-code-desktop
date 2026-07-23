@@ -15,26 +15,7 @@
 
   .app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
 
-  /* ---------- 顶栏 ---------- */
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 18px 10px;
-    flex: none;
-  }
-  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .mark {
-    width: 28px; height: 28px;
-    border-radius: 8px;
-    background: var(--label-primary);
-    color: var(--bg-ground);
-    font-size: 15px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex: none;
-  }
-  .brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+  /* ---------- 顶栏（.topbar/.brand/.mark/.brand-name 见 kimi-theme.css） ---------- */
   .counter {
     font-size: 12px;
     color: var(--label-secondary);
@@ -65,48 +46,23 @@
   .seg.done { background: var(--label-primary); }
   .seg.current { box-shadow: 0 0 0 1px var(--label-primary); }
   .seg.done.current { background: var(--label-primary); }
-  .seg:focus-visible { outline: 2px solid var(--label-primary); outline-offset: 2px; }
 
-  /* ---------- 桥接警告 ---------- */
-  .bridge-warn {
-    flex: none;
-    padding: 9px 18px;
-    border-top: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
-    background: color-mix(in srgb, var(--color-error) 10%, var(--bg-ground));
-    color: var(--color-error);
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  /* ---------- 主区域 ---------- */
+  /* ---------- 主区域（.bridge-warn/.loading 见 kimi-theme.css） ---------- */
   .main {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 4px 18px 18px;
   }
-  .loading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 28px 4px;
-    color: var(--label-secondary);
-    font-size: 12px;
-  }
 
   .qcard { animation: rise 0.22s ease both; }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
 
   .q-chip {
     display: inline-block;
     max-width: 100%;
     padding: 3px 10px;
     border: 1px solid var(--separator);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 11px;
     color: var(--label-tertiary);
     white-space: nowrap;
@@ -150,7 +106,6 @@
     background: var(--bg-secondary-active);
   }
   .opt:has(input:focus-visible) { border-color: var(--label-primary); }
-  .opt:has(input:focus-visible) .tick { outline: 2px solid var(--label-primary); outline-offset: 2px; }
 
   .sr-input {
     position: absolute;
@@ -206,7 +161,7 @@
     border-radius: 4px;
     font-size: 10px;
     color: var(--label-tertiary);
-    font-family: Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
     line-height: 1.4;
   }
   .opt:has(input:checked) .opt-num { border-color: var(--label-primary); color: var(--label-primary); }
@@ -216,33 +171,10 @@
   .other-wrap[hidden] { display: none; }
   .other-wrap input { width: 100%; }
 
-  /* ---------- 空态 / 完成态 ---------- */
-  .notice {
-    padding: 28px 4px;
-    font-size: 13px;
-    line-height: 1.7;
-    color: var(--label-secondary);
-  }
+  /* ---------- 空态 / 完成态（.notice 见 kimi-theme.css） ---------- */
   .notice strong { color: var(--label-primary); font-weight: 600; }
 
-  /* ---------- 底栏 ---------- */
-  .foot {
-    flex: none;
-    border-top: 1px solid var(--separator);
-    padding: 10px 18px 14px;
-  }
-  .hint {
-    min-height: 18px;
-    margin-bottom: 8px;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--label-tertiary);
-    word-break: break-word;
-  }
-  .hint.warn { color: var(--color-error); }
-  .hint.err { color: var(--color-error); }
-  .hint.ok { color: var(--color-success); }
-
+  /* ---------- 底栏（.foot/.hint 系见 kimi-theme.css） ---------- */
   .foot-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .foot-right { display: flex; gap: 8px; margin-left: auto; }
 
@@ -253,29 +185,11 @@
     background: var(--bg-secondary-hover);
     border-color: var(--separator-hover);
   }
-  .btn.ghost {
-    background: transparent;
-    color: var(--label-secondary);
-  }
-  .btn.ghost:hover:not(:disabled) {
-    color: var(--label-primary);
-    background: var(--bg-secondary-hover);
-  }
 
-  .spinner {
-    display: inline-block;
-    width: 12px; height: 12px;
-    flex: none;
-    border: 2px solid var(--separator);
-    border-top-color: var(--label-primary);
-    border-radius: 50%;
-    animation: rot 0.8s linear infinite;
-  }
   .btn-primary .spinner {
     border-color: color-mix(in srgb, var(--bg-ground) 35%, transparent);
     border-top-color: var(--bg-ground);
   }
-  @keyframes rot { to { transform: rotate(360deg); } }
 
   /* ---------- 已处理遮罩 ---------- */
   .mask {
@@ -293,10 +207,6 @@
     width: 300px;
     max-width: 100%;
     padding: 22px;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-card);
-    background: var(--bg-primary);
-    box-shadow: var(--shadow-card);
     text-align: center;
   }
   .mask-title { font-size: 14px; font-weight: 600; }
@@ -304,20 +214,16 @@
   .mask-box .btn { margin-top: 16px; }
 
   @media (max-width: 420px) {
-    .topbar { padding: 12px 14px 8px; }
     .progress { padding: 2px 14px 10px; }
     .main { padding: 4px 14px 14px; }
-    .foot { padding: 10px 14px 12px; }
     .q-text { font-size: 15px; }
     .foot-right { width: 100%; }
     .foot-right .btn { flex: 1; }
-    .btn.ghost { width: 100%; }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .qcard { animation: none; }
     .seg, .opt, .tick { transition: none; }
-    .spinner { animation-duration: 1.6s; }
   }
 </style>
 </head>
@@ -368,7 +274,7 @@
     </footer>
 
     <div class="mask" id="mask" hidden>
-      <div class="mask-box" role="alertdialog" aria-labelledby="maskTitle" aria-describedby="maskSub">
+      <div class="mask-box card" role="alertdialog" aria-labelledby="maskTitle" aria-describedby="maskSub">
         <div class="mask-title" id="maskTitle">该问题已被处理</div>
         <div class="mask-sub" id="maskSub">它可能已在其他地方得到回答，此窗口即将自动关闭。</div>
         <button class="btn btn-secondary" id="maskClose" type="button">立即关闭</button>

@@ -1,16 +1,13 @@
-### 新功能
+### 改进
 
-- **应用设置面板**：设置页新增「应用设置」面板，支持主题模式（跟随系统/浅色/深色）、界面缩放（80%~150%）、关闭/最小化到托盘开关、窗口置顶、开机自动启动、桌面通知、全局快捷键共 8 项；全部即时生效，不重启 server。
-- **设置页侧栏导航**：设置页 UI 从标签页横幅重构为左侧分组导航 + 右侧内容布局，分组为「应用」「环境」「配置」「集成」，支持 url `?tab=` 定位。
-- **Web UI 浮动设置按钮**：kimi web 会话页右下角注入齿轮设置按钮（不依赖页面 CSP，主进程 insertCSS + preload DOM 注入双通道），点击直接打开设置页。
-- **会话启动器设置入口**：新建按钮旁新增齿轮设置按钮（`⚙`），直达设置。
+- **Windows 通知应用名显示修正**：启动时调用 `app.setAppUserModelId(APP_NAME)`，系统通知顶部显示「Kimi Code Desktop」，不再显示 Electron 默认的 `electron.app.*`。
+- **kimi-theme.css 共享层扩充**：新增 `--font-mono` 令牌（各页等宽字体栈统一引用）与 `.mono` 工具类、新增 `--radius-sm`（8px）令牌；`.btn` 体系补齐 `.btn-secondary`/`.btn-danger` hover 态，新增 `.btn.ghost` 变体与共享 `.icon-btn`；上提弹窗家族共享组件（顶栏品牌区、bridge-warn、loading、notice、foot/hint 系、spinner 与 rot/rise 动画、420px 与 prefers-reduced-motion 媒体查询），permission 与 question 两窗重复 CSS 去重。
+- **sessions 启动器配色收敛**：移除自造第三点缀色 `--color-warning`（琥珀色），归档标识与 bridge-warn 改灰阶中性色，回到主题「仅 error/success 两点缀色」原则。
+- **各原生窗口令牌化清理**：圆角统一走 `--radius-pill`/`--radius-sm`/`--radius-card`，等宽字体栈统一 `var(--font-mono)`，焦点环统一走主题 `:focus-visible`，禁用态透明度统一 0.4；`.card`/`.btn-primary` 的逐属性复刻改为直接复用共享类。
+- **Web UI 浮动设置按钮色值对齐**：main.js 注入的 `#kcd-settings-fab` 边框与阴影色值对齐主题 separator/shadow-card 令牌（亮/暗两套，注入页无法引用 var()，手写同值并注释来源）。
 
 ### 其他
 
-- `config.json` 新增 `theme`/`zoomFactor`/`closeToTray`/`minimizeToTray`/`alwaysOnTop`/`launchAtLogin`/`notificationsEnabled`/`globalHotkeyEnabled` 共 8 键
-- 新增 IPC 通道 `app:saveAppSettings`（白名单即时生效）、`app:backToSession`（返回会话页）；preload 新增 `saveAppSettings` / `backToSession` 桥接
-- 设置页新增「返回会话」按钮（仅手动打开时展示）
-- 窗口关闭/最小化到托盘、桌面通知、全局热键可通过应用设置关闭；关闭后走系统默认行为
 - 无破坏性变更
 
 📦 下载：见下方 `KimiCodeDesktop-Portable.exe`

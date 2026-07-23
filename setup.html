@@ -26,7 +26,7 @@
   .brand-name { font-size: 16px; font-weight: 600; }
   .mark {
     width: 32px; height: 32px;
-    border-radius: 9px;
+    border-radius: var(--radius-sm);
     background: var(--label-primary);
     color: var(--bg-ground);
     font-size: 18px; font-weight: 700;
@@ -60,7 +60,7 @@
     border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
     background: color-mix(in srgb, var(--color-error) 8%, transparent);
     color: var(--color-error);
-    border-radius: 8px;
+    border-radius: var(--radius-card);
     font-size: 12px;
     line-height: 1.6;
     display: none;
@@ -91,14 +91,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-family: Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
   }
   .modes { display: flex; gap: 8px; }
   .mode {
     flex: 1;
     padding: 12px;
     border: 1px solid var(--separator);
-    border-radius: 8px;
+    border-radius: var(--radius-card);
     background: var(--bg-secondary);
     cursor: pointer;
     font-size: 13px;
@@ -113,13 +113,13 @@
   textarea.input { width: 100%; }
   input[type="text"].input,
   input[type="password"].input,
-  textarea.input { font-family: Consolas, "Courier New", monospace; }
+  textarea.input { font-family: var(--font-mono); }
   textarea.input { resize: vertical; min-height: 80px; }
   .hint { margin-top: 8px; font-size: 11px; color: var(--label-tertiary); line-height: 1.6; }
   .hint code {
     background: var(--bg-secondary);
     border: 1px solid var(--separator);
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 1px 5px;
     font-size: 11px;
   }
@@ -132,8 +132,6 @@
     font-weight: 600;
   }
   .btn-primary:hover { opacity: 0.85; }
-  .btn-secondary:hover,
-  .btn-danger:hover { background: var(--bg-secondary); }
   .btn-add {
     width: 100%;
     margin-top: 10px;
@@ -155,7 +153,7 @@
     font-size: 11px;
     color: var(--label-tertiary);
     margin-bottom: 6px;
-    font-family: Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
   }
   .fb { margin-top: 10px; font-size: 12px; line-height: 1.5; min-height: 15px; }
   .fb.ok { color: var(--color-success); }
@@ -165,7 +163,7 @@
   .badge {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: 6px;
     font-size: 11px;
     border: 1px solid var(--separator);
     color: var(--label-tertiary);
@@ -176,10 +174,10 @@
     margin-top: 12px;
     padding: 10px 12px;
     border: 1px solid var(--separator);
-    border-radius: 8px;
+    border-radius: var(--radius-card);
     height: 110px;
     overflow-y: auto;
-    font-family: Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
     font-size: 11px;
     line-height: 1.6;
     color: var(--label-tertiary);
@@ -212,11 +210,10 @@
   input[type="checkbox"] {
     width: 36px; height: 20px;
     appearance: none;
-    border-radius: 10px;
+    border-radius: var(--radius-pill);
     background: var(--label-quaternary);
     position: relative;
     cursor: pointer;
-    outline: none;
   }
   input[type="checkbox"]::after {
     content: '';

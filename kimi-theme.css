@@ -9,6 +9,8 @@
  *
  * 使用方式：各窗口 HTML 通过 <link rel="stylesheet" href="kimi-theme.css"> 引入。
  * 本文件是后续各原生窗口翻新的唯一事实来源，令牌名与值提取自 kimi.com 官方 CSS。
+ * 除设计令牌外，还提供 .mono 工具类、.btn.ghost / .icon-btn 按钮变体，
+ * 以及从弹窗类页面（permission / question）上提的共享组件（.topbar / .brand / .bridge-warn / .spinner 等）。
  */
 
 /* ================= 亮色主题（默认） ================= */
@@ -39,6 +41,7 @@
   --radius-input: 24px;
   --radius-card: 20px;
   --radius-pill: 22px;
+  --radius-sm: 8px;
 
   /* 点缀色（仅有的两个彩色） */
   --color-error: #ff3b30;
@@ -46,6 +49,8 @@
 
   /* 官网原样字体栈（全部系统字体，无外部加载） */
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", sans-serif, Arial, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC";
+  /* 等宽字体栈（全部系统字体，无外部加载） */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 /* ================= 暗色主题（跟随系统） ================= */
@@ -77,6 +82,7 @@
     --radius-input: 24px;
     --radius-card: 20px;
     --radius-pill: 22px;
+    --radius-sm: 8px;
 
     /* 点缀色（暗色专用值） */
     --color-error: #ff453a;
@@ -84,6 +90,7 @@
 
     /* 字体栈（与亮色相同） */
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", sans-serif, Arial, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC";
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
 }
 
@@ -223,5 +230,197 @@ kbd {
   border-bottom-width: 2px;
   border-radius: 6px;
   padding: 1px 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
+}
+
+/* ================= 工具类（补充） ================= */
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* ================= 按钮（补充变体与 hover） ================= */
+.btn-secondary:hover,
+.btn-danger:hover {
+  background: var(--bg-secondary-hover);
+}
+
+/* 幽灵按钮（自 permission.html / question.html 逐字上提） */
+.btn.ghost {
+  background: transparent;
+  color: var(--label-secondary);
+}
+
+.btn.ghost:hover:not(:disabled) {
+  color: var(--label-primary);
+  background: var(--bg-secondary-hover);
+}
+
+/* ================= 图标按钮（自 agents.html / lan.html 逐字上提） ================= */
+.icon-btn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-pill);
+  background: var(--bg-primary);
+  color: var(--label-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn:hover {
+  color: var(--label-primary);
+  border-color: var(--separator-hover);
+}
+
+/* ================= 弹窗家族共享组件（自 permission.html / question.html 逐字上提） ================= */
+/* 顶栏 */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 10px;
+  flex: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--label-primary);
+  color: var(--bg-ground);
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.brand-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* 桥接警告 */
+.bridge-warn {
+  flex: none;
+  padding: 9px 18px;
+  border-top: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
+  background: color-mix(in srgb, var(--color-error) 10%, var(--bg-ground));
+  color: var(--color-error);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 加载态 */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 4px;
+  color: var(--label-secondary);
+  font-size: 12px;
+}
+
+/* 空态 */
+.notice {
+  padding: 28px 4px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--label-secondary);
+}
+
+/* 底栏 */
+.foot {
+  flex: none;
+  border-top: 1px solid var(--separator);
+  padding: 10px 18px 14px;
+}
+
+.hint {
+  min-height: 18px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--label-tertiary);
+  word-break: break-word;
+}
+
+.hint.warn {
+  color: var(--color-error);
+}
+
+.hint.err {
+  color: var(--color-error);
+}
+
+.hint.ok {
+  color: var(--color-success);
+}
+
+/* 加载圈 */
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid var(--separator);
+  border-top-color: var(--label-primary);
+  border-radius: 50%;
+  animation: rot 0.8s linear infinite;
+}
+
+@keyframes rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ================= 弹窗家族响应式（仅作用于已上提组件，页面专属部分仍留在各页面） ================= */
+@media (max-width: 420px) {
+  .topbar {
+    padding: 12px 14px 8px;
+  }
+  .foot {
+    padding: 10px 14px 12px;
+  }
+  .btn.ghost {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.6s;
+  }
 }

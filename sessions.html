@@ -6,14 +6,11 @@
 <title>Kimi Code Desktop · 会话</title>
 <link rel="stylesheet" href="kimi-theme.css" />
 <style>
-  /* 主题令牌全部来自共享主题样式表；警告色无现成令牌，由成功/错误色混合派生，亮暗主题皆成立 */
-  :root {
-    --color-warning: color-mix(in srgb, var(--color-success) 45%, var(--color-error));
-  }
+  /* 主题令牌全部来自共享主题样式表；状态色纪律：仅成功/错误用点缀色，其余一律灰阶 */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body { overflow: hidden; }
-  .mono { font-family: Consolas, "Courier New", monospace; }
+  .mono { font-family: var(--font-mono); }
 
   .app { display: flex; height: 100vh; }
 
@@ -34,27 +31,6 @@
   }
   .side-title { font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
   .side-tools { display: flex; gap: 6px; }
-  .icon-btn {
-    min-width: 30px;
-    height: 30px;
-    padding: 0 9px;
-    border: 1px solid var(--separator);
-    border-radius: 8px;
-    background: var(--bg-secondary);
-    color: var(--label-tertiary);
-    font-size: 12px;
-    font-family: inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-  .icon-btn:hover {
-    color: var(--label-primary);
-    border-color: var(--separator-hover);
-    background: var(--bg-secondary-hover);
-  }
   .icon-btn:disabled { opacity: 0.5; cursor: default; }
   .icon-btn .plus { font-size: 16px; line-height: 1; font-weight: 600; }
 
@@ -66,7 +42,7 @@
     height: 30px;
     padding: 0 8px;
     border: 1px solid var(--separator);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: var(--bg-secondary);
     color: var(--label-tertiary);
     font-size: 12px;
@@ -148,7 +124,7 @@
   }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--label-quaternary); flex-shrink: 0; }
   .dot.run { background: var(--color-success); }
-  .dot.arc { background: var(--color-warning); }
+  .dot.arc { background: var(--label-quaternary); }
   .dot.err { background: var(--color-error); }
 
   @keyframes rise {
@@ -246,7 +222,7 @@
     margin-top: 4px;
     padding: 3px 10px;
     border: 1px solid var(--separator);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 11px;
     color: var(--label-tertiary);
     white-space: nowrap;
@@ -256,11 +232,7 @@
     border-color: color-mix(in srgb, var(--color-success) 40%, transparent);
     background: color-mix(in srgb, var(--color-success) 12%, transparent);
   }
-  .badge.arc {
-    color: var(--color-warning);
-    border-color: color-mix(in srgb, var(--color-warning) 40%, transparent);
-    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
-  }
+  .badge.arc { color: var(--label-quaternary); }
   .badge.err {
     color: var(--color-error);
     border-color: color-mix(in srgb, var(--color-error) 40%, transparent);
@@ -269,10 +241,6 @@
 
   .meta {
     margin-top: 22px;
-    background: var(--bg-primary);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
     overflow: hidden;
   }
   .meta-row {
@@ -348,9 +316,9 @@
 
   .bridge-warn {
     padding: 9px 14px;
-    border-bottom: 1px solid color-mix(in srgb, var(--color-warning) 40%, transparent);
-    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
-    color: var(--color-warning);
+    border-bottom: 1px solid var(--separator);
+    background: var(--bg-primary);
+    color: var(--label-secondary);
     font-size: 12px;
     line-height: 1.6;
   }
@@ -414,7 +382,7 @@
           <h1 id="dTitle"></h1>
           <span class="badge" id="dStatus"><span class="dot" aria-hidden="true"></span><span id="dStatusText"></span></span>
         </div>
-        <dl class="meta">
+        <dl class="meta card">
           <div class="meta-row">
             <dt>工作目录</dt>
             <dd class="mono" id="dWorkDir"></dd>

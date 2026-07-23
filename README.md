@@ -78,6 +78,8 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 65. **应用设置面板**（v0.15.0）：设置页新增「应用设置」面板，支持主题模式（跟随系统/浅色/深色）、界面缩放（80%~150%）、关闭/最小化到托盘开关、窗口置顶、开机自动启动、桌面通知、全局快捷键共 8 项；全部即时生效，不重启 server。
 66. **设置页侧栏导航**（v0.15.0）：设置页 UI 重构为左侧分组导航 + 右侧内容布局，分组为「应用」「环境」「配置」「集成」。
 67. **Web UI 浮动设置按钮**（v0.15.0）：kimi web 会话页右下角注入齿轮设置按钮，点击直接打开设置；会话启动器新增设置入口（⚙）。
+68. **Windows 通知应用名修正**（v0.16.0）：系统通知顶部显示「Kimi Code Desktop」，不再显示 Electron 默认进程名。
+69. **全局 UI 令牌化清理**（v0.16.0）：kimi-theme.css 共享层扩充 `--font-mono`/`--radius-sm`/`.btn.ghost` 等令牌与组件，各原生窗口统一走主题令牌（圆角/字体/焦点环/禁用态），permission/question 重复 CSS 去重，sessions 配色收敛至两点缀色。
 
 ## 会话启动器
 
@@ -172,8 +174,8 @@ help.html            命令与快捷键速查（F1 快捷键打开）
 agents.html          子 Agent 任务监视器（时间线渲染各 Agent 卡片与后台任务）
 lan.html             局域网访问面板（网卡 URL 展示 + 二维码 + 安全警示）
 chat.html + chat.js + chat-preload.js  ACP 原生聊天前端（流式正文渲染、思考折叠区、节流合并、状态栏、历史恢复、configOptions 切换栏、停止生成、斜杠命令菜单、图片附件 chips 与气泡预览、WebView 降级入口）
-permission.html + permission.js + permission-preload.js  ACP 原生审批弹窗（once/always 按钮组、工具上下文展示、Esc/关窗取消）
-kimi-theme.css       全应用共享设计令牌样式表（kimi.com 官方黑白灰设计语言，亮/暗双主题跟随系统）
+permission.html + permission.js + permission-preload.js  ACP 原生审批弹窗（once/always 按钮组、工具上下文展示、Esc/关窗取消；CSS 复用 kimi-theme 共享组件）
+kimi-theme.css       全应用共享设计令牌样式表（kimi.com 官方黑白灰设计语言，亮/暗双主题跟随系统；含 .btn.ghost/.icon-btn 组件、弹窗共享族、spinner 动画、--font-mono/--radius-sm 令牌）
 assets/              应用图标
 scripts/
   mock-kimi-server.js  Mock Kimi 服务端（HTTP+WS，覆盖 client_hello/订阅/问答/审批/用量/任务事件验证）

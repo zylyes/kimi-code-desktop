@@ -9,7 +9,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body { overflow: hidden; }
-  .mono { font-family: Consolas, "Courier New", monospace; }
+  .mono { font-family: var(--font-mono); }
 
   .app { display: flex; flex-direction: column; height: 100vh; }
 
@@ -34,25 +34,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .icon-btn {
-    min-width: 30px;
-    height: 30px;
-    padding: 0 12px;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-pill);
-    background: var(--bg-primary);
-    color: var(--label-secondary);
-    font-size: 12px;
-    font-family: inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    flex-shrink: 0;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-  }
-  .icon-btn:hover { color: var(--label-primary); border-color: var(--separator-hover); }
+  /* .icon-btn 基础样式与 hover 由 kimi-theme.css 共享类提供；主题未收录 :disabled，本地保留 */
   .icon-btn:disabled { opacity: 0.5; cursor: default; }
 
   .bridge-warn {
@@ -94,10 +76,6 @@
     gap: 12px;
   }
   .card {
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-card);
-    background: var(--bg-primary);
-    box-shadow: var(--shadow-card);
     padding: 12px 14px;
     animation: rise 0.25s ease both;
   }
@@ -121,7 +99,7 @@
     align-items: center;
     padding: 2px 9px;
     border: 1px solid var(--separator);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 11px;
     color: var(--label-secondary);
     white-space: nowrap;
@@ -157,7 +135,7 @@
   .chip {
     padding: 2px 9px;
     border: 1px solid var(--separator);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--bg-secondary);
     font-size: 11px;
     color: var(--label-secondary);
@@ -180,7 +158,7 @@
   .tasks { list-style: none; display: flex; flex-direction: column; gap: 8px; }
   .task {
     border: 1px solid var(--separator);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: var(--bg-primary);
     padding: 10px 12px;
   }

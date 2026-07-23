@@ -16,6 +16,8 @@ const pluginsManager = require('./plugins-manager');
 const { AcpClient } = require('./acp-client');
 
 const APP_NAME = 'Kimi Code Desktop';
+// 让 Windows 通知显示应用名，而非 electron.app 默认 ID
+app.setAppUserModelId(APP_NAME);
 const isDev = process.argv.includes('--dev');
 // 可交给外部应用打开的 open-in 协议白名单
 const OPEN_IN_PROTOCOLS = new Set(['vscode:', 'vscode-insiders:', 'cursor:', 'windsurf:', 'zed:', 'sublime:', 'atom:', 'jetbrains:']);
@@ -2671,11 +2673,12 @@ function createWindow() {
       const isLoopback = (u.protocol === 'http:' || u.protocol === 'https:')
         && ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(u.hostname);
       if (!isLoopback) return;
+      // 色值对齐 kimi-theme.css 令牌（--separator/--shadow-card），因注入目标页面无法用 var()
       mainWindow.webContents.insertCSS([
-        '#kcd-settings-fab{position:fixed;right:18px;bottom:18px;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;z-index:2147483647;transition:opacity .15s;background:#ffffff;color:#111111;border:1px solid #dcdcdc;box-shadow:0 2px 8px rgba(0,0,0,.12);}',
+        '#kcd-settings-fab{position:fixed;right:18px;bottom:18px;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;z-index:2147483647;transition:opacity .15s;background:#ffffff;color:#111111;border:1px solid #00000021;box-shadow:0 5px 16px -4px #00000012;}',
         '#kcd-settings-fab:hover{opacity:1;}',
         '#kcd-settings-fab svg{width:18px;height:18px;pointer-events:none;}',
-        '@media (prefers-color-scheme:dark){#kcd-settings-fab{background:#1f1f1f;color:#ffffff;border-color:#3a3a3a;box-shadow:0 2px 8px rgba(0,0,0,.45);}}',
+        '@media (prefers-color-scheme:dark){#kcd-settings-fab{background:#1f1f1f;color:#ffffff;border-color:#ffffff1f;box-shadow:0 5px 16px -4px #00000012;}}',
       ].join('\n'));
     } catch { /* ignore */ }
   });

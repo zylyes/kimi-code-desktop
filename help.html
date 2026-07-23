@@ -12,7 +12,7 @@
     overflow: hidden;
     display: flex;
   }
-  .mono { font-family: Consolas, "Courier New", monospace; }
+  .mono { font-family: var(--font-mono); }
 
   .app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
 
@@ -28,7 +28,7 @@
   .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
   .mark {
     width: 28px; height: 28px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: var(--label-primary);
     color: var(--bg-ground);
     font-size: 15px; font-weight: 700;
@@ -72,12 +72,8 @@
     margin-bottom: 10px;
   }
 
-  /* ---------- 速查表格（分组容器按官方卡片规格） ---------- */
+  /* ---------- 速查表格（卡片外观来自主题 .card，本地仅布局增量） ---------- */
   .tbl-wrap {
-    background: var(--bg-primary);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
     overflow: hidden;
   }
   table { width: 100%; border-collapse: collapse; }
@@ -92,7 +88,7 @@
     width: 168px;
     flex-shrink: 0;
     white-space: nowrap;
-    font-family: Consolas, "Courier New", monospace;
+    font-family: var(--font-mono);
     font-size: 12px;
     color: var(--label-primary);
     background: var(--bg-secondary);
@@ -136,7 +132,7 @@
       <!-- ---------- 账户与配置 ---------- -->
       <section class="group">
         <h2 class="group-title">账户与配置</h2>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap card">
           <table>
             <tr><td class="cmd">/login</td><td class="desc">选择账户或平台并登录（OAuth 设备码或 API Key）</td></tr>
             <tr><td class="cmd">/logout</td><td class="desc">清除当前所选账户的登录凭据</td></tr>
@@ -153,7 +149,7 @@
       <!-- ---------- 会话管理 ---------- -->
       <section class="group">
         <h2 class="group-title">会话管理</h2>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap card">
           <table>
             <tr><td class="cmd">/new</td><td class="desc">开启全新会话，丢弃当前上下文</td></tr>
             <tr><td class="cmd">/sessions</td><td class="desc">浏览历史会话，切换或恢复其一</td></tr>
@@ -175,7 +171,7 @@
       <!-- ---------- 模式控制 ---------- -->
       <section class="group">
         <h2 class="group-title">模式控制</h2>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap card">
           <table>
             <tr><td class="cmd">/yolo</td><td class="desc">开关 YOLO 模式：跳过常规工具调用审批（可带 on/off）</td></tr>
             <tr><td class="cmd">/auto</td><td class="desc">开关自动权限模式：审批自动处理，不再向用户提问</td></tr>
@@ -189,7 +185,7 @@
       <!-- ---------- 信息查询 ---------- -->
       <section class="group">
         <h2 class="group-title">信息查询</h2>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap card">
           <table>
             <tr><td class="cmd">/help</td><td class="desc">显示快捷键与全部可用命令</td></tr>
             <tr><td class="cmd">/btw</td><td class="desc">开启旁路提问，不影响当前主会话的回合</td></tr>
@@ -206,7 +202,7 @@
       <!-- ---------- TUI 快捷键 ---------- -->
       <section class="group">
         <h2 class="group-title">TUI 快捷键</h2>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap card">
           <table>
             <tr><td class="cmd"><kbd>Enter</kbd></td><td class="desc">提交当前输入</td></tr>
             <tr><td class="cmd"><kbd>Shift-Enter</kbd> / <kbd>Ctrl-J</kbd></td><td class="desc">在输入框中换行</td></tr>
@@ -224,7 +220,7 @@
       <!-- ---------- 桌面端快捷键 ---------- -->
       <section class="group">
         <h2 class="group-title">桌面端快捷键</h2>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap card">
           <table>
             <tr><td class="cmd"><kbd>Ctrl+Shift+Space</kbd></td><td class="desc">显示 / 隐藏主窗口（全局热键，任意界面可用）</td></tr>
             <tr><td class="cmd"><kbd>Ctrl+Shift+S</kbd></td><td class="desc">打开会话启动器</td></tr>
