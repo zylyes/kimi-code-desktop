@@ -1964,7 +1964,16 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
     } else if (kind === 'agent_thought_chunk' && text !== null) {
       sendAcpEvent({ type: 'thought-chunk', text });
     } else if (kind === 'available_commands_update') {
-      sendAcpEvent({ type: 'commands', count: (update.availableCommands || []).length });
+      // 斜杠命令菜单：清洗后转发完整列表（防御性白名单字段 + 截断 + 封顶 50 条）
+      const commands = (Array.isArray(update.availableCommands) ? update.availableCommands : [])
+        .filter((c) => c && typeof c === 'object' && typeof c.name === 'string' && c.name.trim())
+        .slice(0, 50)
+        .map((c) => ({
+          name: c.name.slice(0, 64),
+          description: ensureString(c.description).slice(0, 200),
+          hint: c.input && typeof c.input === 'object' ? ensureString(c.input.hint).slice(0, 200) : '',
+        }));
+      sendAcpEvent({ type: 'commands', count: commands.length, commands });
     } else if (kind === 'config_option_update') {
       // 配置项变更通知（先于 set_config_option 响应到达）：刷新缓存并转发渲染层
       if (Array.isArray(update.configOptions)) acpConfigOptions = update.configOptions;
@@ -2045,11 +2054,38 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
   }
 });
 
-ipcMain.handle('acp-chat:prompt', async (_e, text) => {
-  if (typeof text !== 'string' || !text.trim()) return { ok: false, error: '消息内容为空' };
+// 聊天图片约束：MIME 白名单 / 单张解码后 ≤10MB / 一次 ≤4 张（渲染层与主进程两侧同规则校验）
+const CHAT_IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const CHAT_IMAGE_MAX_COUNT = 4;
+
+ipcMain.handle('acp-chat:prompt', async (_e, text, images) => {
   if (!acpClient) return { ok: false, error: 'ACP 会话未连接，请先启动' };
+  // 服务端侧二次校验图片参数（渲染层不可信，任一非法即整体拒绝）
+  const rawImages = Array.isArray(images) ? images : [];
+  const cleanImages = [];
+  for (const img of rawImages.slice(0, CHAT_IMAGE_MAX_COUNT + 1)) {
+    const mimeType = img && typeof img === 'object' ? ensureString(img.mimeType) : '';
+    const data = img && typeof img === 'object' ? ensureString(img.data) : '';
+    // 非空标准 base64（拒绝非法字符，Buffer.from 对脏输入过于宽容，先正则把关）
+    const base64Ok = data.length > 0 && data.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(data);
+    if (!CHAT_IMAGE_MIMES.has(mimeType) || !base64Ok
+      || Buffer.from(data, 'base64').length > CHAT_IMAGE_MAX_BYTES) {
+      logLine(`[acp] prompt 图片参数非法，已拒绝（mimeType=${mimeType || '空'}，data 长度=${data.length}）`);
+      return { ok: false, error: '图片参数非法' };
+    }
+    cleanImages.push({ mimeType, data });
+  }
+  if (rawImages.length > CHAT_IMAGE_MAX_COUNT) {
+    logLine(`[acp] prompt 图片数量超限（${rawImages.length} > ${CHAT_IMAGE_MAX_COUNT}），已拒绝`);
+    return { ok: false, error: '图片参数非法' };
+  }
+  const textStr = typeof text === 'string' ? text : '';
+  // 无图时维持原行为（纯文本必须非空）；有图时空文本以单空格兜底
+  if (!textStr.trim() && cleanImages.length === 0) return { ok: false, error: '消息内容为空' };
+  const finalText = textStr.trim() ? textStr : ' ';
   try {
-    const r = await acpClient.prompt(String(text).slice(0, 8000));
+    const r = await acpClient.prompt(finalText.slice(0, 8000), cleanImages);
     sendAcpEvent({ type: 'prompt-done', stopReason: r.stopReason });
     return { ok: true, stopReason: r.stopReason };
   } catch (err) {
@@ -2092,6 +2128,63 @@ ipcMain.handle('acp-chat:cancel', () => {
   if (!acpClient) return { ok: false };
   try { acpClient.cancel(); } catch { /* ignore */ }
   return { ok: true };
+});
+
+// 聊天图片选择：系统对话框选图（≤4 张），按扩展名映射 MIME；>10MB 或读取失败的计入 skipped
+ipcMain.handle('acp-chat:pick-images', async () => {
+  const extToMime = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+  try {
+    const parent = acpChatWindow && !acpChatWindow.isDestroyed() ? acpChatWindow : undefined;
+    const opts = {
+      filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+      properties: ['openFile', 'multiSelections'],
+    };
+    const result = parent ? await dialog.showOpenDialog(parent, opts) : await dialog.showOpenDialog(opts);
+    if (result.canceled || !Array.isArray(result.filePaths) || result.filePaths.length === 0) {
+      return { ok: true, images: [], skipped: 0 };
+    }
+    const images = [];
+    let skipped = 0;
+    for (const filePath of result.filePaths.slice(0, CHAT_IMAGE_MAX_COUNT)) {
+      try {
+        const mimeType = extToMime[path.extname(filePath).slice(1).toLowerCase()];
+        const buf = fs.readFileSync(filePath);
+        if (!mimeType || buf.length > CHAT_IMAGE_MAX_BYTES) {
+          skipped += 1;
+          logLine(`[acp] 选图跳过: ${path.basename(filePath).slice(0, 100)}（${!mimeType ? '类型不支持' : '超过 10MB'}）`);
+          continue;
+        }
+        images.push({
+          name: path.basename(filePath).slice(0, 100),
+          mimeType,
+          data: buf.toString('base64'),
+          size: buf.length,
+        });
+      } catch (err) {
+        skipped += 1;
+        logLine(`[acp] 选图读取失败: ${path.basename(filePath).slice(0, 100)} - ${err && err.message ? err.message : err}`);
+      }
+    }
+    logLine(`[acp] 选图完成: 成功 ${images.length} 张，跳过 ${skipped} 张`);
+    return { ok: true, images, skipped };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    logLine(`[acp] 选图失败: ${msg}`);
+    return { ok: false, error: msg };
+  }
+});
+
+// 降级入口：打开 Web UI 高级面板（主窗口不存在时 showMainWindow 内部会建窗并起服务，直接复用）
+ipcMain.handle('acp-chat:open-webui', () => {
+  try {
+    showMainWindow();
+    logLine('[acp] 已从聊天窗打开 Web UI 高级面板');
+    return { ok: true };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    logLine(`[acp] 打开 Web UI 失败: ${msg}`);
+    return { ok: false, error: msg };
+  }
 });
 
 // ---------- 重启 ----------

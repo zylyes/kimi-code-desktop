@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
 <title>原生聊天</title>
 <link rel="stylesheet" href="kimi-theme.css" />
 <style>
@@ -52,6 +52,21 @@
   }
   .status-right span { overflow: hidden; text-overflow: ellipsis; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  /* Web UI 降级入口：状态条右侧小号描边按钮 */
+  .webui-btn {
+    flex: none;
+    padding: 2px 10px;
+    border: 1px solid var(--separator);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--label-tertiary);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+  .webui-btn:hover { color: var(--label-primary); border-color: var(--separator-hover); }
 
   /* ---------- 会话信息行：恢复会话时展示会话名与工作目录，缺省隐藏 ---------- */
   .sessionbar {
@@ -127,6 +142,22 @@
     border-radius: var(--radius-card);
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  /* 用户消息内图片：缩略图行 + 文本块（chat.js 带图发送时渲染 .msg-images/.msg-image-thumb/.msg-user-text） */
+  .msg-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .msg-images:last-child { margin-bottom: 0; }
+  .msg-image-thumb {
+    display: block;
+    max-width: 160px;
+    max-height: 160px;
+    object-fit: cover;
+    border-radius: 6px;
   }
 
   /* assistant 消息：左侧无气泡纯文本 */
@@ -238,8 +269,9 @@
   .error-text { flex: 1; min-width: 0; word-break: break-word; line-height: 1.5; }
   .error-bar .btn { flex: none; padding: 4px 14px; font-size: 12px; }
 
-  /* 输入容器：对齐官网 .chat-editor-content */
+  /* 输入容器：对齐官网 .chat-editor-content；position:relative 作为斜杠菜单浮层定位基准 */
   .composer {
+    position: relative;
     background: var(--bg-secondary);
     border: 1px solid var(--separator);
     border-radius: var(--radius-input);
@@ -267,7 +299,123 @@
   }
   .composer textarea::placeholder { color: var(--label-quaternary); }
   .composer textarea:disabled { color: var(--label-tertiary); }
-  .composer-actions { display: flex; justify-content: flex-end; }
+
+  /* 附件缩略图行：textarea 上方，chat.js 动态创建 .chip（img 缩略图 + .chip-remove 移除钮） */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chips[hidden] { display: none; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    border-radius: 8px;
+  }
+  .chip img {
+    display: block;
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  .chip-remove {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--label-tertiary);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .chip-remove:hover { color: var(--label-primary); }
+
+  /* 斜杠命令浮层：绝对定位于输入容器上方，chat.js 往其中渲染 button.slash-item，高亮态加 .active */
+  .slash-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    margin-bottom: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+  .slash-menu[hidden] { display: none; }
+  .slash-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--label-primary);
+  }
+  .slash-item:hover,
+  .slash-item.active { background: var(--bg-hover, var(--bg-tertiary-hover)); }
+  .slash-name {
+    flex: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--label-primary);
+  }
+  .slash-desc {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--label-tertiary);
+  }
+  .slash-hint {
+    flex: none;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+
+  .composer-actions { display: flex; align-items: center; justify-content: space-between; }
+
+  /* 圆形附件按钮：发送按钮左侧，透明底，仅图标着色 */
+  .attach {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--label-tertiary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+  .attach:not(:disabled):hover { color: var(--label-primary); }
+  .attach:disabled { opacity: 0.3; cursor: default; }
 
   /* 圆形发送按钮：亮色下深底浅箭头，暗色下随令牌自动反转 */
   .send {
@@ -308,6 +456,7 @@
           <span id="agentInfo" hidden></span>
           <span id="sessionInfo" class="mono" hidden></span>
           <span id="commandsInfo" hidden></span>
+          <button class="webui-btn" id="webuiBtn" type="button" title="在 Web UI 高级面板中打开">Web UI</button>
         </div>
       </div>
       <!-- 会话信息行：恢复会话时展示，缺省隐藏 -->
@@ -345,8 +494,15 @@
           <button class="btn btn-secondary" id="retryBtn" type="button">重试</button>
         </div>
         <div class="composer">
+          <!-- 斜杠命令浮层：chat.js 渲染 button.slash-item，缺省隐藏 -->
+          <div class="slash-menu" id="slashMenu" hidden></div>
+          <!-- 附件缩略图行：chat.js 创建 .chip，缺省隐藏 -->
+          <div class="chips" id="chips" hidden></div>
           <textarea id="input" rows="1" placeholder="给 Kimi 发送消息，Enter 发送，Shift+Enter 换行" aria-label="消息输入框" spellcheck="false" disabled></textarea>
           <div class="composer-actions">
+            <button class="attach" id="attachBtn" type="button" disabled aria-label="添加图片" title="添加图片">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
             <button class="send" id="sendBtn" type="button" disabled aria-label="发送" title="发送">
               <svg id="sendArrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
               <span class="send-stop" id="sendStopLabel" hidden>停止</span>

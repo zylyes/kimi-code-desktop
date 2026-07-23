@@ -69,6 +69,9 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 56. **历史会话恢复**（v0.12.0）：会话启动器详情新增「原生聊天」按钮（无 workDir 的会话禁用并提示；敏感目录弹确认）；`session/load` 接续 agent 上下文 + 本地 wire.jsonl 自绘最近 50 条历史（agent 重放则跳过本地历史）；标题栏显示会话名与工作目录；load 失败明确报错不静默回退新建。
 57. **configOptions 原生切换栏**（v0.12.0）：聊天窗状态条下新增模型/思考/权限模式三下拉（缺项自动隐藏），切换走 `session/set_config_option`，失败回滚并提示，仅就绪且非在途时可操作。
 58. **停止生成按钮**（v0.12.0）：busy 时发送键变「停止」，走 `session/cancel` 通知。
+59. **ACP 原生聊天斜杠命令菜单**（v0.13.0）：`available_commands_update` 全量转发至渲染层；输入 `/` 触发前缀过滤弹窗，键盘上下键 + Enter 与鼠标点击均可选中插入；命令作为普通文本 prompt 由 agent 执行。
+60. **ACP 原生聊天图片输入**（v0.13.0）：composer 新增圆形附件按钮（回形针图标），系统选图后以 base64 图片块随 prompt 发送；mimeType 白名单 png/jpeg/gif/webp，单张解码后 ≤10MB，一次 ≤4 张（超限跳过并提示）；textarea 上方缩略图 chips 可单张移除，用户气泡内嵌图片预览。
+61. **WebView 降级入口**（v0.13.0）：聊天窗状态条右侧新增「Web UI」按钮，一键聚焦主窗高级面板，原生聊天能力缺失场景可随时降级回 Web UI。
 
 ## 会话启动器
 
@@ -150,7 +153,7 @@ ide-integration.js   IDE 接入模块（kimi acp 探测、编辑器检测、Zed 
 skills-manager.js    Skills 管理模块（frontmatter 解析、目录扫描、用户级技能读写删）
 plugins-manager.js   插件管理模块（清单扫描、启用状态合并、启用/禁用写回）
 session-export.js    会话导出模块（JSONL 解析、消息提取、Markdown 渲染、子 Agent 扫描）
-acp-client.js        ACP 协议客户端（stdio JSON-RPC 2.0，ndjson 分帧，initialize→session/new/load→prompt 全链路，set_config_option/cancel，权限请求自动取消）
+acp-client.js        ACP 协议客户端（stdio JSON-RPC 2.0，ndjson 分帧，initialize→session/new/load→prompt 全链路，图片附件支持、set_config_option/cancel，权限请求自动取消）
 question.html        原生问答窗口（单选/多选/多题/自定义输入，深色主题 UI）
 question.js          问答窗口渲染逻辑（选项渲染、多题翻页、答案校验、提交/回退/取消）
 question-preload.js  问答窗口预加载桥接（contextIsolation 下暴露 kimiQuestion API）
@@ -161,7 +164,7 @@ prompts.html         Prompt 模板库（按场景分类展示 15 条工程实践
 help.html            命令与快捷键速查（F1 快捷键打开）
 agents.html          子 Agent 任务监视器（时间线渲染各 Agent 卡片与后台任务）
 lan.html             局域网访问面板（网卡 URL 展示 + 二维码 + 安全警示）
-chat.html + chat.js + chat-preload.js  ACP 原生聊天前端（流式正文渲染、思考折叠区、节流合并、状态栏、历史恢复、configOptions 切换栏、停止生成）
+chat.html + chat.js + chat-preload.js  ACP 原生聊天前端（流式正文渲染、思考折叠区、节流合并、状态栏、历史恢复、configOptions 切换栏、停止生成、斜杠命令菜单、图片附件 chips 与气泡预览、WebView 降级入口）
 permission.html + permission.js + permission-preload.js  ACP 原生审批弹窗（once/always 按钮组、工具上下文展示、Esc/关窗取消）
 kimi-theme.css       全应用共享设计令牌样式表（kimi.com 官方黑白灰设计语言，亮/暗双主题跟随系统）
 assets/              应用图标
@@ -170,6 +173,7 @@ scripts/
   pack-versioned.ps1   版本化打包脚本
   acp-probe.js         ACP 协议探测（ndjson 分帧握手验证）
   acp-probe3.js        第三次 ACP 探测（session/load、set_config_option、list、cancel 实测）
+  acp-probe4.js        第四次 ACP 探测（图片块 prompt 往返验证）
 test-config-manager.js   配置管理模块单元测试
 test-skills-manager.js   Skills 管理模块单元测试
 test-instances-manager.js 多实例管理模块单元测试
@@ -178,6 +182,7 @@ test-plugins-manager.js   插件管理模块单元测试（9 组 48 条断言）
 test-session-export.js    会话导出模块单元测试（8 组断言）
 docs/
   acp-research.md        ACP 协议调研报告
+  acp-probe4-output.txt  第四次 ACP 探测原始输出
 CHANGELOG.md            版本变更历史
 FEATURE-IDEAS.md        功能建议报告与实施状态
 ```

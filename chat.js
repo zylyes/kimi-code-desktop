@@ -5,11 +5,24 @@
 // 工具调用渲染为卡片节点插入当前轮次容器，由 tool-call-update 就地更新状态与输出。
 // 配置切换栏（模型/思考/模式）数据来自 status ready / config-options 事件的
 // configOptions，字段缺失时隐藏对应下拉；切换失败回滚选中值并系统提示。
+// 斜杠命令菜单：commands 事件缓存命令清单，输入 '/' 前缀实时过滤渲染浮层，
+// 上下键循环高亮、Enter/Tab 选中、Escape 关闭；菜单可见时 Enter 只选中不发送。
+// 图片附件：回形针按钮系统选图（mime 白名单、合计至多 4 张），chips 行逐个可移除，
+// 发送时随 prompt 一并提交，成功清空、失败恢复；Web UI 按钮打开高级面板。
 (function () {
   'use strict';
 
   var FLUSH_MS = 50; // 流式渲染合帧间隔
   var SCROLL_TOLERANCE = 40; // 距底部多少像素内视为「未上翻」
+  var MAX_PENDING_IMAGES = 4; // 一次最多附带图片数
+  var MAX_SLASH_COMMANDS = 200; // 斜杠命令缓存条数上限（防御）
+  // 图片 mimeType 白名单（与主进程约定一致）：渲染层二次校验，亦用于 data URL 拼接
+  var IMAGE_MIME_WHITELIST = {
+    'image/png': true,
+    'image/jpeg': true,
+    'image/gif': true,
+    'image/webp': true,
+  };
 
   // ---------- DOM 引用 ----------
   var statusDot = document.getElementById('statusDot');
@@ -30,6 +43,10 @@
   var sendBtn = document.getElementById('sendBtn');
   var sendArrow = document.getElementById('sendArrow');
   var sendStopLabel = document.getElementById('sendStopLabel');
+  var slashMenu = document.getElementById('slashMenu'); // 斜杠命令浮层（.composer 内）
+  var attachBtn = document.getElementById('attachBtn'); // 附件按钮（发送按钮左侧）
+  var chips = document.getElementById('chips'); // 附件缩略行（textarea 上方）
+  var webuiBtn = document.getElementById('webuiBtn'); // Web UI 入口按钮（状态条右侧）
 
   // 配置切换栏三项：按 configOptions 项的 id 匹配，label 为固定中文小字
   var CONFIG_IDS = ['model', 'thinking', 'mode'];
@@ -58,6 +75,10 @@
   var currentTurn = null; // 当前 assistant 轮次容器
   var stickToBottom = true; // 用户未上翻时跟随滚动
   var lastStartOpts = undefined; // 最近一次 start 参数（重试沿用）
+  var pendingImages = []; // 待发送图片附件 [{ name, mimeType, data, size }]
+  var slashCommands = []; // 斜杠命令缓存（会话级，resetTranscript 不清）
+  var slashMatches = []; // 斜杠菜单当前过滤结果
+  var slashActive = -1; // 斜杠菜单当前高亮下标
 
   // 流式缓冲：chunk 只拼字符串，合帧时一次性写 DOM
   var msgBuf = '';
@@ -84,8 +105,10 @@
     }
     statusDot.className = 'dot ' + cls;
     statusText.textContent = text;
-    // 仅 ready 且非在途、无待审批时可输入
-    input.disabled = !(connState === 'ready' && !busy && !permissionPending);
+    // 仅 ready 且非在途、无待审批时可输入（附件按钮同一规则）
+    var canType = connState === 'ready' && !busy && !permissionPending;
+    input.disabled = !canType;
+    attachBtn.disabled = !canType;
     refreshSendBtn();
     refreshConfigBar();
   }
@@ -101,7 +124,8 @@
       sendBtn.title = '停止';
       sendBtn.setAttribute('aria-label', '停止');
     } else {
-      sendBtn.disabled = !(connState === 'ready' && input.value.trim());
+      // 有文本或有待发图片才可发送
+      sendBtn.disabled = !(connState === 'ready' && (input.value.trim() || pendingImages.length > 0));
       sendStopLabel.hidden = true;
       sendArrow.hidden = false;
       sendBtn.classList.remove('stop-mode');
@@ -142,10 +166,37 @@
   }
 
   // ---------- 消息节点（一律 textContent，防注入） ----------
-  function appendUserMessage(text) {
+  // 用户气泡：无图时保持纯文本节点（行为与原来一致）；
+  // 有图时为容器 div.msg-user——先缩略图行（img 小图、data URL）、再文本块。
+  // img.src 仅允许 'data:<白名单 mime>;base64,' 前缀拼接，杜绝外部 URL 注入。
+  function appendUserMessage(text, images) {
     var el = document.createElement('div');
     el.className = 'msg msg-user';
-    el.textContent = text;
+    var imgs = Array.isArray(images) ? images : [];
+    if (imgs.length === 0) {
+      el.textContent = text;
+    } else {
+      var row = document.createElement('div');
+      row.className = 'msg-images';
+      for (var i = 0; i < imgs.length; i++) {
+        var img = imgs[i];
+        // 防御：非白名单 mime 或 data 缺失的项跳过
+        if (!img || typeof img.mimeType !== 'string' || !IMAGE_MIME_WHITELIST[img.mimeType] ||
+            typeof img.data !== 'string' || !img.data) continue;
+        var thumb = document.createElement('img');
+        thumb.className = 'msg-image-thumb';
+        thumb.src = 'data:' + img.mimeType + ';base64,' + img.data;
+        thumb.alt = typeof img.name === 'string' ? img.name : '';
+        row.appendChild(thumb);
+      }
+      el.appendChild(row);
+      if (text) {
+        var textEl = document.createElement('div');
+        textEl.className = 'msg-user-text';
+        textEl.textContent = text;
+        el.appendChild(textEl);
+      }
+    }
     messagesInner.appendChild(el);
   }
 
@@ -316,6 +367,194 @@
     currentTurn = null;
     toolCards = {};
     messagesInner.textContent = '';
+    // 待发附件一并清空（会话切换不残留）；slashCommands 为会话级缓存，不在此清理
+    pendingImages = [];
+    chips.textContent = '';
+    chips.hidden = true;
+    hideSlashMenu();
+  }
+
+  // ---------- 斜杠命令菜单 ----------
+  // commands 事件载荷防御：仅收录 name 为非空字符串的项，
+  // description/hint 缺省补 ''；旧形态（仅 count、无 commands 字段）按 []
+  function sanitizeCommands(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    for (var i = 0; i < list.length && out.length < MAX_SLASH_COMMANDS; i++) {
+      var c = list[i];
+      if (!c || typeof c !== 'object' || typeof c.name !== 'string' || !c.name) continue;
+      out.push({
+        name: c.name,
+        description: typeof c.description === 'string' ? c.description : '',
+        hint: typeof c.hint === 'string' ? c.hint : '',
+      });
+    }
+    return out;
+  }
+
+  function hideSlashMenu() {
+    slashMenu.hidden = true;
+    slashMatches = [];
+    slashActive = -1;
+  }
+
+  // 输入驱动：值以 '/' 开头且不含空白字符时按 name 前缀过滤（大小写不敏感），
+  // 否则或无匹配时隐藏菜单；每次重建菜单项，默认高亮首项
+  function renderSlashMenu() {
+    var v = input.value;
+    if (v.charAt(0) !== '/' || /\s/.test(v)) {
+      hideSlashMenu();
+      return;
+    }
+    var prefix = v.slice(1).toLowerCase();
+    var matches = [];
+    for (var i = 0; i < slashCommands.length; i++) {
+      if (slashCommands[i].name.toLowerCase().indexOf(prefix) === 0) matches.push(slashCommands[i]);
+    }
+    if (matches.length === 0) {
+      hideSlashMenu();
+      return;
+    }
+    slashMatches = matches;
+    slashActive = 0;
+    slashMenu.textContent = ''; // 清空旧项
+    for (var j = 0; j < matches.length; j++) {
+      slashMenu.appendChild(buildSlashItem(matches[j], j === slashActive));
+    }
+    slashMenu.hidden = false;
+  }
+
+  // 菜单项 button.slash-item：/name 等宽 + description 小字，hint 有值时额外小字；
+  // 高亮项加 .active；点击等同选中
+  function buildSlashItem(cmd, active) {
+    var item = document.createElement('button');
+    item.type = 'button';
+    item.className = active ? 'slash-item active' : 'slash-item';
+    var nameEl = document.createElement('span');
+    nameEl.className = 'slash-name';
+    nameEl.textContent = '/' + cmd.name;
+    item.appendChild(nameEl);
+    if (cmd.description) {
+      var descEl = document.createElement('span');
+      descEl.className = 'slash-desc';
+      descEl.textContent = cmd.description;
+      item.appendChild(descEl);
+    }
+    if (cmd.hint) {
+      var hintEl = document.createElement('span');
+      hintEl.className = 'slash-hint';
+      hintEl.textContent = cmd.hint;
+      item.appendChild(hintEl);
+    }
+    item.addEventListener('click', function () {
+      applySlashCommand(cmd);
+    });
+    return item;
+  }
+
+  // 上下键循环移动高亮：只切换 .active，不重建 DOM
+  function moveSlashActive(delta) {
+    if (slashMatches.length === 0) return;
+    slashActive = (slashActive + delta + slashMatches.length) % slashMatches.length;
+    var items = slashMenu.children;
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle('active', i === slashActive);
+    }
+    if (items[slashActive] && typeof items[slashActive].scrollIntoView === 'function') {
+      items[slashActive].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  // 选中：输入框值替换为 '/name '，聚焦并隐藏菜单，随后同步高度与发送按钮
+  function applySlashCommand(cmd) {
+    input.value = '/' + cmd.name + ' ';
+    hideSlashMenu();
+    input.focus();
+    autoGrow();
+    refreshSendBtn();
+  }
+
+  // ---------- 图片附件 ----------
+  function refreshChipsVisibility() {
+    chips.hidden = pendingImages.length === 0;
+  }
+
+  // 渲染层二次校验（preload/主进程已做白名单与大小校验）：
+  // mimeType 须在白名单内，data 须为非空 base64 字符串，非法项返回 null
+  function sanitizeImage(img) {
+    if (!img || typeof img !== 'object') return null;
+    if (typeof img.mimeType !== 'string' || !IMAGE_MIME_WHITELIST[img.mimeType]) return null;
+    if (typeof img.data !== 'string' || !img.data) return null;
+    return {
+      name: typeof img.name === 'string' && img.name ? img.name : '图片',
+      mimeType: img.mimeType,
+      data: img.data,
+      size: typeof img.size === 'number' && img.size >= 0 ? img.size : 0,
+    };
+  }
+
+  // 附件 chip：img 缩略图（data URL）+ ×移除按钮（type=button，
+  // 点击从 pendingImages 数组与 DOM 中一并删除）
+  function buildChip(img) {
+    var chip = document.createElement('span');
+    chip.className = 'chip';
+    var thumb = document.createElement('img');
+    thumb.className = 'chip-thumb';
+    thumb.src = 'data:' + img.mimeType + ';base64,' + img.data;
+    thumb.alt = img.name;
+    chip.appendChild(thumb);
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'chip-remove';
+    removeBtn.textContent = '×';
+    removeBtn.title = '移除图片';
+    removeBtn.addEventListener('click', function () {
+      var idx = pendingImages.indexOf(img);
+      if (idx !== -1) pendingImages.splice(idx, 1);
+      if (chip.parentNode) chip.parentNode.removeChild(chip);
+      refreshChipsVisibility();
+      refreshSendBtn();
+    });
+    chip.appendChild(removeBtn);
+    return chip;
+  }
+
+  // 追加选图结果：与现有合计至多 MAX_PENDING_IMAGES 张，超出部分丢弃并系统提示
+  function addPendingImages(list) {
+    var dropped = 0;
+    for (var i = 0; i < list.length; i++) {
+      var img = sanitizeImage(list[i]);
+      if (!img) continue; // preload 已校验，此处仅兜底防御，静默跳过
+      if (pendingImages.length >= MAX_PENDING_IMAGES) {
+        dropped++;
+        continue;
+      }
+      pendingImages.push(img);
+      chips.appendChild(buildChip(img));
+    }
+    refreshChipsVisibility();
+    refreshSendBtn();
+    if (dropped > 0) {
+      appendSystemNotice('一次最多附带 ' + MAX_PENDING_IMAGES + ' 张图片，已丢弃 ' + dropped + ' 张');
+    }
+  }
+
+  // 发送失败后把本轮快照附件恢复到附件行（发送时已清空，此处原样重建）
+  function restorePendingImages(images) {
+    for (var i = 0; i < images.length && pendingImages.length < MAX_PENDING_IMAGES; i++) {
+      pendingImages.push(images[i]);
+      chips.appendChild(buildChip(images[i]));
+    }
+    refreshChipsVisibility();
+    refreshSendBtn();
+  }
+
+  // 带图发送失败的补充提示：本机 CLI 0.27.0 实测图文 prompt 会崩溃/挂起
+  // （docs/acp-probe4-output.txt），引导用户改走 Web UI 发图
+  function notifyImageSendFailure(images) {
+    if (Array.isArray(images) && images.length > 0) {
+      appendSystemNotice('当前 CLI 可能不支持图片输入，可点击右上角「Web UI」在高级面板中发送图片');
+    }
   }
 
   // ---------- 配置切换栏 ----------
@@ -552,6 +791,8 @@
         console.debug('[acp-chat] 可用命令数:', p.count);
         commandsInfoEl.textContent = '命令 ' + (typeof p.count === 'number' ? p.count : 0);
         commandsInfoEl.hidden = false;
+        // 缓存命令清单供斜杠菜单过滤；旧形态（仅 count、无 commands 字段）按 []
+        slashCommands = sanitizeCommands(p.commands);
         break;
       case 'tool-call': {
         var call = p.call && typeof p.call === 'object' ? p.call : null;
@@ -606,26 +847,37 @@
   // ---------- 发送 / 停止 ----------
   function send() {
     var text = input.value.trim();
-    if (!text || connState !== 'ready' || busy) return;
+    var images = pendingImages.slice(); // 本轮待发附件快照
+    if ((!text && images.length === 0) || connState !== 'ready' || busy) return;
 
     flushBuffers(); // 防御：上一轮残余缓冲先落 DOM（正常为空）
-    appendUserMessage(text);
+    appendUserMessage(text, images);
     currentTurn = createTurn();
     msgBuf = '';
     thoughtBuf = '';
     busy = true;
     input.value = '';
+    // 发送即清空待发附件（已随快照提交）；发送失败时在回调里恢复，chips 保留待重发
+    pendingImages = [];
+    chips.textContent = '';
+    refreshChipsVisibility();
+    hideSlashMenu();
     autoGrow();
     refreshUi();
     stickToBottom = true;
     scrollToBottom();
 
-    window.kimiChat.sendPrompt(text).then(function (r) {
+    // 文本为空但有图时 text 传 ''，preload/主进程会兜底
+    window.kimiChat.sendPrompt(text, images).then(function (r) {
       if (!r || !r.ok) {
         appendSystemNotice('发送失败：' + (r && r.error ? r.error : '未知错误'));
+        notifyImageSendFailure(images);
+        restorePendingImages(images);
       }
     }).catch(function (err) {
       appendSystemNotice('发送失败：' + String(err && err.message ? err.message : err));
+      notifyImageSendFailure(images);
+      restorePendingImages(images);
     }).then(function () {
       flushBuffers();
       busy = false;
@@ -662,8 +914,33 @@
   input.addEventListener('input', function () {
     autoGrow();
     refreshSendBtn();
+    renderSlashMenu(); // '/' 前缀时刷新斜杠命令菜单，否则隐藏
   });
   input.addEventListener('keydown', function (e) {
+    // 斜杠菜单可见时优先接管按键：上下循环高亮、Enter/Tab 选中、Escape 关闭；
+    // 此时 Enter 必须先 preventDefault 且只选中不发送（与下方 Enter 发送共存）
+    if (!slashMenu.hidden) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveSlashActive(1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveSlashActive(-1);
+        return;
+      }
+      if ((e.key === 'Enter' && !e.shiftKey && !e.isComposing) || e.key === 'Tab') {
+        e.preventDefault();
+        if (slashMatches[slashActive]) applySlashCommand(slashMatches[slashActive]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        hideSlashMenu();
+        return;
+      }
+    }
     // Enter 发送 / Shift+Enter 换行；中文输入法组词中不触发发送
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -677,6 +954,32 @@
     } else {
       send();
     }
+  });
+  // 附件按钮：系统选图 → 追加进 chips 行；skipped 为超 10MB/读取失败被跳过的张数
+  attachBtn.addEventListener('click', function () {
+    window.kimiChat.pickImages().then(function (r) {
+      if (!r || !r.ok) {
+        appendSystemNotice('选择图片失败：' + (r && r.error ? r.error : '未知错误'));
+        return;
+      }
+      var skipped = typeof r.skipped === 'number' ? r.skipped : 0;
+      if (skipped > 0) {
+        appendSystemNotice('有 ' + skipped + ' 张图片被跳过（超过 10MB 或读取失败）');
+      }
+      addPendingImages(Array.isArray(r.images) ? r.images : []);
+    }).catch(function (err) {
+      appendSystemNotice('选择图片失败：' + String(err && err.message ? err.message : err));
+    });
+  });
+  // Web UI 按钮：在 Web UI 高级面板中打开（无参调用），失败时系统提示
+  webuiBtn.addEventListener('click', function () {
+    window.kimiChat.openWebUI().then(function (r) {
+      if (!r || !r.ok) {
+        appendSystemNotice('打开 Web UI 失败：' + (r && r.error ? r.error : '未知错误'));
+      }
+    }).catch(function (err) {
+      appendSystemNotice('打开 Web UI 失败：' + String(err && err.message ? err.message : err));
+    });
   });
   retryBtn.addEventListener('click', function () {
     start(lastStartOpts);
@@ -717,6 +1020,8 @@
     input.disabled = true;
     sendBtn.disabled = true;
     retryBtn.disabled = true;
+    attachBtn.disabled = true;
+    webuiBtn.disabled = true;
     return;
   }
 

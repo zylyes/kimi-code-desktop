@@ -13,6 +13,9 @@
 // session/load 恢复既有会话（result 仅含 configOptions，无 sessionId 回显）；
 // session/set_config_option 切换配置项（value 为纯字符串，失败为 JSON-RPC 错误）；
 // session/cancel 为无 id 通知，发出后进行中的 prompt 以 { stopReason: 'cancelled' } 返回。
+// 图片输入（第四次探测实测，详见 docs/acp-probe4-output.txt）：prompt(text, images) 的
+// images 可选，元素 { mimeType, data(base64) }，mimeType 白名单 / 解码后 ≤10MB / ≤4 张；
+// 有图时 session/prompt 的 prompt 字段为 [{ type:'image', data, mimeType }…, { type:'text', text }]。
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
@@ -23,6 +26,9 @@ const SESSION_NEW_TIMEOUT_MS = 30_000; // session/new 与 session/load 超时（
 const SET_CONFIG_TIMEOUT_MS = 15_000; // session/set_config_option 超时
 const PERMISSION_DECISION_TIMEOUT_MS = 600_000; // 权限决策的防御性超时（10 分钟），超时按 cancelled 收尾
 const LOG_DUMP_LIMIT = 300; // 日志里消息摘要的截断长度
+const MAX_PROMPT_IMAGES = 4; // 单次 prompt 最多附带的图片张数
+const MAX_PROMPT_IMAGE_BYTES = 10 * 1024 * 1024; // 单张图片 base64 解码后的字节上限（10MB）
+const PROMPT_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']); // 图片 MIME 白名单
 
 // initialize 请求参数：按 ACP 协议声明客户端不具备 fs / terminal 能力
 const INIT_PARAMS = {
@@ -422,12 +428,36 @@ class AcpClient extends EventEmitter {
     return result;
   }
 
-  // 发送用户输入；不设固定超时（LLM 耗时长），resolve result（{ stopReason }）
-  async prompt(text) {
+  // 发送用户输入；不设固定超时（LLM 耗时长），resolve result（{ stopReason }）。
+  // images 可选：元素 { mimeType, data(base64) }；防御性校验白名单 mimeType、
+  // data 非空且可 base64 解码、解码后 ≤10MB、单次 ≤4 张，任一非法直接 throw（中文报错）。
+  // 有图时 prompt 字段为 [{ type:'image', data, mimeType }…, { type:'text', text }]，
+  // 无图（含空数组）保持单 text 块，与原行为完全一致
+  async prompt(text, images) {
     if (!this.sessionId) throw new Error('尚未建立会话（先调用 newSession）');
+    const blocks = [];
+    if (images !== undefined && images !== null) {
+      if (!Array.isArray(images)) throw new Error('prompt: images 必须是数组（元素为 { mimeType, data }）');
+      if (images.length > MAX_PROMPT_IMAGES) throw new Error(`prompt: 一次最多附带 ${MAX_PROMPT_IMAGES} 张图片（收到 ${images.length} 张）`);
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        if (!img || typeof img !== 'object') throw new Error(`prompt: 第 ${i + 1} 张图片必须是 { mimeType, data } 对象`);
+        if (!PROMPT_IMAGE_MIME_TYPES.has(img.mimeType)) {
+          throw new Error(`prompt: 第 ${i + 1} 张图片 mimeType 非法: ${truncate(img.mimeType, 50)}（仅支持 image/png、image/jpeg、image/gif、image/webp）`);
+        }
+        if (typeof img.data !== 'string' || !img.data) throw new Error(`prompt: 第 ${i + 1} 张图片 data 必须是非空 base64 字符串`);
+        const decoded = Buffer.from(img.data, 'base64');
+        if (!decoded.length) throw new Error(`prompt: 第 ${i + 1} 张图片 data 无法按 base64 解码`);
+        if (decoded.length > MAX_PROMPT_IMAGE_BYTES) {
+          throw new Error(`prompt: 第 ${i + 1} 张图片解码后 ${decoded.length} 字节，超过 10MB 上限`);
+        }
+        blocks.push({ type: 'image', data: img.data, mimeType: img.mimeType });
+      }
+    }
+    blocks.push({ type: 'text', text: String(text) });
     return await this._request('session/prompt', {
       sessionId: this.sessionId,
-      prompt: [{ type: 'text', text: String(text) }],
+      prompt: blocks,
     });
   }
 

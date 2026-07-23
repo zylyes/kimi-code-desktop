@@ -1,6 +1,6 @@
 {
   "name": "kimi-code-desktop",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Kimi Code 网页版桌面套壳 — 自动启动 kimi web 并嵌入桌面窗口",
   "main": "main.js",
   "author": "zyl",
