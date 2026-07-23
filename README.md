@@ -50,6 +50,17 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 37. **旧版 kimi-cli 迁移提示**（v0.8.0）：启动时检测 `~/.kimi/` 存在且含 `bin/` 或 `config.toml` 时弹出「立即迁移 / 稍后 / 不再提示」对话框；「立即迁移」打开外部终端运行 `kimi migrate`，「不再提示」写入 config.json 持久去重。
 38. **IDE 一键接入向导**（v0.8.0）：设置中心新增「IDE 接入」标签页 + 帮助菜单「IDE 接入向导…」入口；探测 `kimi acp` 可用性后，Zed 支持一键写入 agent_servers 配置（JSONC 合并、写前 .bak 备份），JetBrains 检测已装 IDE 并给出手动配置步骤，通用 ACP 片段适配其它客户端。
 39. **自动更新/遥测开关**（v0.8.0）：维护页新增「自动安装更新」开关（读写 tui.toml `[upgrade].auto_install`，doctor 校验 + 失败回滚）；环境页新增「禁止 CLI 自动更新」「禁用遥测」强制开关，写入 config.json 并向子进程注入 `KIMI_CODE_NO_AUTO_UPDATE=1`/`KIMI_DISABLE_TELEMETRY=1`（保存后自动重启生效）。
+40. **新手 prompt 模板库**（v0.9.0）：帮助菜单新增「Prompt 模板库…」，按帮助中心五大场景（实现新功能/修复 bug/理解项目/自动化/通用任务）内置 15 条工程实践示例 prompt，一键复制。
+41. **命令与快捷键速查**（v0.9.0）：帮助菜单新增「命令与快捷键速查…」（F1），内置斜杠命令分类表 + TUI 快捷键 + 桌面端快捷键清单。
+42. **敏感目录启动警告**（v0.9.0）：会话启动器新建会话时，工作目录为 home 根/盘符根/含 `.ssh`/`.gnupg`/等于 `KIMI_CODE_HOME` 的，先弹警告对话框。
+43. **调试模式开关**（v0.9.0）：环境页「高级」新增 debugMode，启用后新版 CLI 以 `--log-level debug --debug-endpoints` 启动。
+44. **Markdown 导出会话**（v0.9.0）：会话启动器详情面板新增「导出 Markdown」，解析 `agents/main/wire.jsonl` 输出 .md 文件。
+45. **子 Agent 任务监视器**（v0.9.0）：详情面板新增「任务监视」，新窗口按时间线渲染各 Agent 卡片（消息/事件数、起止时间、事件类型 chips）与后台任务。
+46. **局域网/手机访问模式**（v0.9.0）：会话菜单新增「局域网访问…」窗口——一键写 `host=0.0.0.0` 并重启；展示各网卡 URL（含 token）与二维码；顶部醒目安全警示。
+47. **自定义 marketplace 注入**（v0.9.0）：环境页新增 pluginMarketplaceUrl → `KIMI_CODE_PLUGIN_MARKETPLACE_URL`。
+48. **临时模型快速测试**（v0.9.0）：环境页「临时模型」分组（name/apiKey/providerType/baseUrl 等），注入 `KIMI_MODEL_*` 进程级环境变量合成临时供应商，不写 config.toml。
+49. **自建端点支持**（v0.9.0）：环境页新增 oauthHost/selfHostedBaseUrl → `KIMI_CODE_OAUTH_HOST`/`KIMI_CODE_BASE_URL`。
+50. **插件管理面板**（v0.9.0）：设置中心新增第 10 个标签页「插件」，扫描 `plugins/managed/<id>/` 清单并合并启用状态，支持启用/禁用（.bak 备份）。
 
 ## 会话启动器
 
@@ -57,9 +68,9 @@ v0.3.0 新增**会话启动器**（`Ctrl+Shift+S`），提供完整的会话管�
 
 - **会话历史浏览**：读取 `~/.kimi-code/session_index.jsonl` 索引文件，按更新时间降序排列，支持搜索标题/目录/最近提示。
 - **恢复指定会话**：选中会话后点击"恢复会话"，以 `kimi --session <id>` 参数重启 Web 服务，直接进入该会话。
-- **ZIP 导出**：选中会话后点击"导出 ZIP"，调用 `kimi export <sessionId> -o <path> -y`，通过保存对话框选择导出路径。
-- **可视化窗口**：选中会话后点击"打开可视化"，spawn `kimi vis <sessionId> --no-open` 捕获地址并在独立 Electron 窗口中打开。
-- **指定目录新建会话**：点击侧边栏 `+` 按钮，选择工作目录后通过深链 `?action=create-in-dir&workDir=<path>` 导航至 Web UI 创建新会话。
+- **ZIP 导出 / Markdown 导出**：选中会话后可导出 ZIP 或 Markdown（v0.9.0，解析 wire.jsonl 输出 .md）。
+- **可视化窗口 / 任务监视器**：选中会话后打开可视化或任务监视器窗口（v0.9.0，时间线渲染各 Agent 卡片）。
+- **指定目录新建会话**：点击侧边栏 `+` 按钮，选择工作目录后通过深链导航至 Web UI 创建新会话（v0.9.0 新增敏感目录警告）。
 - **托盘/菜单入口**：托盘右键菜单和菜单栏"会话"菜单均提供"打开会话启动器"入口。
 - **快捷键**：`Ctrl+Shift+S` 直接打开会话启动器。
 
@@ -75,6 +86,7 @@ v0.3.0 新增**会话启动器**（`Ctrl+Shift+S`），提供完整的会话管�
 | 手动输入地址 | `Ctrl+L` |
 | 重新加载 | `Ctrl+R` |
 | 窗口置顶 | `Ctrl+T` |
+| 命令与快捷键速查 | `F1` |
 
 ## 系统托盘
 
@@ -126,20 +138,32 @@ preload.js           渲染进程桥接（含会话启动器 API 和配置中心
 config-manager.js    配置管理模块（读写 config.toml、tui.toml、mcp.json，写入前备份、doctor 校验、失败回滚）
 instances-manager.js 多实例管理模块（扫描 instances/ 目录、lock 回退、PID 存活检测、HTTP 探测）
 ide-integration.js   IDE 接入模块（kimi acp 探测、编辑器检测、Zed 配置写入、JSONC 处理、配置片段生成）
+skills-manager.js    Skills 管理模块（frontmatter 解析、目录扫描、用户级技能读写删）
+plugins-manager.js   插件管理模块（清单扫描、启用状态合并、启用/禁用写回）
+session-export.js    会话导出模块（JSONL 解析、消息提取、Markdown 渲染、子 Agent 扫描）
 question.html        原生问答窗口（单选/多选/多题/自定义输入，深色主题 UI）
 question.js          问答窗口渲染逻辑（选项渲染、多题翻页、答案校验、提交/回退/取消）
 question-preload.js  问答窗口预加载桥接（contextIsolation 下暴露 kimiQuestion API）
 loading.html         启动等待页（实时显示 CLI 日志）
-setup.html           设置页（自动/手动两种连接方式，含标签页导航：环境/通用配置/权限规则/供应商/MCP/Skills/Hooks/IDE 接入/维护）
-sessions.html        会话启动器（历史浏览、恢复、导出 ZIP、可视化、新建会话）
+setup.html           设置页（自动/手动两种连接方式，含标签页导航：环境/通用配置/权限规则/供应商/MCP/Skills/Hooks/IDE 接入/维护/插件）
+sessions.html        会话启动器（历史浏览、恢复、导出 ZIP/Markdown、可视化、任务监视器、新建会话）
+prompts.html         Prompt 模板库（按场景分类展示 15 条工程实践示例，一键复制）
+help.html            命令与快捷键速查（F1 快捷键打开）
+agents.html          子 Agent 任务监视器（时间线渲染各 Agent 卡片与后台任务）
+lan.html             局域网访问面板（网卡 URL 展示 + 二维码 + 安全警示）
 assets/              应用图标
 scripts/
   mock-kimi-server.js  Mock Kimi 服务端（HTTP+WS，覆盖 client_hello/订阅/问答/审批/用量/任务事件验证）
   pack-versioned.ps1   版本化打包脚本
-test-config-manager.js 配置管理模块单元测试
-test-skills-manager.js Skills 管理模块单元测试
+  acp-probe.js         ACP 协议探测（ndjson 分帧握手验证）
+test-config-manager.js   配置管理模块单元测试
+test-skills-manager.js   Skills 管理模块单元测试
 test-instances-manager.js 多实例管理模块单元测试
-test-ide-integration.js IDE 接入模块单元测试
-CHANGELOG.md          版本变更历史
-FEATURE-IDEAS.md      功能建议报告与实施状态
+test-ide-integration.js   IDE 接入模块单元测试
+test-plugins-manager.js   插件管理模块单元测试（9 组 48 条断言）
+test-session-export.js    会话导出模块单元测试（8 组断言）
+docs/
+  acp-research.md        ACP 协议调研报告
+CHANGELOG.md            版本变更历史
+FEATURE-IDEAS.md        功能建议报告与实施状态
 ```

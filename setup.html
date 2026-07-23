@@ -86,7 +86,8 @@
   }
   .mode small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); opacity: 0.8; }
   .mode.active { border-color: var(--accent); color: var(--fg); }
-  input[type="text"] {
+  input[type="text"],
+  input[type="password"] {
     width: 100%;
     padding: 11px 12px;
     border: 1px solid var(--line);
@@ -97,7 +98,8 @@
     font-family: Consolas, "Courier New", monospace;
     outline: none;
   }
-  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]:focus,
+  input[type="password"]:focus { border-color: var(--accent); }
   .hint { margin-top: 8px; font-size: 11px; color: var(--muted); line-height: 1.6; }
   .hint code {
     background: var(--field);
@@ -343,6 +345,14 @@
     font-size: 12px;
   }
 
+  /* 插件表格 */
+  .ptable { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 12px; }
+  .ptable th, .ptable td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .ptable th { color: var(--muted); font-weight: 400; font-size: 11px; white-space: nowrap; }
+  .ptable td { word-break: break-all; }
+  .ptable .mini { padding: 6px 10px; }
+  .ptable .cell-note { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
   @media (max-width: 380px) {
     .grid2 { grid-template-columns: 1fr; }
     .rule-item { grid-template-columns: 1fr; }
@@ -365,6 +375,7 @@
       <button class="tab" data-tab="hooks">Hooks</button>
       <button class="tab" data-tab="ide">IDE 接入</button>
       <button class="tab" data-tab="maint">维护</button>
+      <button class="tab" data-tab="plugins">插件</button>
     </div>
 
     <!-- 环境面板 -->
@@ -455,6 +466,52 @@
         <div><span class="fl">KIMI_CODE_HOME</span><input type="text" id="advKimiHome" placeholder="默认 %USERPROFILE%\.kimi-code" spellcheck="false" /></div>
       </div>
       <div class="hint">修改 KIMI_CODE_HOME 后需重启应用完全生效；监听地址改为 0.0.0.0 会向局域网暴露服务，请确认已了解风险。</div>
+    </div>
+
+    <div class="group divider" id="advExtraGroup">
+      <label>高级</label>
+      <div class="form-row" style="margin-top:10px">
+        <div class="switch">
+          <div>
+            <div class="switch-label">调试模式</div>
+            <div class="switch-desc">启用后以 --log-level debug --debug-endpoints 启动 CLI，仅新版生效</div>
+          </div>
+          <input type="checkbox" id="debugMode" />
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div><span class="fl">自定义插件市场 URL</span><input type="text" id="pluginMarketplaceUrl" placeholder="KIMI_CODE_PLUGIN_MARKETPLACE_URL" spellcheck="false" /></div>
+        <div><span class="fl">自建 OAuth 主机</span><input type="text" id="oauthHost" placeholder="KIMI_CODE_OAUTH_HOST" spellcheck="false" /></div>
+        <div><span class="fl">自建服务 Base URL</span><input type="text" id="selfHostedBaseUrl" placeholder="KIMI_CODE_BASE_URL" spellcheck="false" /></div>
+      </div>
+      <div class="hint">自建服务 Base URL 为 OAuth 托管服务地址，勿与 KIMI_BASE_URL 混淆。</div>
+    </div>
+
+    <div class="group divider" id="tempModelGroup">
+      <label>临时模型（KIMI_MODEL_* 进程级注入，不写 config.toml）</label>
+      <div class="grid2">
+        <div><span class="fl">模型 ID</span><input type="text" id="tempModelName" placeholder="例如 my-model" spellcheck="false" /></div>
+        <div><span class="fl">API Key</span><input type="password" id="tempModelApiKey" placeholder="sk-…" spellcheck="false" /></div>
+        <div><span class="fl">供应商类型</span><select id="tempModelProviderType">
+          <option value="">默认</option>
+          <option value="kimi">kimi</option>
+          <option value="anthropic">anthropic</option>
+          <option value="openai">openai</option>
+        </select></div>
+        <div><span class="fl">Base URL</span><input type="text" id="tempModelBaseUrl" placeholder="https://…" spellcheck="false" /></div>
+        <div><span class="fl">显示名</span><input type="text" id="tempModelDisplayName" placeholder="界面展示名称" spellcheck="false" /></div>
+        <div><span class="fl">最大上下文</span><input type="text" id="tempModelMaxContextSize" placeholder="例如 131072" spellcheck="false" /></div>
+        <div><span class="fl">能力标签</span><input type="text" id="tempModelCapabilities" placeholder="image_in,thinking" spellcheck="false" /></div>
+        <div><span class="fl">Thinking effort</span><select id="tempModelThinkingEffort">
+          <option value="">默认</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+          <option value="xhigh">xhigh</option>
+          <option value="max">max</option>
+        </select></div>
+      </div>
+      <div class="hint">模型 ID 与 API Key 均填写才会注入；优先级高于 config.toml 的 default_model，重启应用后仍由本页配置决定。</div>
     </div>
 
     <div class="group divider" id="enforceGroup">
@@ -719,6 +776,19 @@
       <div class="ok" id="diagOk"></div>
       <div class="err" id="diagErr"></div>
     </div>
+
+    <!-- 插件面板 -->
+    <div class="tab-panel" id="panel-plugins">
+      <div class="section-title">已安装插件</div>
+      <div class="hint hidden" id="pluginsScanHint">未找到 installed.json，列表来自 plugins/managed/ 目录扫描</div>
+      <div id="pluginList"></div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn2" id="refreshPluginsBtn" type="button">刷新</button>
+      </div>
+      <div class="hint" id="pluginsRoot"></div>
+      <div class="ok" id="pluginsOk"></div>
+      <div class="err" id="pluginsErr"></div>
+    </div>
   </div>
 
   <script>
@@ -756,6 +826,7 @@
       if (key === 'hooks') loadHooks();
       if (key === 'ide') loadIdePanel();
       if (key === 'maint') { checkUpgrade(false); loadDataDirStats(); loadAutoInstall(); }
+      if (key === 'plugins') loadPlugins();
     }
     tabs.forEach((tab) => {
       tab.addEventListener('click', () => switchTab(tab.dataset.tab));
@@ -779,6 +850,18 @@
     const advKimiHomeEl = $('advKimiHome');
     const noAutoUpdateEl = $('noAutoUpdate');
     const disableTelemetryEl = $('disableTelemetry');
+    const debugModeEl = $('debugMode');
+    const pluginMarketplaceUrlEl = $('pluginMarketplaceUrl');
+    const oauthHostEl = $('oauthHost');
+    const selfHostedBaseUrlEl = $('selfHostedBaseUrl');
+    const tempModelNameEl = $('tempModelName');
+    const tempModelApiKeyEl = $('tempModelApiKey');
+    const tempModelProviderTypeEl = $('tempModelProviderType');
+    const tempModelBaseUrlEl = $('tempModelBaseUrl');
+    const tempModelDisplayNameEl = $('tempModelDisplayName');
+    const tempModelMaxContextSizeEl = $('tempModelMaxContextSize');
+    const tempModelCapabilitiesEl = $('tempModelCapabilities');
+    const tempModelThinkingEffortEl = $('tempModelThinkingEffort');
     const errEl = $('err');
     let mode = 'auto';
 
@@ -867,6 +950,19 @@
         if (c.kimiCodeHome) advKimiHomeEl.value = c.kimiCodeHome;
         noAutoUpdateEl.checked = !!c.noAutoUpdate;
         disableTelemetryEl.checked = !!c.disableTelemetry;
+        debugModeEl.checked = !!c.debugMode;
+        if (c.pluginMarketplaceUrl) pluginMarketplaceUrlEl.value = c.pluginMarketplaceUrl;
+        if (c.oauthHost) oauthHostEl.value = c.oauthHost;
+        if (c.selfHostedBaseUrl) selfHostedBaseUrlEl.value = c.selfHostedBaseUrl;
+        const tm = c.tempModel || {};
+        if (tm.name) tempModelNameEl.value = tm.name;
+        if (tm.apiKey) tempModelApiKeyEl.value = tm.apiKey;
+        if (tm.providerType) tempModelProviderTypeEl.value = tm.providerType;
+        if (tm.baseUrl) tempModelBaseUrlEl.value = tm.baseUrl;
+        if (tm.displayName) tempModelDisplayNameEl.value = tm.displayName;
+        if (tm.maxContextSize != null && tm.maxContextSize !== '') tempModelMaxContextSizeEl.value = tm.maxContextSize;
+        if (tm.capabilities) tempModelCapabilitiesEl.value = tm.capabilities;
+        if (tm.thinkingEffort) tempModelThinkingEffortEl.value = tm.thinkingEffort;
         if (c.mode === 'manual') setMode('manual');
       }
       if (!info.cliFound) {
@@ -1028,6 +1124,20 @@
         kimiCodeHome: advKimiHomeEl.value.trim(),
         noAutoUpdate: noAutoUpdateEl.checked,
         disableTelemetry: disableTelemetryEl.checked,
+        debugMode: debugModeEl.checked,
+        pluginMarketplaceUrl: pluginMarketplaceUrlEl.value.trim(),
+        oauthHost: oauthHostEl.value.trim(),
+        selfHostedBaseUrl: selfHostedBaseUrlEl.value.trim(),
+        tempModel: {
+          name: tempModelNameEl.value.trim(),
+          apiKey: tempModelApiKeyEl.value.trim(),
+          providerType: tempModelProviderTypeEl.value,
+          baseUrl: tempModelBaseUrlEl.value.trim(),
+          displayName: tempModelDisplayNameEl.value.trim(),
+          maxContextSize: tempModelMaxContextSizeEl.value.trim(),
+          capabilities: tempModelCapabilitiesEl.value.trim(),
+          thinkingEffort: tempModelThinkingEffortEl.value,
+        },
       };
     }
 
@@ -1080,6 +1190,10 @@
       if (!validateProxies(payload)) return;
       if (payload.port && !/^\d+$/.test(payload.port)) {
         errEl.textContent = '固定端口应为 1-65535 的数字，留空则使用默认端口';
+        return;
+      }
+      if (payload.tempModel.maxContextSize && !/^\d+$/.test(payload.tempModel.maxContextSize)) {
+        errEl.textContent = '临时模型的最大上下文应为数字，留空则不设置';
         return;
       }
       await window.kimiDesktop.saveSetup(payload);
@@ -1834,6 +1948,89 @@
         packDiagBtn.textContent = '打包诊断信息…';
       }
     });
+
+    // ==================== 插件面板 ====================
+    const pluginList = $('pluginList');
+    const pluginsOk = $('pluginsOk');
+    const pluginsErr = $('pluginsErr');
+    const pluginsRoot = $('pluginsRoot');
+    const pluginsScanHint = $('pluginsScanHint');
+
+    function renderPlugins(plugins) {
+      pluginList.innerHTML = '';
+      if (plugins.length === 0) {
+        pluginList.innerHTML = '<div class="hint">尚未安装任何插件，可在会话中使用 /plugins 命令安装</div>';
+        return;
+      }
+      const table = document.createElement('table');
+      table.className = 'ptable';
+      table.innerHTML = '<thead><tr><th>名称</th><th>id</th><th>版本</th><th>来源</th><th>状态</th><th>操作</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      plugins.forEach((p) => {
+        const tr = document.createElement('tr');
+        // 状态列：启用/禁用徽标；操作列按 canToggle / missing 分流
+        const statusBadge = p.enabled
+          ? '<span class="badge ok">启用</span>'
+          : '<span class="badge bad">禁用</span>';
+        let action;
+        if (p.missing) {
+          action = '<span class="cell-note">目录缺失</span>';
+        } else if (p.canToggle) {
+          action = `<button class="mini toggle-plugin" type="button" data-id="${escapeHtml(p.id)}" data-enabled="${p.enabled ? '1' : ''}">${p.enabled ? '禁用' : '启用'}</button>`;
+        } else {
+          action = '<span class="cell-note">需在会话中用 /plugins 命令管理</span>';
+        }
+        tr.innerHTML = `<td>${escapeHtml(p.displayName || p.dirName || p.id)}</td>
+          <td>${escapeHtml(p.id || '-')}</td>
+          <td>${escapeHtml(p.version || '-')}</td>
+          <td>${escapeHtml(p.source || '-')}</td>
+          <td>${statusBadge}</td>
+          <td>${action}</td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      pluginList.appendChild(table);
+      pluginList.querySelectorAll('.toggle-plugin').forEach((btn) => {
+        btn.addEventListener('click', () => togglePlugin(btn));
+      });
+    }
+
+    async function togglePlugin(btn) {
+      const id = btn.dataset.id;
+      const wantEnabled = btn.dataset.enabled !== '1';
+      btn.disabled = true;
+      setFeedback(pluginsOk, pluginsErr, '', '');
+      try {
+        const r = await window.kimiDesktop.pluginsSetEnabled(id, wantEnabled);
+        if (r && r.ok) {
+          setFeedback(pluginsOk, pluginsErr, 'ok', (wantEnabled ? '已启用' : '已禁用') + '「' + id + '」' + (r.note ? '：' + r.note : ''));
+        } else {
+          setFeedback(pluginsOk, pluginsErr, 'err', '操作失败：' + ((r && r.message) || '未知错误'));
+        }
+      } catch (e) {
+        setFeedback(pluginsOk, pluginsErr, 'err', '操作异常：' + e.message);
+      }
+      loadPlugins();
+    }
+
+    async function loadPlugins() {
+      if (typeof window.kimiDesktop.pluginsList !== 'function') return;
+      try {
+        const r = await window.kimiDesktop.pluginsList();
+        if (!r.ok) {
+          setFeedback(pluginsOk, pluginsErr, 'err', '读取插件列表失败：' + (r.message || r.error || '未知错误'));
+          return;
+        }
+        // installed.json 缺失时列表来自目录扫描，顶部给出提示
+        pluginsScanHint.classList.toggle('hidden', !!r.installedJsonFound);
+        pluginsRoot.textContent = r.root ? '插件目录：' + r.root : '';
+        renderPlugins(r.plugins || []);
+      } catch (e) {
+        setFeedback(pluginsOk, pluginsErr, 'err', '读取异常：' + e.message);
+      }
+    }
+
+    $('refreshPluginsBtn').addEventListener('click', () => loadPlugins());
 
     // ==================== IDE 接入面板 ====================
     const ideOk = $('ideOk');

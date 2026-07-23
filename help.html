@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>Kimi Code Desktop · 帮助</title>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --fg: #e8e8ea;
+    --muted: #8a8a90;
+    --accent: #3d6bff;
+    --line: #232327;
+    --field: #17171a;
+    --ok: #7ec88a;
+    --err: #e06c75;
+    --warn: #d8b36a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    overflow: hidden;
+    display: flex;
+  }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+
+  .app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px 10px;
+    flex: none;
+  }
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .mark {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+  }
+  .brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+  .topbar-note {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex: none;
+  }
+
+  /* ---------- 页面说明 ---------- */
+  .page-desc {
+    flex: none;
+    padding: 0 18px 12px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ---------- 主区域 ---------- */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 18px 18px;
+  }
+
+  .group { margin-bottom: 22px; animation: rise 0.22s ease both; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .group-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+  }
+
+  /* ---------- 速查表格 ---------- */
+  .tbl-wrap {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  td {
+    padding: 9px 14px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    vertical-align: top;
+  }
+  tr + tr td { border-top: 1px solid var(--line); }
+  td.cmd {
+    width: 168px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    color: var(--fg);
+    background: var(--field);
+    user-select: text;
+  }
+  td.desc { color: var(--muted); word-break: break-word; }
+
+  kbd {
+    display: inline-block;
+    padding: 1px 7px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: var(--field);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #33333a; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  @media (max-width: 420px) {
+    .topbar { padding: 12px 14px 8px; }
+    .page-desc { padding: 0 14px 10px; }
+    .main { padding: 4px 14px 14px; }
+    td.cmd { width: 128px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .group { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">K</span>
+        <span class="brand-name">命令与快捷键速查</span>
+      </div>
+      <div class="topbar-note">输入 / 触发命令补全</div>
+    </header>
+
+    <div class="page-desc">Kimi Code TUI 的常用斜杠命令与快捷键，以及本桌面端的窗口快捷键。内容基于官方文档整理。</div>
+
+    <main class="main">
+      <!-- ---------- 账户与配置 ---------- -->
+      <section class="group">
+        <h2 class="group-title">账户与配置</h2>
+        <div class="tbl-wrap">
+          <table>
+            <tr><td class="cmd">/login</td><td class="desc">选择账户或平台并登录（OAuth 设备码或 API Key）</td></tr>
+            <tr><td class="cmd">/logout</td><td class="desc">清除当前所选账户的登录凭据</td></tr>
+            <tr><td class="cmd">/provider</td><td class="desc">打开服务商管理：查看、添加、移除已配置的服务商</td></tr>
+            <tr><td class="cmd">/model</td><td class="desc">切换当前会话使用的模型</td></tr>
+            <tr><td class="cmd">/settings</td><td class="desc">打开 TUI 内的设置面板</td></tr>
+            <tr><td class="cmd">/permission</td><td class="desc">选择权限模式（manual / yolo / auto）</td></tr>
+            <tr><td class="cmd">/editor</td><td class="desc">配置 Ctrl-G 调起的外部编辑器</td></tr>
+            <tr><td class="cmd">/theme</td><td class="desc">切换 TUI 配色主题</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- 会话管理 ---------- -->
+      <section class="group">
+        <h2 class="group-title">会话管理</h2>
+        <div class="tbl-wrap">
+          <table>
+            <tr><td class="cmd">/new</td><td class="desc">开启全新会话，丢弃当前上下文</td></tr>
+            <tr><td class="cmd">/sessions</td><td class="desc">浏览历史会话，切换或恢复其一</td></tr>
+            <tr><td class="cmd">/tasks</td><td class="desc">查看后台任务列表</td></tr>
+            <tr><td class="cmd">/fork</td><td class="desc">从当前会话分叉新会话，保留完整对话历史</td></tr>
+            <tr><td class="cmd">/title</td><td class="desc">查看或设置当前会话标题</td></tr>
+            <tr><td class="cmd">/compact</td><td class="desc">压缩当前对话上下文，释放 token 占用</td></tr>
+            <tr><td class="cmd">/undo</td><td class="desc">撤销最近一条或多条输入（可带数量参数）</td></tr>
+            <tr><td class="cmd">/reload</td><td class="desc">重载当前会话并应用最新配置，无需重启 CLI</td></tr>
+            <tr><td class="cmd">/init</td><td class="desc">分析当前代码库并生成 AGENTS.md</td></tr>
+            <tr><td class="cmd">/export-md</td><td class="desc">将当前会话导出为 Markdown 文件</td></tr>
+            <tr><td class="cmd">/copy</td><td class="desc">复制最近一条助手回复到剪贴板</td></tr>
+            <tr><td class="cmd">/add-dir</td><td class="desc">为当前会话添加额外的工作目录</td></tr>
+            <tr><td class="cmd">/web</td><td class="desc">在 Web UI 中打开当前会话</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- 模式控制 ---------- -->
+      <section class="group">
+        <h2 class="group-title">模式控制</h2>
+        <div class="tbl-wrap">
+          <table>
+            <tr><td class="cmd">/yolo</td><td class="desc">开关 YOLO 模式：跳过常规工具调用审批（可带 on/off）</td></tr>
+            <tr><td class="cmd">/auto</td><td class="desc">开关自动权限模式：审批自动处理，不再向用户提问</td></tr>
+            <tr><td class="cmd">/plan</td><td class="desc">开关 Plan 计划模式：先研究规划再动手（可带 on/off）</td></tr>
+            <tr><td class="cmd">/swarm</td><td class="desc">开关 swarm 并行模式，或直接发起一个并行任务</td></tr>
+            <tr><td class="cmd">/goal</td><td class="desc">启动或管理自主目标模式：跨回合持续推进一个目标</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- 信息查询 ---------- -->
+      <section class="group">
+        <h2 class="group-title">信息查询</h2>
+        <div class="tbl-wrap">
+          <table>
+            <tr><td class="cmd">/help</td><td class="desc">显示快捷键与全部可用命令</td></tr>
+            <tr><td class="cmd">/btw</td><td class="desc">开启旁路提问，不影响当前主会话的回合</td></tr>
+            <tr><td class="cmd">/usage</td><td class="desc">查看 token 用量、上下文消耗与配额信息</td></tr>
+            <tr><td class="cmd">/status</td><td class="desc">查看当前会话运行状态：版本、模型、目录、权限模式等</td></tr>
+            <tr><td class="cmd">/mcp</td><td class="desc">列出 MCP 服务器及其连接状态</td></tr>
+            <tr><td class="cmd">/plugins</td><td class="desc">打开交互式插件管理器</td></tr>
+            <tr><td class="cmd">/version</td><td class="desc">显示 Kimi Code CLI 版本号</td></tr>
+            <tr><td class="cmd">/feedback</td><td class="desc">提交反馈，可附诊断日志与代码库上下文</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- TUI 快捷键 ---------- -->
+      <section class="group">
+        <h2 class="group-title">TUI 快捷键</h2>
+        <div class="tbl-wrap">
+          <table>
+            <tr><td class="cmd"><kbd>Enter</kbd></td><td class="desc">提交当前输入</td></tr>
+            <tr><td class="cmd"><kbd>Shift-Enter</kbd> / <kbd>Ctrl-J</kbd></td><td class="desc">在输入框中换行</td></tr>
+            <tr><td class="cmd"><kbd>Esc</kbd> / <kbd>Ctrl-C</kbd></td><td class="desc">中断当前流式输出或上下文压缩</td></tr>
+            <tr><td class="cmd"><kbd>Shift-Tab</kbd></td><td class="desc">开关 Plan 模式</td></tr>
+            <tr><td class="cmd"><kbd>!</kbd></td><td class="desc">在空输入框中按 ! 进入 shell 模式，直接运行终端命令</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl-S</kbd></td><td class="desc">Steer：把当前输入直接注入正在进行的回合</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl-O</kbd></td><td class="desc">展开或折叠工具输出与压缩摘要</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl-T</kbd></td><td class="desc">展开或收起被截断的 todo 列表</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl-G</kbd></td><td class="desc">在外部编辑器中编辑当前输入</td></tr>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- 桌面端快捷键 ---------- -->
+      <section class="group">
+        <h2 class="group-title">桌面端快捷键</h2>
+        <div class="tbl-wrap">
+          <table>
+            <tr><td class="cmd"><kbd>Ctrl+Shift+Space</kbd></td><td class="desc">显示 / 隐藏主窗口（全局热键，任意界面可用）</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl+Shift+S</kbd></td><td class="desc">打开会话启动器</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl+Shift+N</kbd></td><td class="desc">新建会话</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl+L</kbd></td><td class="desc">手动输入地址</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl+R</kbd></td><td class="desc">重新加载窗口</td></tr>
+            <tr><td class="cmd"><kbd>Ctrl+T</kbd></td><td class="desc">窗口置顶开关</td></tr>
+            <tr><td class="cmd"><kbd>F1</kbd></td><td class="desc">打开本帮助</td></tr>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

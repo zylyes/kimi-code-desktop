@@ -3,7 +3,7 @@
 > 调研来源：Kimi Code 官方文档（https://www.kimi.com/code/docs/kimi-code-cli/ ）10 个板块精读，
 > 覆盖 kimi 命令参考、会话管理、配置系统、平台与模型、扩展能力（Skills/插件/MCP/Hooks）、
 > 交互模式与权限、IDE/ACP 集成、Web UI、帮助中心最佳实践。
-> 调研日期：2026-07-21。本项目当前版本 v0.8.0：Electron 套壳，已实现 `kimi web` 进程管理 + 托盘 + 配置持久化 + 会话启动器 + 新手引导 + WS 事件订阅/原生通知/问答 + 图形化设置中心 + 会话归档/删除 + 认证引导 + Skills/Hooks 面板 + 模型切换 + 权限模式 + 维护面板 + 高级启动参数 + 令牌轮换 + 多实例管理面板 + 旧版迁移提示 + IDE 一键接入向导 + 自动更新/遥测开关。
+> 调研日期：2026-07-21。本项目当前版本 v0.9.0：Electron 套壳，已实现 `kimi web` 进程管理 + 托盘 + 配置持久化 + 会话启动器 + 新手引导 + WS 事件订阅/原生通知/问答 + 图形化设置中心 + 会话归档/删除 + 认证引导 + Skills/Hooks 面板 + 模型切换 + 权限模式 + 维护面板 + 高级启动参数 + 令牌轮换 + 多实例管理面板 + 旧版迁移提示 + IDE 一键接入向导 + 自动更新/遥测开关 + P2 精选（模板库/速查窗/敏感目录警告/调试模式/Markdown 导出/子 Agent 监视器/局域网访问/插件面板/高级 env 注入）。
 
 ## 状态图例
 
@@ -25,7 +25,8 @@
 | 阶段5 | ✅ v0.6.0 | 图形化设置中心（config.toml、权限规则、供应商、MCP） |
 | 阶段7 | ✅ v0.7.0 | P0 收尾（会话归档/删除、认证错误引导）+ 精选 P1（Skills/Hooks 面板、模型切换、权限模式、维护面板、启动参数） |
 | 阶段8 | ✅ v0.8.0 | P1 收尾（多实例管理面板、旧版迁移提示、IDE 一键接入向导、自动更新/遥测开关） |
-| 阶段6 | ⬜ 未实现 | ACP 原生 UI                                          |
+| 阶段9 | 🔶 v0.9.0 | P2 精选 11 项（模板库/速查窗/敏感目录警告/调试模式/Markdown 导出/子 Agent 监视器/局域网访问/插件面板/marketplace·临时模型·自建端点注入） |
+| 阶段6 | 🔶 调研完成 | ACP spike 握手成功（scripts/acp-probe.js + docs/acp-research.md）；原生聊天 UI ⬜ 未实现 |
 
 ---
 
@@ -124,20 +125,22 @@
 
 ## 3. 低价值 / 长期方向（P2）
 
-| 功能                             | 说明                                                                                                                                                                                                                                                                              |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 完全原生聊天 UI（去 WebView 化） | 两条协议路线：① REST+WS（`GET /openapi.json` + `GET /asyncapi.json` 自描述文档，`/api/v1/ws` 收发）；② ACP 客户端（spawn `kimi acp`，stdio JSON-RPC，`session/prompt` + `session/update` 流式推送，原生渲染审批弹窗）。ACP 路线更适合桌面端，但工程量大，建议分阶段 |
-| 局域网/手机访问模式              | `--host 0.0.0.0` + token 鉴权，展示二维码；明示**不要**叠加 `--dangerous-bypass-auth`（该 flag 会关闭全部鉴权，任何能访问端口的人可完全控制文件系统和 shell）                                                                                                           |
-| 子 Agent 任务监视器              | 解析会话目录`agents/<id>/wire.jsonl` 与 `tasks/` 渲染时间线侧栏                                                                                                                                                                                                               |
-| Markdown 导出会话                | `/export-md` 无非交互 CLI 等价物，需自行解析 `wire.jsonl` 渲染                                                                                                                                                                                                                |
-| 插件管理器                       | 读`$KIMI_CODE_HOME/plugins/managed/` + `installed.json` 展示；安装/启停需注入斜杠命令或待 REST 端点确认                                                                                                                                                                       |
-| 调试模式开关                     | `--log-level debug --debug-endpoints`，日志页展示 `/api/v1/debug/*`                                                                                                                                                                                                           |
-| 新手 prompt 模板库               | 帮助中心五大场景（新功能/修 bug/理解项目/自动化/通用任务）内置示例，一键复制                                                                                                                                                                                                      |
-| 敏感目录启动警告                 | 工作目录选在 home 根/.ssh 同级时弹安全提示（官方安全建议）                                                                                                                                                                                                                        |
-| 命令与快捷键速查帮助窗           | 内置静态清单页（斜杠命令 ~40 个 + 快捷键全表）                                                                                                                                                                                                                                    |
-| 自定义 marketplace 注入          | `KIMI_CODE_PLUGIN_MARKETPLACE_URL` env 注入                                                                                                                                                                                                                                     |
-| 临时模型快速测试                 | `KIMI_MODEL_*` 13 个环境变量在内存合成临时供应商，重启失效                                                                                                                                                                                                                      |
-| 自建端点支持                     | `KIMI_CODE_OAUTH_HOST` / `KIMI_CODE_BASE_URL` 高级设置                                                                                                                                                                                                                        |
+> 🔶 **v0.9.0 已实现 11 项**（代码完成于工作区，待提交/发布），仅「完全原生聊天 UI」随阶段6 推进。
+
+| 功能 | 状态 | 说明 |
+| --- | --- | --- |
+| 完全原生聊天 UI（去 WebView 化） | ⬜ 未实现（调研完成） | ACP spike 已握手成功（docs/acp-research.md）；原生聊天窗口按 v0.10.0 只读原型 → 审批弹窗 → 渐进替代分阶段推进 |
+| 局域网/手机访问模式 | 🔶 v0.9.0 | 会话菜单「局域网访问…」：一键 `host=0.0.0.0` 重启；展示各网卡 URL + 二维码；安全警示明示**不要**叠加 `--dangerous-bypass-auth` |
+| 子 Agent 任务监视器 | 🔶 v0.9.0 | 解析 `agents/<id>/wire.jsonl` 与 `tasks/`，会话启动器详情面板「任务监视」开窗渲染时间线 |
+| Markdown 导出会话 | 🔶 v0.9.0 | 会话启动器「导出 Markdown」：解析 wire.jsonl 渲染 .md（官方 `/export-md` 无非交互等价物，自行实现） |
+| 插件管理器 | 🔶 v0.9.0 | 设置中心「插件」页：扫描 `plugins/managed/` + installed.json 三形态自适应；可定位条目时启停写回，否则标注用 `/plugins` 命令 |
+| 调试模式开关 | 🔶 v0.9.0 | 环境页 debugMode → `--log-level debug --debug-endpoints`；`debug:fetchEndpoints` 抓 `/api/v1/debug/` |
+| 新手 prompt 模板库 | 🔶 v0.9.0 | 帮助菜单「Prompt 模板库…」：五大场景 15 条示例一键复制 |
+| 敏感目录启动警告 | 🔶 v0.9.0 | 新建会话 workDir 为 home 根/盘符根/含 .ssh/.gnupg/KIMI_CODE_HOME 时弹警告确认 |
+| 命令与快捷键速查帮助窗 | 🔶 v0.9.0 | 帮助菜单「命令与快捷键速查…」（F1）：斜杠命令 + TUI 快捷键 + 桌面端快捷键 |
+| 自定义 marketplace 注入 | 🔶 v0.9.0 | 环境页 pluginMarketplaceUrl → `KIMI_CODE_PLUGIN_MARKETPLACE_URL` |
+| 临时模型快速测试 | 🔶 v0.9.0 | 环境页「临时模型」分组 → `KIMI_MODEL_*` 进程级注入（官方文档实收 11 变量，GUI 覆盖核心 8 个） |
+| 自建端点支持 | 🔶 v0.9.0 | 环境页 oauthHost/selfHostedBaseUrl → `KIMI_CODE_OAUTH_HOST`/`KIMI_CODE_BASE_URL` |
 
 ---
 
@@ -150,7 +153,8 @@
 **阶段 5（设置中心，3-5 天）**：config.toml 图形化 + 权限规则编辑器 + 供应商管理器 + MCP 配置 GUI → ✅ **v0.6.0 已发布**（Skills/Hooks 面板拆分至后续版本）
 **阶段 7（管理增强，2-4 天）**：P0 收尾（会话归档/删除管理器 + 认证错误 FAQ 引导）+ 精选 P1（Skills 面板、Hooks 编辑器、模型切换、新会话权限模式、维护面板含升级/数据目录/诊断打包、高级启动参数、令牌轮换）→ ✅ **v0.7.0 已实现**
 **阶段 8（P1 收尾，2-3 天）**：多实例管理面板 + 旧版 kimi-cli 迁移提示 + IDE 一键接入向导 + 自动更新/遥测开关 → ✅ **v0.8.0 已实现**
-**阶段 6（长期）**：ACP 客户端原生 UI，渐进替代 WebView
+**阶段 9（P2 精选，2-3 天）**：prompt 模板库 + 命令速查窗 + 敏感目录警告 + 调试模式 + Markdown 导出 + 子 Agent 监视器 + 局域网访问 + 插件面板 + marketplace/临时模型/自建端点注入 → 🔶 **v0.9.0 已实现（工作区）**
+**阶段 6（长期）**：ACP 客户端原生 UI，渐进替代 WebView → 🔶 **调研完成**（acp-probe 握手成功，docs/acp-research.md），原生窗口按 v0.10.0 只读原型起步
 
 ### 阶段 4 实现分项详情
 
@@ -166,7 +170,7 @@
 | 复杂问答原生输入      | ✅ 已发布      | 多题多选、自定义输入的原生界面                                                                                                                                                                                                                                                                                                    |
 | WS 端到端验证         | 🔶 mock 已验证 | mock 全场景通过：client_hello 握手/订阅、用量（12.3k tokens·上下文 35%）、任务 started/progress/completed 计数归零、审批计数、单题/多选/多题问答开窗、answered 释放与 dismiss 关窗、答案提交契约（answers map + method:'click'，多选与多题含 GUI 真实提交落盘）；聚焦回退分支已补日志。真实服务端人工核对待做（见 §5 第 12 条） |
 
-> **注意**：package.json 当前版本 0.8.0。阶段1—5、阶段7 与阶段8（v0.2.0 → v0.8.0）均已完成。阶段6（ACP 原生 UI）与 P2 中未标注完成的项目仍未实现。
+> **注意**：package.json 当前版本 0.9.0。阶段1—5、阶段7—9（v0.2.0 → v0.9.0）均已完成；阶段6 完成 ACP 调研，原生聊天 UI 仍未实现。
 
 ---
 
@@ -211,10 +215,20 @@
     5. 维护页「自动安装更新」开关 → 核对 tui.toml `[upgrade].auto_install` 写入且 doctor 校验通过；
     6. 环境页勾选两个强制开关保存 → 核对子进程 env 含 `KIMI_CODE_NO_AUTO_UPDATE=1`/`KIMI_DISABLE_TELEMETRY=1` 且服务自动重启；
     7. 构造假 `~/.kimi`（含 bin/）→ 核对迁移提示弹出、「不再提示」持久去重且保存设置后不复现。
+15. v0.9.0 真实服务核对清单（单元测试已过，真实环境待核）：
+    1. 帮助菜单「Prompt 模板库…」「命令与快捷键速查…」（F1）→ 核对窗口打开、复制按钮写入剪贴板；
+    2. 会话启动器详情「导出 Markdown」→ 核对保存的 .md 含完整对话轮次与工具调用摘要，损坏行/旧格式会话给出明确错误而非崩溃；
+    3. 详情「任务监视」→ 核对含子 Agent 的会话卡片时间线、tasks 区、刷新按钮；
+    4. 新建会话选择 home 根目录 → 核对敏感目录警告弹出且取消后中止创建；
+    5. 环境页勾选「调试模式」保存重启 → 核对 CLI 以 `--log-level debug --debug-endpoints` 启动、维护相关入口可抓到 `/api/v1/debug/` 响应；
+    6. 会话菜单「局域网访问…」→ 一键开启后核对服务监听 0.0.0.0、二维码与 URL 可被手机扫码连通（token 生效）；
+    7. 环境页填临时模型（name+apiKey）保存重启 → 核对 `KIMI_MODEL_*` 注入且新会话默认走临时供应商；
+    8. 设置中心「插件」页 → 与真实 `plugins/managed/` + installed.json 对账，启停切换后 `/plugins list` 状态一致；
+    9. 填 pluginMarketplaceUrl/oauthHost/selfHostedBaseUrl → 核对子进程 env 注入（`KIMI_CODE_PLUGIN_MARKETPLACE_URL` 等）。
 
 ---
 
-## 6. 完成情况总览（截至 v0.8.0，2026-07-22）
+## 6. 完成情况总览（截至 v0.9.0，2026-07-22）
 
 ### ✅ 已完成（42 项）
 
@@ -228,6 +242,12 @@
 | v0.7.0 | 会话归档/删除管理器（能力自适应）、认证错误 FAQ 引导、Skills 面板、Hooks 编辑器、模型切换下拉、新会话权限模式、维护面板（检查更新/一键升级/数据目录清理/诊断打包）、高级启动参数（端口/host/日志级别/KIMI_CODE_HOME）、令牌轮换 |
 | v0.8.0 | 多实例管理面板、旧版 kimi-cli 迁移提示、IDE 一键接入向导、自动更新/遥测开关                  |
 
+### 🔶 工作区已实现（v0.9.0，11 项，待提交/发布）
+
+| 版本   | 功能                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| v0.9.0 | prompt 模板库、命令与快捷键速查窗（F1）、敏感目录启动警告、调试模式开关（debug-endpoints）、Markdown 导出会话、子 Agent 任务监视器、局域网/手机访问模式（二维码）、插件管理面板、自定义 marketplace 注入、临时模型快速测试（KIMI_MODEL_*）、自建端点支持 |
+
 ### 🔲 部分实现（2 项）
 
 | 功能          | 已完成                                                     | 未完成                  |
@@ -235,9 +255,9 @@
 | 外部链接接管  | http(s)/mailto/tel/vscode/cursor/windsurf/zed 等编辑器协议 | 自定义 Open-in 协议接管 |
 | WS 端到端验证 | mock 服务器全场景自动验证通过                              | 真实服务端人工核对待做  |
 
-### ⬜ 未实现（P2 / 长期方向，12 项）
+### ⬜ 未实现（长期方向，1 项）
 
-完全原生聊天 UI、局域网访问模式、子 Agent 任务监视器、Markdown 导出、插件管理器、调试模式开关、新手 prompt 模板库、敏感目录警告、快捷键速查帮助窗、自定义 marketplace 注入、临时模型快速测试、自建端点支持。
+完全原生聊天 UI（阶段6：ACP 调研已完成，见 §7；原生窗口按 v0.10.0 只读原型 → 审批弹窗 → 渐进替代推进）。
 
 ### 统计
 
@@ -245,5 +265,17 @@
 | -------------- | ------------ | ----------- | ------------ |
 | P0 高价值      | 26           | 2           | 0            |
 | P1 中价值      | 16           | 0           | 0            |
-| P2 低价值/长期 | 0            | 0           | 12           |
-| **合计** | **42** | **2** | **12** |
+| P2 低价值/长期 | 11（🔶 待发布） | 0        | 1            |
+| **合计** | **53** | **2** | **1** |
+
+---
+
+## 7. ACP 调研结论（阶段6 前置，2026-07-22）
+
+> 探测脚本 `scripts/acp-probe.js`（纯 Node，双分帧自动探测），实测日志 `docs/acp-probe-output.txt`，完整报告 `docs/acp-research.md`。本机 CLI 0.27.0 实测。
+
+**实测结果**：`kimi acp` 以 **ndjson 分帧**首发握手成功（initialize 往返 612ms，LSP 回退未触发）；`initialize → session/new → session/prompt` 全链路走通，`stopReason: end_turn`，stdout 全程无脏输出，可当纯协议通道。initialize 能力含 `sessionCapabilities.{list,resume}`（会话启动器可直接受益）与 `loadSession:true`；`session/new` 返回模型/thinking/权限模式三件套 `configOptions`；session/update 实测事件：`available_commands_update`、`agent_thought_chunk`（极碎，UI 需节流合并）、`agent_message_chunk`。
+
+**未验证项**：`session/request_permission` 与 `tool_call` 字段级形态（本次纯文本 prompt 未触发工具）、`session/set_config_option` 写入侧、客户端 `fs/terminal:true` 承接、Content-Length 回退路径。第二次探测用「创建文件」类 prompt 复跑即可覆盖审批形态。
+
+**路线建议**（详见 docs/acp-research.md §3）：v0.10.0 只读原型窗口（3-5 天）→ v0.11.0 审批弹窗原生化（2-3 天）→ v0.12.0+ 渐进替代 WebView（5-8 天）。ACP 相对 REST+WS 的核心价值：审批/问答作为 server→client 请求天然带响应通道，桌面端可实现真正的原生审批回复（当前 WS 路线仅通知不含回复）。

@@ -1,0 +1,647 @@
+[+000000ms] ### ACP 探测开始
+[+000001ms] ### Node v24.16.0, platform=win32, arch=x64
+[+000001ms] ### 探测 CLI 候选路径: C:\Users\zyl\.kimi-code\bin\kimi.exe -> 存在
+[+000002ms] ### 选定 CLI: C:\Users\zyl\.kimi-code\bin\kimi.exe
+[+000002ms] ### session/new 工作目录(临时): C:\Users\zyl\AppData\Local\Temp\acp-probe-xEp2aV
+[+000003ms] ### 以 ndjson 分帧启动子进程: C:\Users\zyl\.kimi-code\bin\kimi.exe acp
+[+000045ms] ### 子进程已 spawn, pid=11312
+[+000045ms] >>> initialize [ndjson] {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false}}}
+[+000657ms] <<< initialize 响应 (id=1, 往返 612ms)
+[+000662ms] <<< initialize 完整响应:
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": 1,
+    "agentCapabilities": {
+      "loadSession": true,
+      "promptCapabilities": {
+        "image": true,
+        "audio": false,
+        "embeddedContext": true
+      },
+      "mcpCapabilities": {
+        "http": true,
+        "sse": true
+      },
+      "sessionCapabilities": {
+        "list": {},
+        "resume": {}
+      }
+    },
+    "authMethods": [
+      {
+        "id": "login",
+        "type": "terminal",
+        "name": "Login with Kimi account",
+        "description": "Open the device-code login flow in a terminal.",
+        "args": [
+          "--login"
+        ],
+        "env": {},
+        "_meta": {
+          "terminal-auth": {
+            "type": "terminal",
+            "label": "Login with Kimi account",
+            "command": "C:\\Users\\zyl\\.kimi-code\\bin\\kimi.exe",
+            "args": [
+              "login"
+            ],
+            "env": {}
+          }
+        }
+      }
+    ],
+    "agentInfo": {
+      "name": "Kimi Code CLI",
+      "version": "0.27.0"
+    }
+  }
+}
+[+000662ms] >>> session/new [ndjson] {"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"C:\\Users\\zyl\\AppData\\Local\\Temp\\acp-probe-xEp2aV","mcpServers":[]}}
+[+001039ms] <<< session/new 响应 (id=2, 往返 377ms)
+[+001040ms] <<< session/new 完整响应:
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "sessionId": "session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6",
+    "configOptions": [
+      {
+        "type": "select",
+        "id": "model",
+        "name": "Model",
+        "category": "model",
+        "currentValue": "kimi-code/k3",
+        "options": [
+          {
+            "value": "kimi-code/kimi-for-coding",
+            "name": "K2.7 Coding"
+          },
+          {
+            "value": "kimi-code/kimi-for-coding-highspeed",
+            "name": "K2.7 Coding Highspeed"
+          },
+          {
+            "value": "kimi-code/k3",
+            "name": "K3"
+          }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "thinking",
+        "name": "Thinking",
+        "category": "thought_level",
+        "currentValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "name": "Thinking On"
+          }
+        ]
+      },
+      {
+        "type": "select",
+        "id": "mode",
+        "name": "Mode",
+        "category": "mode",
+        "currentValue": "default",
+        "options": [
+          {
+            "value": "default",
+            "name": "Default",
+            "description": "Manual approvals; tools execute normally."
+          },
+          {
+            "value": "plan",
+            "name": "Plan",
+            "description": "Read-only planning; no tool execution."
+          },
+          {
+            "value": "auto",
+            "name": "Auto",
+            "description": "Auto-approve safe operations."
+          },
+          {
+            "value": "yolo",
+            "name": "YOLO",
+            "description": "Auto-approve everything."
+          }
+        ]
+      }
+    ]
+  }
+}
+[+001040ms] >>> session/prompt [ndjson] {"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","prompt":[{"type":"text","text":"Reply with exactly: ACP-PROBE-OK"}]}}
+[+001071ms] <<< 通知 session/update:available_commands_update {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"compact","description":"Compact the conversation context","input":{"hint":"<optional custom summarization instructions>"}},{"name":"status","description":"Show current session status"},{"name":"usage","description":"Show session token usage"},{"name":"mcp","description":"Show MCP server status"},{"name":"tasks","description":"List background tasks"},{"na…(共2606字符)
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"The"}}}
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user"}}}
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" asking"}}}
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" me"}}}
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" to"}}}
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+007609ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+007610ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exactly"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"ACP"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"PROBE"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"OK"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\"."}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" This"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" appears"}}}
+[+008026ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" to"}}}
+[+008275ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" be"}}}
+[+008275ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+008275ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+008291ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" test"}}}
+[+008291ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" message"}}}
+[+008291ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+008291ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" However"}}}
+[+008291ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+008291ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" plan"}}}
+[+008291ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+008481ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+008481ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" active"}}}
+[+008481ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" and"}}}
+[+008481ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+008481ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" system"}}}
+[+008481ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reminder"}}}
+[+008494ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" says"}}}
+[+008494ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" my"}}}
+[+008494ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" turn"}}}
+[+008494ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" must"}}}
+[+008831ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" end"}}}
+[+008831ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+008831ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" either"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Ask"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"User"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Question"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" or"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Exit"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Plan"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Mode"}}}
+[+008832ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+009043ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"But"}}}
+[+009043ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+009044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user's"}}}
+[+009051ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" request"}}}
+[+009052ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+009052ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" trivial"}}}
+[+009052ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" -"}}}
+[+009052ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" just"}}}
+[+009052ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+009052ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+009391ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exact"}}}
+[+009391ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" text"}}}
+[+009395ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+009395ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" This"}}}
+[+009395ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" isn't"}}}
+[+009395ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+009407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" task"}}}
+[+009407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" that"}}}
+[+009407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" requires"}}}
+[+009407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" planning"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" system"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reminder"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" says"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" I"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" must"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" end"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+009629ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Ask"}}}
+[+009962ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"User"}}}
+[+009962ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Question"}}}
+[+009962ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" or"}}}
+[+009963ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Exit"}}}
+[+009963ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Plan"}}}
+[+009963ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Mode"}}}
+[+009979ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+009979ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" but"}}}
+[+009979ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" this"}}}
+[+009979ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+010249ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+010249ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" simple"}}}
+[+010249ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" text"}}}
+[+010249ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+010251ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" request"}}}
+[+010251ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+010256ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"The"}}}
+[+010256ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" instruction"}}}
+[+010256ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" says"}}}
+[+010256ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+010494ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Reply"}}}
+[+010494ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exactly"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":":"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" A"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"CP"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"PROBE"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+010502ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"OK"}}}
+[+010516ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\"."}}}
+[+010808ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+010808ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user"}}}
+[+010808ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" wants"}}}
+[+010808ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+010808ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" specific"}}}
+[+010811ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exact"}}}
+[+010811ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" response"}}}
+[+010811ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+010811ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Plan"}}}
+[+010811ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+011313ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" restricts"}}}
+[+011313ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" edits"}}}
+[+011313ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" and"}}}
+[+011313ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" system"}}}
+[+011313ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" changes"}}}
+[+011319ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+011319ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" but"}}}
+[+011319ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+011319ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" text"}}}
+[+011319ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+011565ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" isn't"}}}
+[+011565ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" an"}}}
+[+011565ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" edit"}}}
+[+011566ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+011571ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"There's"}}}
+[+011571ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" tension"}}}
+[+011571ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" here"}}}
+[+011571ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+011571ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+011571ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" plan"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reminder"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" says"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" my"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" turn"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" must"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" end"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Ask"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"User"}}}
+[+011865ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Question"}}}
+[+011874ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" or"}}}
+[+012173ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Exit"}}}
+[+012173ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Plan"}}}
+[+012173ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Mode"}}}
+[+012173ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+012173ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" But"}}}
+[+012173ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+012173ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user's"}}}
+[+012182ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" request"}}}
+[+012182ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+012182ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+012400ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" simple"}}}
+[+012400ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+012404ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+012404ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" If"}}}
+[+012404ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" I"}}}
+[+012404ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" write"}}}
+[+012414ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+012414ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" plan"}}}
+[+012414ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" and"}}}
+[+012414ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exit"}}}
+[+012740ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" plan"}}}
+[+012740ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+012740ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+012740ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" that"}}}
+[+012742ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" would"}}}
+[+012743ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" be"}}}
+[+012743ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" weird"}}}
+[+012754ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" for"}}}
+[+012754ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" this"}}}
+[+012754ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" trivial"}}}
+[+013203ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" request"}}}
+[+013203ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+013203ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Actually"}}}
+[+013203ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+013220ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+013220ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user's"}}}
+[+013220ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" explicit"}}}
+[+013220ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" request"}}}
+[+013220ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" takes"}}}
+[+013220ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" precedence"}}}
+[+013475ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" -"}}}
+[+013477ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" they"}}}
+[+013477ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" want"}}}
+[+013477ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" an"}}}
+[+013477ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exact"}}}
+[+013482ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+013482ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+013482ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"ACP"}}}
+[+013482ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+013482ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"PROBE"}}}
+[+013498ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+013498ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"OK"}}}
+[+013498ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\"."}}}
+[+013763ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" This"}}}
+[+013763ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+013764ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" clearly"}}}
+[+013764ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+013764ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" connectivity"}}}
+[+013775ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+013775ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+013775ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+013775ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" plan"}}}
+[+013775ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+013970ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" workflow"}}}
+[+013970ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" doesn't"}}}
+[+013970ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" apply"}}}
+[+013970ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" meaning"}}}
+[+013973ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"fully"}}}
+[+013973ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" to"}}}
+[+013973ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+013977ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+013977ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"reply"}}}
+[+013977ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+014262ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exact"}}}
+[+014263ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" text"}}}
+[+014263ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\""}}}
+[+014263ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" request"}}}
+[+014267ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+014267ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Hmm"}}}
+[+014267ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+014267ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" but"}}}
+[+014267ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+014267ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" system"}}}
+[+014447ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-rem"}}}
+[+014447ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"inder"}}}
+[+014447ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+014449ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" authoritative"}}}
+[+014449ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":":"}}}
+[+014449ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+014449ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"This"}}}
+[+014452ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" sup"}}}
+[+014452ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"ersed"}}}
+[+014452ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"es"}}}
+[+014452ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" any"}}}
+[+014971ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" other"}}}
+[+014971ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" instructions"}}}
+[+014971ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" you"}}}
+[+014971ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" have"}}}
+[+014971ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" received"}}}
+[+014971ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\""}}}
+[+014980ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" It"}}}
+[+014980ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" says"}}}
+[+014980ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" my"}}}
+[+014980ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" turn"}}}
+[+015153ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" must"}}}
+[+015154ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" end"}}}
+[+015154ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" either"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Ask"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"User"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Question"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" or"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Exit"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Plan"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Mode"}}}
+[+015161ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+015604ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"But"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" asked"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" to"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exactly"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+015605ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" certain"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" string"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" If"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" I"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" add"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" plan"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" stuff"}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+015867ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" I'm"}}}
+[+016353ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" not"}}}
+[+016353ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" rep"}}}
+[+016356ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"lying"}}}
+[+016356ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+016356ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exactly"}}}
+[+016365ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" that"}}}
+[+016365ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+016365ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+016365ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user's"}}}
+[+016365ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" instruction"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" explicit"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" and"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" direct"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"I"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" think"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" right"}}}
+[+016690ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" move"}}}
+[+016897ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":":"}}}
+[+016897ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+016897ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user's"}}}
+[+016901ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" request"}}}
+[+016901ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+016901ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+016901ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" trivial"}}}
+[+016906ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+016907ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" that"}}}
+[+016907ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" requires"}}}
+[+017535ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" no"}}}
+[+017535ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" planning"}}}
+[+017536ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+017536ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Plan"}}}
+[+017536ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+017536ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" restrictions"}}}
+[+017536ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" are"}}}
+[+017536ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" about"}}}
+[+017542ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" edits"}}}
+[+017542ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"/ch"}}}
+[+017542ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"anges"}}}
+[+017542ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+017784ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" A"}}}
+[+017784ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" text"}}}
+[+017787ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+017787ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+017787ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" fine"}}}
+[+017790ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+017790ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+017790ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+017790ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"must"}}}
+[+017790ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" end"}}}
+[+018016ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+018016ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Ask"}}}
+[+018016ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"User"}}}
+[+018024ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Question"}}}
+[+018024ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" or"}}}
+[+018024ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Exit"}}}
+[+018024ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Plan"}}}
+[+018024ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Mode"}}}
+[+018024ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\""}}}
+[+018024ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+018311ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+018311ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" workflow"}}}
+[+018311ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" directive"}}}
+[+018316ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+018316ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" but"}}}
+[+018316ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+018316ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user's"}}}
+[+018316ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" direct"}}}
+[+018316ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" instruction"}}}
+[+018316ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" to"}}}
+[+018529ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" reply"}}}
+[+018529ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+018529ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exactly"}}}
+[+018530ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+018530ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"ACP"}}}
+[+018530ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+018530ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"PROBE"}}}
+[+018530ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+018530ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"OK"}}}
+[+018530ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\""}}}
+[+018551ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" should"}}}
+[+018862ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" take"}}}
+[+018863ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" precedence"}}}
+[+018863ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" for"}}}
+[+018873ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" this"}}}
+[+018873ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+018873ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" —"}}}
+[+018873ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" this"}}}
+[+018873ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+018873ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" likely"}}}
+[+018873ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" a"}}}
+[+019039ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" test"}}}
+[+019040ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" of"}}}
+[+019040ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+019044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" A"}}}
+[+019044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"CP"}}}
+[+019044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" connection"}}}
+[+019044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" itself"}}}
+[+019044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+019044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Actually"}}}
+[+019044ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+019328ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" let"}}}
+[+019328ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" me"}}}
+[+019328ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" think"}}}
+[+019340ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" again"}}}
+[+019340ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+019340ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+019340ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" working"}}}
+[+019340ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" directory"}}}
+[+019340ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+019340ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+019669ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"ac"}}}
+[+019669ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"p"}}}
+[+019669ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-pro"}}}
+[+019673ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"be"}}}
+[+019673ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-x"}}}
+[+019673ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Ep"}}}
+[+019673ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"2"}}}
+[+019673ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"a"}}}
+[+019673ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"V"}}}
+[+019682ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\""}}}
+[+019682ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" -"}}}
+[+020032ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" this"}}}
+[+020032ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+020032ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" clearly"}}}
+[+020036ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" an"}}}
+[+020036ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" automated"}}}
+[+020036ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+020036ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" testing"}}}
+[+020036ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+020038ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" A"}}}
+[+020038ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"CP"}}}
+[+020038ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" ("}}}
+[+020208ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Agent"}}}
+[+020208ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Client"}}}
+[+020208ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" Protocol"}}}
+[+020208ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":")"}}}
+[+020213ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" connection"}}}
+[+020213ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+020213ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" The"}}}
+[+020213ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+020213ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" expects"}}}
+[+020224ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exactly"}}}
+[+020506ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+020506ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"ACP"}}}
+[+020506ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+020506ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"PROBE"}}}
+[+020506ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+020507ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"OK"}}}
+[+020507ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\""}}}
+[+020507ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" as"}}}
+[+020507ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+020507ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" response"}}}
+[+020840ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+020840ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" If"}}}
+[+020840ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" I"}}}
+[+020840ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" do"}}}
+[+020840ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" plan"}}}
+[+020844ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" mode"}}}
+[+020845ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" workflow"}}}
+[+020845ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":","}}}
+[+020860ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" the"}}}
+[+020860ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" probe"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" fails"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":".\n\n"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"The"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" user's"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" instruction"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" is"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" explicit"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":":"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" \""}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Reply"}}}
+[+021185ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" with"}}}
+[+021406ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" exactly"}}}
+[+021407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":":"}}}
+[+021407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" A"}}}
+[+021407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"CP"}}}
+[+021407ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+021409ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"PROBE"}}}
+[+021409ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"-"}}}
+[+021409ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"OK"}}}
+[+021418ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"\"."}}}
+[+021418ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" I'll"}}}
+[+021899ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" do"}}}
+[+021899ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":" that"}}}
+[+021899ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"."}}}
+[+021900ms] <<< 通知 session/update:agent_thought_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":""}}}
+[+021903ms] <<< 通知 session/update:agent_message_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"ACP"}}}
+[+021903ms] <<< 通知 session/update:agent_message_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"-"}}}
+[+021911ms] <<< 通知 session/update:agent_message_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"PROBE"}}}
+[+021912ms] <<< 通知 session/update:agent_message_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"-"}}}
+[+021912ms] <<< 通知 session/update:agent_message_chunk {"sessionId":"session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"OK"}}}
+[+021912ms] <<< session/prompt 响应 (id=3, 往返 20872ms)
+[+021912ms] <<< session/prompt 完整响应:
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "stopReason": "end_turn"
+  }
+}
+[+024913ms] ### kill 子进程 pid=11312（探测结束）
+[+024914ms] ### ---------- 探测摘要 ----------
+[+024914ms] ### 分帧方式: ndjson（ndjson 首发，20s 无响应则重启试 lsp）
+[+024914ms] ### initialize 握手: 成功
+[+024914ms] ### sessionId: session_f609fff8-11ab-489e-b3db-ba7a3bfd33c6
+[+024914ms] ### prompt stopReason: end_turn
+[+024914ms] ### 通知统计: 
+[+024914ms] ###   session/update:available_commands_update: 1 条
+[+024914ms] ###   session/update:agent_thought_chunk: 479 条
+[+024914ms] ###   session/update:agent_message_chunk: 5 条
+[+024915ms] ### request_permission 请求: 0 次（均已回 cancelled）
+[+024915ms] ### 其它 server→client 请求: (无)
+[+024915ms] ### 无法解析的原始输出: 0 段
+[+024915ms] ### agent 文本拼接: ACP-PROBE-OK
+[+024915ms] ### 探针口令 ACP-PROBE-OK 回显: 是
+[+024915ms] ### 退出码 0
+[+024944ms] ### 子进程退出: code=null signal=SIGTERM

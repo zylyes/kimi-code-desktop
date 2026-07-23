@@ -467,6 +467,8 @@
           <button class="btn primary" id="resumeBtn" type="button" aria-label="恢复此会话" title="恢复此会话，继续之前的对话">恢复会话</button>
           <button class="btn" id="exportBtn" type="button" aria-label="导出此会话为 ZIP 压缩包" title="导出此会话为 ZIP 压缩包">导出 ZIP</button>
           <button class="btn" id="visBtn" type="button" aria-label="打开此会话的可视化视图" title="在新窗口中打开此会话的可视化视图">打开可视化</button>
+          <button class="btn" id="exportMdBtn" type="button" aria-label="导出此会话为 Markdown 文件" title="解析会话记录并导出为 Markdown 文件">导出 Markdown</button>
+          <button class="btn" id="monitorBtn" type="button" aria-label="打开此会话的子 Agent 任务监视器" title="在新窗口中查看子 Agent 活动与后台任务">任务监视</button>
           <button class="btn" id="archiveBtn" type="button" aria-label="归档此会话" title="归档此会话（服务端支持时可用）">归档</button>
           <button class="btn danger" id="deleteBtn" type="button" aria-label="删除此会话" title="永久删除此会话（服务端支持时可用）">删除</button>
         </div>
@@ -490,6 +492,8 @@
     const resumeBtn = $('resumeBtn');
     const exportBtn = $('exportBtn');
     const visBtn = $('visBtn');
+    const exportMdBtn = $('exportMdBtn');
+    const monitorBtn = $('monitorBtn');
     const archiveBtn = $('archiveBtn');
     const deleteBtn = $('deleteBtn');
     // 服务端能力（archive/delete 不支持时保持禁用）
@@ -515,6 +519,7 @@
         id: String(s.id || s.sessionId || s.session_id || ''),
         title: s.title || s.name || '',
         workDir: s.workDir || s.work_dir || s.cwd || '',
+        sessionDir: s.sessionDir || s.session_dir || '',
         lastPrompt: s.lastPrompt || s.last_prompt || '',
         updatedAt: s.updatedAt || s.updated_at || s.lastActiveAt || s.last_active_at || s.mtime || null,
         status: String(s.status || s.state || '').toLowerCase(),
@@ -700,6 +705,8 @@
       resumeBtn.disabled = !on;
       exportBtn.disabled = !on;
       visBtn.disabled = !on;
+      exportMdBtn.disabled = !on;
+      monitorBtn.disabled = !on;
       archiveBtn.disabled = !on || !caps.archive;
       deleteBtn.disabled = !on || !caps.delete;
     }
@@ -739,6 +746,60 @@
       runAction(exportBtn, '正在导出…', (id) => api.exportSession(id), '导出完成，ZIP 已保存。'));
     visBtn.addEventListener('click', () =>
       runAction(visBtn, '正在打开…', (id) => api.visualiseSession(id), '可视化视图已打开。'));
+
+    /* ---------- 导出 Markdown：成功显示路径与消息数，用户取消保持静默 ---------- */
+    exportMdBtn.addEventListener('click', async () => {
+      if (!selectedId || !api) return;
+      if (typeof api.exportMarkdown !== 'function') {
+        report('err', '当前桥接版本不支持 Markdown 导出。');
+        return;
+      }
+      const original = exportMdBtn.textContent;
+      setActionsEnabled(false);
+      exportMdBtn.textContent = '';
+      const sp = document.createElement('span');
+      sp.className = 'spinner';
+      sp.setAttribute('aria-hidden', 'true');
+      exportMdBtn.appendChild(sp);
+      exportMdBtn.appendChild(document.createTextNode('正在导出…'));
+      report('', '');
+      try {
+        const r = await api.exportMarkdown(selectedId);
+        if (r && r.ok) {
+          report('ok', '已导出 ' + (r.messageCount != null ? r.messageCount : 0) + ' 条消息：' + (r.path || ''));
+        } else if (r && r.cancelled) {
+          report('', ''); // 用户在保存对话框中取消，不打扰
+        } else {
+          report('err', '导出失败：' + ((r && r.message) || '未知错误'));
+        }
+      } catch (e) {
+        report('err', '导出失败：' + ((e && e.message) || e || '未知错误'));
+      } finally {
+        exportMdBtn.textContent = original;
+        setActionsEnabled(true);
+      }
+    });
+
+    /* ---------- 任务监视：主进程据 sessionDir 新开监视器窗口 ---------- */
+    monitorBtn.addEventListener('click', async () => {
+      if (!selectedId || !api) return;
+      if (typeof api.openAgentsMonitor !== 'function') {
+        report('err', '当前桥接版本不支持任务监视器。');
+        return;
+      }
+      const s = sessions.find((x) => x.id === selectedId);
+      if (!s || !s.sessionDir) {
+        report('err', '无法打开任务监视器：该会话缺少 sessionDir 信息。');
+        return;
+      }
+      try {
+        const r = await api.openAgentsMonitor(s.sessionDir, s.title || '未命名会话');
+        if (r && r.ok === false) throw new Error(r.message || '打开未完成');
+        report('ok', '任务监视器已打开。');
+      } catch (e) {
+        report('err', '打开任务监视器失败：' + ((e && e.message) || e || '未知错误'));
+      }
+    });
 
     archiveBtn.addEventListener('click', () => {
       const s = sessions.find((x) => x.id === selectedId);

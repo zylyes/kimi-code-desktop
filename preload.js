@@ -75,4 +75,15 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   ideDetect: () => ipcRenderer.invoke('ide:detect'),
   ideApplyZed: () => ipcRenderer.invoke('ide:applyZed'),
   ideGetSnippet: (editor) => ipcRenderer.invoke('ide:getSnippet', editor),
+  // 会话导出与子 Agent 监视 API
+  exportMarkdown: (id) => ipcRenderer.invoke('session:exportMarkdown', id),
+  scanSubagents: (dir) => ipcRenderer.invoke('session:scanSubagents', dir),
+  openAgentsMonitor: (sessionDir, title) => ipcRenderer.invoke('app:openAgentsMonitor', { sessionDir, title }),
+  // 插件管理 API
+  pluginsList: () => ipcRenderer.invoke('plugins:list'),
+  pluginsSetEnabled: (id, enabled) => ipcRenderer.invoke('plugins:setEnabled', id, enabled),
+  // 调试与局域网 API
+  debugFetch: () => ipcRenderer.invoke('debug:fetchEndpoints'),
+  lanInfo: () => ipcRenderer.invoke('system:lanInfo'),
+  lanEnable: () => ipcRenderer.invoke('system:lanEnable'),
 });

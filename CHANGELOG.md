@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.9.0] - 2026-07-23
+
+### 新功能
+
+- **新手 prompt 模板库**：帮助菜单新增「Prompt 模板库…」，按帮助中心五大场景（实现新功能/修复 bug/理解项目/自动化/通用任务）内置 15 条工程实践示例 prompt，一键复制（clipboard API + execCommand 回退）。
+- **命令与快捷键速查**：帮助菜单新增「命令与快捷键速查…」（F1），内置斜杠命令六组分类表 + TUI 快捷键 + 桌面端快捷键清单，内容已核对官方文档。
+- **敏感目录启动警告**：会话启动器新建会话时，工作目录为 home 根/盘符根/含 `.ssh`/`.gnupg`/等于 KIMI_CODE_HOME 的，先弹警告对话框（继续/取消）。
+- **调试模式开关**：环境页「高级」新增 debugMode，启用后新版 CLI 以 `--log-level debug --debug-endpoints` 启动（覆盖 logLevel，旧版忽略并记日志）；新增 `debug:fetchEndpoints` IPC 抓取 `/api/v1/debug/`。
+- **Markdown 导出会话**：会话启动器详情面板新增「导出 Markdown」，只读解析 `agents/main/wire.jsonl`（损坏行跳过、think 部件排除、无 append_message 时回退 turn.prompt），保存对话框写出 .md。
+- **子 Agent 任务监视器**：详情面板新增「任务监视」，新窗口按时间线渲染 `agents/*/wire.jsonl` 各 Agent 卡片（消息/事件数、起止时间、事件类型 chips）与 `tasks/` 后台任务，支持手动刷新。
+- **局域网/手机访问模式**：会话菜单新增「局域网访问…」窗口——未开启时一键写 `host=0.0.0.0` 并重启；开启后展示各网卡访问 URL（含 token）与二维码（新增 `qrcode` 依赖），顶部醒目安全警示（token 即凭证、严禁叠加 `--dangerous-bypass-auth`）。
+- **自定义 marketplace 注入**：环境页新增 pluginMarketplaceUrl → `KIMI_CODE_PLUGIN_MARKETPLACE_URL`。
+- **临时模型快速测试**：环境页「临时模型」分组（name/apiKey/providerType/baseUrl/displayName/maxContextSize/capabilities/thinkingEffort），注入 `KIMI_MODEL_*` 进程级环境变量合成临时供应商，不写 config.toml。
+- **自建端点支持**：环境页新增 oauthHost/selfHostedBaseUrl → `KIMI_CODE_OAUTH_HOST`/`KIMI_CODE_BASE_URL`。
+- **插件管理面板**：设置中心新增第 10 个标签页「插件」，扫描 `plugins/managed/<id>/` 清单（kimi.plugin.json 优先，.kimi-plugin/plugin.json 回退）并合并 installed.json 启用状态（映射/数组/`{plugins}` 三形态自适应）；能定位条目时支持启用/禁用写回（.bak 备份），否则标注用 `/plugins` 命令管理。
+
+### 其他
+
+- 新增 `session-export.js`（readJsonl/extractMessages/renderMarkdown/exportSessionMarkdown/scanSubagents）与 `plugins-manager.js`（listPlugins/setPluginEnabled/normalizeInstalled/readManifest）。
+- 新增 IPC 通道：`session:exportMarkdown`、`session:scanSubagents`（sessionDir 限 sessions 根内）、`plugins:list`、`plugins:setEnabled`、`debug:fetchEndpoints`、`system:lanInfo`、`system:lanEnable`、`app:openAgentsMonitor`；preload 新增 8 个桥接方法。
+- 新窗口：prompts.html、help.html、agents.html、lan.html（单例工厂 `makeSingletonWindow`，监视器可多开）。
+- config.json 新增 `debugMode`/`pluginMarketplaceUrl`/`oauthHost`/`selfHostedBaseUrl`/`tempModel` 字段；app:info 与 setup:save 白名单同步登记。
+- `buildKimiEnv` 新增 `KIMI_MODEL_*` 八变量、marketplace、OAuth 主机、Base URL 条件注入。
+- 新增 `test-session-export.js`（8 组断言）与 `test-plugins-manager.js`（9 组 48 条断言）；六个测试文件全绿。
+- 打包清单（build.files）登记两个新模块与四个新页面；dependencies 新增 `qrcode@^1.5.4`。
+- 新增 `scripts/acp-probe.js`（ACP 协议探测，ndjson 分帧首发握手成功）与 `docs/acp-research.md` 调研报告，详见 FEATURE-IDEAS.md §7。
+- 无破坏性变更。
+
 ## [0.8.0] - 2026-07-22
 
 ### 新功能
@@ -9,7 +37,7 @@
 - **IDE 一键接入向导**：设置中心新增第 9 个标签页「IDE 接入」，帮助菜单新增「IDE 接入向导…」入口（showSetup 支持 tab 定位，setup.html 解析 `?tab=ide`）；先探测 `kimi acp` 子命令可用性（不可用时提示升级 CLI）；Zed 卡片支持一键写入 `agent_servers` 配置（JSONC 剥注释/尾逗号后合并，写前 `.bak` 备份，解析失败回退展示片段 + 复制按钮）；JetBrains 卡片检测已装 IDE 并给出手动配置步骤文本（强调必须绝对路径）+ 复制；通用 ACP 片段卡片适配其它客户端。
 - **自动更新/遥测开关**：维护标签页新增「自动安装更新」checkbox，读写 tui.toml `[upgrade].auto_install`（保存走 `kimi doctor` 校验 + 失败回滚）；环境页新增「禁止 CLI 自动更新」「禁用遥测」两个强制级开关，写入 config.json 的 `noAutoUpdate`/`disableTelemetry` 并向子进程 env 注入 `KIMI_CODE_NO_AUTO_UPDATE=1`/`KIMI_DISABLE_TELEMETRY=1`（保存后自动重启服务生效）。
 
-### 技术细节
+### 其他
 
 - 新增 `instances-manager.js`：`scanInstances`/`checkPidAlive`/`probeInstance`；新增 `ide-integration.js`：`detectAcp`/`detectEditors`/`buildZedSnippet`/`applyZedConfig`/`stripJsonc`/`buildGenericSnippet`/`buildJetBrainsGuide`。
 - 新增 IPC 通道：`instances:list`、`instances:switch`、`ide:detect`、`ide:applyZed`、`ide:getSnippet`；preload 新增桥接方法：`instancesList`/`instancesSwitch`/`ideDetect`/`ideApplyZed`/`ideGetSnippet`。
@@ -38,7 +66,7 @@
 - `skills-manager.deleteSkill` 对不存在的用户级目录显式报错，防止误删 extra 只读技能。
 - mock 服务器扩展：`:archive`/`DELETE`/`/api/v1/models` 端点与 `session.deleted` 事件推送（`/control/emit` scenario 与 `/mock/push/session-deleted` 双触发），openapi.json paths 同步补齐。
 
-### 技术细节
+### 其他
 
 - 新增 `skills-manager.js`：frontmatter 简易解析、目录扫描、用户级技能读写删（路径包含校验防越权）。
 - 新增 IPC 通道：`session:archiveSession`、`session:deleteSession`、`session:getCaps`、`skills:list`、`skills:save`、`skills:delete`、`cli:checkUpdate`、`cli:upgrade`、`system:dataDirStats`、`system:cleanupDataDirs`、`system:packDiagnostics`；新增主→渲染事件 `session:changed`。
@@ -64,7 +92,7 @@
 - `package.json` 打包清单补齐 `config-manager.js`，并新增 `@iarna/toml` 依赖。
 - 新增 IPC 通道：`config:loadConfigToml`、`config:saveConfigToml`、`config:loadTuiToml`、`config:saveTuiToml`、`config:loadMcpJson`、`config:saveMcpJson`、`config:listProviders`、`config:removeProvider`、`config:addProviderCatalog`。
 
-### 技术细节
+### 其他
 
 - TOML 解析使用 `@iarna/toml`，支持完整的 parse/stringify。
 - `runDoctor` 在 Windows 上对非 `.exe` CLI 路径自动启用 `shell: true`，提高兼容性。
@@ -85,7 +113,7 @@
 
 - 打包清单补齐 `question.html`、`question.js`、`question-preload.js`，修复打包后问答窗口文件缺失问题。
 
-### 技术细节
+### 其他
 
 - 新增 IPC 通道：`question:submit`、`question:fallback`、`question:cancel`（渲染→主 invoke）；新增主→渲染事件：`question:init`、`question:dismiss`。
 - 答案提交：`POST /api/v1/sessions/{sid}/questions/{qid}`，三种形态 `{kind:'single', option_id}` / `{kind:'multi', option_ids, other_text?}` / `{kind:'other', text}`；HTTP 2xx 且响应 `code` 为 0 或缺失判定成功。
@@ -111,7 +139,7 @@
 - 配置模型扩展：`loadConfig()` 默认值新增 `shellPath`、`httpProxy`、`httpsProxy`、`allProxy`、`noProxy` 字段。
 - 设置页 JavaScript 重构：引入 `$()` 简写、`collectPayload()` 统一收集表单数据、`validateProxies()` 代理格式校验、`renderStatus()` 统一渲染环境状态。
 
-### 技术细节
+### 其他
 
 - 新增 `detectGitBash()`：扫描 4 个常见 Git 安装路径，优先使用配置或 `KIMI_SHELL_PATH` 环境变量。
 - 新增 `buildKimiEnv()`：合并代理环境变量和 `KIMI_SHELL_PATH`，用于 CLI 子进程 spawn。
@@ -142,7 +170,7 @@
 - 会话列表支持键盘导航（方向键/Home/End）和搜索过滤。
 - 会话详情面板展示工作目录、更新时间、最近提示，支持一键恢复/导出/可视化。
 
-### 技术细节
+### 其他
 
 - 新增 `showSessionLauncher()`、`getAllSessions()`、`readSessionIndex()`、`enrichSessionFromState()` 等函数。
 - 新增 IPC 通道：`session:getSessions`、`session:refreshSessions`、`session:resumeSession`、`session:exportSession`、`session:visualiseSession`、`session:createSessionInDirectory`、`session:openLauncher`。
@@ -169,7 +197,7 @@
 - `before-quit` 生命周期改为异步等待优雅关闭完成后再退出，防止进程残留。
 - 代码体积增加约 60%，新增 275 行核心逻辑，无破坏性变更。
 
-### 技术细节
+### 其他
 
 - 新增 `getCliVersion()`、`readServerToken()`、`checkMultiInstances()`、`httpGet()`、`httpPostShutdown()`、`waitForProcessExit()`、`forceKill()`、`stopKimi()`、`startPolling()`、`restartServer()` 等函数。
 - 新增 `cliVersionCache`、`stoppingIntentionally`、`beforeQuitInProgress`、`knownServerBase`、`knownServerToken`、`serverGeneration`、`restartPromise` 等状态变量。

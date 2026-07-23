@@ -11,6 +11,8 @@ const configManager = require('./config-manager');
 const skillsManager = require('./skills-manager');
 const instancesManager = require('./instances-manager');
 const ideIntegration = require('./ide-integration');
+const sessionExport = require('./session-export');
+const pluginsManager = require('./plugins-manager');
 
 const APP_NAME = 'Kimi Code Desktop';
 const isDev = process.argv.includes('--dev');
@@ -172,6 +174,22 @@ function buildKimiEnv(cfg) {
   const bashPath = detectGitBash();
   if (bashPath) {
     env.KIMI_SHELL_PATH = bashPath;
+  }
+  // 插件市场 / OAuth / 自建服务地址（非空才注入）
+  if (cfg.pluginMarketplaceUrl) env.KIMI_CODE_PLUGIN_MARKETPLACE_URL = cfg.pluginMarketplaceUrl;
+  if (cfg.oauthHost) env.KIMI_CODE_OAUTH_HOST = cfg.oauthHost;
+  if (cfg.selfHostedBaseUrl) env.KIMI_CODE_BASE_URL = cfg.selfHostedBaseUrl;
+  // 临时模型：name 与 apiKey 均非空才注入，可选字段空串跳过
+  const tm = cfg.tempModel;
+  if (tm && typeof tm === 'object' && ensureString(tm.name).trim() && ensureString(tm.apiKey).trim()) {
+    env.KIMI_MODEL_NAME = tm.name;
+    env.KIMI_MODEL_API_KEY = tm.apiKey;
+    if (tm.providerType) env.KIMI_MODEL_PROVIDER_TYPE = tm.providerType;
+    if (tm.baseUrl) env.KIMI_MODEL_BASE_URL = tm.baseUrl;
+    if (tm.displayName) env.KIMI_MODEL_DISPLAY_NAME = tm.displayName;
+    if (tm.maxContextSize) env.KIMI_MODEL_MAX_CONTEXT_SIZE = tm.maxContextSize;
+    if (tm.capabilities) env.KIMI_MODEL_CAPABILITIES = tm.capabilities;
+    if (tm.thinkingEffort) env.KIMI_MODEL_THINKING_EFFORT = tm.thinkingEffort;
   }
   return env;
 }
@@ -550,11 +568,20 @@ function startKimiServer() {
     const port = Number(cfg.port);
     if (Number.isInteger(port) && port > 0 && port < 65536) args.push('--port', String(port));
     if (cfg.host && typeof cfg.host === 'string' && cfg.host.trim()) args.push('--host', cfg.host.trim());
-    if (cfg.logLevel && typeof cfg.logLevel === 'string' && cfg.logLevel.trim()) args.push('--log-level', cfg.logLevel.trim());
+    if (cfg.debugMode === true) {
+      // 调试模式：固定 debug 日志并开启调试端点，忽略自定义 logLevel
+      args.push('--log-level', 'debug', '--debug-endpoints');
+      logLine('调试模式已开启: --log-level debug --debug-endpoints');
+    } else if (cfg.logLevel && typeof cfg.logLevel === 'string' && cfg.logLevel.trim()) {
+      args.push('--log-level', cfg.logLevel.trim());
+    }
   } else {
     args = ['web', '--no-open', '--foreground'];
     if (cfg.port || cfg.host || cfg.logLevel) {
       logLine('当前 CLI 版本不支持 --port/--host/--log-level，已忽略自定义启动参数');
+    }
+    if (cfg.debugMode === true) {
+      logLine('当前 CLI 不支持 --debug-endpoints，已忽略');
     }
   }
   if (pendingSessionId) {
@@ -1475,6 +1502,78 @@ function showSessionLauncher() {
   });
 }
 
+// ---------- 辅助窗口（模板库 / 帮助 / 局域网 / 子 Agent 监视）----------
+// 单例辅助窗口工厂：重复调用时聚焦既有窗口，关闭后下次重新创建
+function makeSingletonWindow(title, file) {
+  let win = null;
+  return () => {
+    if (win && !win.isDestroyed()) {
+      win.show();
+      if (win.isMinimized()) win.restore();
+      win.focus();
+      return;
+    }
+    win = new BrowserWindow({
+      width: 960,
+      height: 720,
+      minWidth: 640,
+      minHeight: 480,
+      title,
+      backgroundColor: '#0e0e10',
+      autoHideMenuBar: true,
+      icon: path.join(__dirname, 'assets', 'icon.png'),
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        spellcheck: false,
+        partition: 'persist:kimi-code',
+      },
+    });
+    win.on('closed', () => { win = null; });
+    win.loadFile(path.join(__dirname, file)).catch((err) => {
+      logLine(`加载 ${file} 失败: ${err.message}`);
+    });
+  };
+}
+
+const showPromptLibrary = makeSingletonWindow('Prompt 模板库', 'prompts.html');
+const showHelpWindow = makeSingletonWindow('命令与快捷键速查', 'help.html');
+const showLanWindow = makeSingletonWindow('局域网访问', 'lan.html');
+
+// 子 Agent 任务监视窗口（可多开，按会话目录区分内容）
+function showAgentsMonitor(sessionDir, title) {
+  const dir = ensureString(sessionDir);
+  if (!dir) {
+    logLine('打开子 Agent 监视失败：缺少会话目录');
+    return;
+  }
+  const win = new BrowserWindow({
+    width: 1100,
+    height: 760,
+    minWidth: 720,
+    minHeight: 480,
+    title: title ? `子 Agent 监视 - ${title}` : '子 Agent 监视',
+    backgroundColor: '#0e0e10',
+    autoHideMenuBar: true,
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false,
+      partition: 'persist:kimi-code',
+    },
+  });
+  win.loadFile(path.join(__dirname, 'agents.html'), {
+    query: { dir, title: ensureString(title) },
+  }).catch((err) => {
+    logLine(`加载 agents.html 失败: ${err.message}`);
+  });
+}
+
 // ---------- 重启 ----------
 async function restartServer() {
   if (restartPromise) return restartPromise;
@@ -1964,6 +2063,7 @@ function buildMenu() {
         { label: '新建 Web 会话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
         { label: '默认模型', submenu: buildModelSubmenu() },
         { label: '轮换访问令牌…', click: rotateToken },
+        { label: '局域网访问…', click: showLanWindow },
         { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
         { type: 'separator' },
         { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
@@ -2006,6 +2106,8 @@ function buildMenu() {
           });
         } },
         { label: 'IDE 接入向导…', click: () => showSetup('manual', 'ide') },
+        { label: 'Prompt 模板库…', click: showPromptLibrary },
+        { label: '命令与快捷键速查…', accelerator: 'F1', click: showHelpWindow },
         { label: '打包诊断信息…', click: async () => {
           const r = await packDiagnostics();
           dialog.showMessageBox({
@@ -2223,6 +2325,45 @@ ipcMain.handle('skills:delete', (_e, name) => {
   }
 });
 
+// ---------- 插件管理 IPC ----------
+ipcMain.handle('plugins:list', () => {
+  try {
+    return pluginsManager.listPlugins();
+  } catch (err) {
+    logLine(`plugins:list 失败: ${err.message}`);
+    return { ok: false, message: err.message, plugins: [] };
+  }
+});
+
+ipcMain.handle('plugins:setEnabled', (_e, id, enabled) => {
+  try {
+    const result = pluginsManager.setPluginEnabled(id, enabled === true);
+    if (result.ok) logLine(`插件 ${id} 已${enabled === true ? '启用' : '禁用'}`);
+    return result;
+  } catch (err) {
+    logLine(`plugins:setEnabled 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
+
+// ---------- 调试端点 IPC ----------
+ipcMain.handle('debug:fetchEndpoints', async () => {
+  if (!knownServerBase) {
+    return { ok: false, message: '服务未连接' };
+  }
+  try {
+    const url = new URL('/api/v1/debug/', knownServerBase);
+    const res = await httpRequest('GET', url, knownServerToken);
+    if (!res) {
+      return { ok: false, message: '请求失败（网络错误或超时）' };
+    }
+    return { ok: true, status: res.status, body: res.data };
+  } catch (err) {
+    logLine(`debug:fetchEndpoints 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
+
 // ---------- 多实例 IPC ----------
 ipcMain.handle('instances:list', async () => {
   try {
@@ -2328,6 +2469,11 @@ ipcMain.handle('app:info', () => {
       kimiCodeHome: cfg.kimiCodeHome || '',
       noAutoUpdate: cfg.noAutoUpdate === true,
       disableTelemetry: cfg.disableTelemetry === true,
+      debugMode: cfg.debugMode === true,
+      pluginMarketplaceUrl: cfg.pluginMarketplaceUrl || '',
+      oauthHost: cfg.oauthHost || '',
+      selfHostedBaseUrl: cfg.selfHostedBaseUrl || '',
+      tempModel: cfg.tempModel || {},
     },
     loadedUrl,
     isDev,
@@ -2353,6 +2499,24 @@ ipcMain.handle('setup:save', async (_e, payload) => {
     kimiCodeHome: ensureString(p.kimiCodeHome),
     noAutoUpdate: p.noAutoUpdate === true,
     disableTelemetry: p.disableTelemetry === true,
+    debugMode: p.debugMode === true,
+    pluginMarketplaceUrl: ensureString(p.pluginMarketplaceUrl),
+    oauthHost: ensureString(p.oauthHost),
+    selfHostedBaseUrl: ensureString(p.selfHostedBaseUrl),
+    // 临时模型：白名单重建，非对象输入归一为空对象
+    tempModel: (() => {
+      const t = p.tempModel && typeof p.tempModel === 'object' ? p.tempModel : {};
+      return {
+        name: ensureString(t.name),
+        apiKey: ensureString(t.apiKey),
+        providerType: ensureString(t.providerType),
+        baseUrl: ensureString(t.baseUrl),
+        displayName: ensureString(t.displayName),
+        maxContextSize: ensureString(t.maxContextSize),
+        capabilities: ensureString(t.capabilities),
+        thinkingEffort: ensureString(t.thinkingEffort),
+      };
+    })(),
     // 非表单字段随白名单重建保留，避免保存设置后迁移提示复现
     legacyMigrationDismissed: prev.legacyMigrationDismissed === true,
   };
@@ -2374,6 +2538,17 @@ ipcMain.handle('setup:save', async (_e, payload) => {
 
 ipcMain.handle('app:showSetup', () => { showSetup('manual'); return true; });
 ipcMain.handle('app:restart', async () => { await restartServer(); return true; });
+
+ipcMain.handle('app:openAgentsMonitor', (_e, payload) => {
+  try {
+    const p = payload && typeof payload === 'object' ? payload : {};
+    showAgentsMonitor(p.sessionDir, p.title);
+    return { ok: true };
+  } catch (err) {
+    logLine(`app:openAgentsMonitor 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
 
 ipcMain.handle('dialog:pickCli', async () => {
   const r = await dialog.showOpenDialog(mainWindow, {
@@ -2891,6 +3066,67 @@ async function packDiagnostics() {
 
 ipcMain.handle('system:packDiagnostics', async () => packDiagnostics());
 
+// ---------- 局域网访问 IPC ----------
+ipcMain.handle('system:lanInfo', async () => {
+  try {
+    const cfg = loadConfig();
+    // 收集全部非内部 IPv4 地址
+    const ips = [];
+    const ifaces = os.networkInterfaces();
+    for (const name of Object.keys(ifaces)) {
+      for (const info of ifaces[name] || []) {
+        if (info && (info.family === 'IPv4' || info.family === 4) && !info.internal) {
+          ips.push(info.address);
+        }
+      }
+    }
+    // 端口：优先当前运行中的服务，其次配置值，最后默认 58627
+    let port = null;
+    if (knownServerBase) {
+      try { port = Number(new URL(knownServerBase).port) || null; } catch { /* 解析失败时用配置兜底 */ }
+    }
+    if (!port) port = Number(cfg.port) || 58627;
+    // token：优先内存中的值，缺失时回读 server.token 文件
+    const token = knownServerToken || readServerToken() || '';
+    const urls = ips.map((ip) => `http://${ip}:${port}/#token=${encodeURIComponent(token)}`);
+    // 二维码懒加载：qrcode 不可用时降级为空数组，仅记日志
+    const qrDataUrls = [];
+    try {
+      const qrcode = require('qrcode');
+      for (let i = 0; i < ips.length; i++) {
+        const dataUrl = await qrcode.toDataURL(urls[i], { width: 320 });
+        qrDataUrls.push({ ip: ips[i], url: urls[i], dataUrl });
+      }
+    } catch (err) {
+      logLine(`生成局域网二维码失败: ${err.message}`);
+    }
+    return {
+      ok: true,
+      port,
+      hostWildcard: cfg.host === '0.0.0.0' || cfg.host === '::',
+      urls,
+      qrDataUrls,
+    };
+  } catch (err) {
+    logLine(`system:lanInfo 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
+
+ipcMain.handle('system:lanEnable', async () => {
+  try {
+    const cfg = loadConfig();
+    cfg.host = '0.0.0.0';
+    writeJSON(configFile(), cfg);
+    logLine('已开启局域网访问（host=0.0.0.0），重启服务');
+    await restartServer();
+    return { ok: true, message: '已开启局域网访问并重启服务' };
+  } catch (err) {
+    logLine(`system:lanEnable 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
+
 // ---------- 会话管理（阶段2）----------
 const SESSION_TIMEOUT = 30000;
 
@@ -2954,6 +3190,19 @@ function getAllSessions() {
   });
   sessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   return sessions;
+}
+
+// 判断工作目录是否属于敏感位置：用户主目录、盘符根、路径段含 .ssh/.gnupg、KIMI_CODE_HOME
+function isSensitiveWorkDir(dir) {
+  try {
+    const normalized = path.resolve(dir);
+    if (normalized === path.resolve(os.homedir())) return true;
+    if (normalized === path.parse(normalized).root) return true;
+    if (normalized === path.resolve(getKimiHomeDir())) return true;
+    const segments = normalized.split(path.sep).map((s) => s.toLowerCase());
+    if (segments.includes('.ssh') || segments.includes('.gnupg')) return true;
+  } catch { /* 解析失败时按非敏感处理 */ }
+  return false;
 }
 
 // ---------- 会话 IPC ----------
@@ -3079,6 +3328,61 @@ ipcMain.handle('session:exportSession', async (_e, sessionId) => {
   });
 });
 
+ipcMain.handle('session:exportMarkdown', async (_e, sessionId) => {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return { ok: false, message: '无效的 sessionId' };
+  }
+  try {
+    const session = getAllSessions().find((s) => s.sessionId === sessionId);
+    if (!session) {
+      return { ok: false, message: `未找到会话: ${sessionId}` };
+    }
+    const exported = sessionExport.exportSessionMarkdown(session.sessionDir, {
+      title: session.title,
+      sessionId: session.sessionId,
+      workDir: session.workDir,
+    });
+    if (!exported.ok) {
+      return { ok: false, message: exported.error || '导出失败' };
+    }
+    // 标题中的文件系统非法字符替换为下划线，避免保存对话框路径错误
+    const baseName = (session.title || sessionId).replace(/[\\/:*?"<>|]/g, '_');
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: '导出会话为 Markdown',
+      defaultPath: `${baseName}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (result.canceled || !result.filePath) {
+      return { ok: false, cancelled: true };
+    }
+    fs.writeFileSync(result.filePath, exported.markdown, 'utf8');
+    logLine(`导出会话 Markdown: ${sessionId}（${exported.messageCount} 条消息）`);
+    return { ok: true, path: result.filePath, messageCount: exported.messageCount };
+  } catch (err) {
+    logLine(`导出会话 Markdown 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
+
+ipcMain.handle('session:scanSubagents', (_e, sessionDir) => {
+  try {
+    const dir = ensureString(sessionDir);
+    if (!dir) {
+      return { ok: false, message: '无效的会话目录', agents: [], tasks: [] };
+    }
+    // 安全校验：仅允许扫描 KIMI_CODE_HOME/sessions 之内的目录
+    const sessionsRoot = path.join(getKimiHomeDir(), 'sessions');
+    const rel = path.relative(sessionsRoot, dir);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { ok: false, message: '会话目录不在 sessions 目录之内', agents: [], tasks: [] };
+    }
+    return sessionExport.scanSubagents(dir);
+  } catch (err) {
+    logLine(`scanSubagents 失败: ${err.message}`);
+    return { ok: false, message: err.message, agents: [], tasks: [] };
+  }
+});
+
 ipcMain.handle('session:visualiseSession', async (_e, sessionId) => {
   if (!sessionId || typeof sessionId !== 'string') {
     return { ok: false, message: '无效的 sessionId' };
@@ -3164,6 +3468,21 @@ ipcMain.handle('session:createSessionInDirectory', async (_e, opts) => {
     return { ok: false, message: '用户取消了选择' };
   }
   const workDir = dirResult.filePaths[0];
+  // 敏感目录二次确认：主目录/盘符根/.ssh/.gnupg/KIMI_CODE_HOME 风险较高
+  if (isSensitiveWorkDir(workDir)) {
+    const warn = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: '敏感目录警告',
+      message: '在敏感目录中创建会话',
+      detail: `所选目录「${workDir}」属于敏感位置（用户主目录、盘符根目录、.ssh/.gnupg 或 Kimi 数据目录）。在此运行 Agent 可能读取或修改大量私人文件，建议改用专门的子目录。`,
+      buttons: ['继续创建', '取消'],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    if (warn.response !== 0) {
+      return { ok: false, cancelled: true };
+    }
+  }
   if (!knownServerBase) {
     return { ok: false, message: 'Web 服务未就绪，请先启动会话后再创建' };
   }
