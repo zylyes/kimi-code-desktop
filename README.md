@@ -65,6 +65,10 @@ Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打
 52. **全窗口 kimi.com 官方风格翻新**（v0.10.0）：新增共享样式 `kimi-theme.css`（设计令牌），设置中心/会话启动器/问答窗/模板库/速查窗/局域网/子 Agent 监视/loading 等原生页面统一接入 kimi.com 官方黑白灰设计语言；亮/暗主题跟随系统，各窗口 `backgroundColor` 经 `windowBackground()` 函数跟随 `nativeTheme` 动态切换。
 53. **ACP 原生审批弹窗**（v0.11.0）：`session/request_permission` 接入原生模态审批窗，once/always 语义映射按钮组，详情区展示命令/路径等工具上下文，Esc/关窗即取消；窗口创建失败回退系统对话框；聊天窗失焦时系统通知 + 任务栏闪框。
 54. **ACP 工具调用卡片**（v0.11.0）：`tool_call`/`tool_call_update` 渲染为状态流转卡片（pending→in_progress→completed/failed，折叠详情与输出摘要）。
+55. **ACP 原生聊天真实会话化**（v0.12.0）：`acp-chat:start` 支持 `{cwd, sessionId}`，真实工作目录启动（路径非法回退临时目录）；菜单项改名「原生聊天（新会话）…」。
+56. **历史会话恢复**（v0.12.0）：会话启动器详情新增「原生聊天」按钮（无 workDir 的会话禁用并提示；敏感目录弹确认）；`session/load` 接续 agent 上下文 + 本地 wire.jsonl 自绘最近 50 条历史（agent 重放则跳过本地历史）；标题栏显示会话名与工作目录；load 失败明确报错不静默回退新建。
+57. **configOptions 原生切换栏**（v0.12.0）：聊天窗状态条下新增模型/思考/权限模式三下拉（缺项自动隐藏），切换走 `session/set_config_option`，失败回滚并提示，仅就绪且非在途时可操作。
+58. **停止生成按钮**（v0.12.0）：busy 时发送键变「停止」，走 `session/cancel` 通知。
 
 ## 会话启动器
 
@@ -72,6 +76,7 @@ v0.3.0 新增**会话启动器**（`Ctrl+Shift+S`），提供完整的会话管�
 
 - **会话历史浏览**：读取 `~/.kimi-code/session_index.jsonl` 索引文件，按更新时间降序排列，支持搜索标题/目录/最近提示。
 - **恢复指定会话**：选中会话后点击"恢复会话"，以 `kimi --session <id>` 参数重启 Web 服务，直接进入该会话。
+- **原生聊天恢复**（v0.12.0）：详情面板新增「原生聊天」按钮，以 ACP 原生聊天窗恢复有 workDir 的历史会话（`session/load` 接续上下文 + 本地历史自绘；无 workDir 禁用、敏感目录弹确认）。
 - **ZIP 导出 / Markdown 导出**：选中会话后可导出 ZIP 或 Markdown（v0.9.0，解析 wire.jsonl 输出 .md）。
 - **可视化窗口 / 任务监视器**：选中会话后打开可视化或任务监视器窗口（v0.9.0，时间线渲染各 Agent 卡片）。
 - **指定目录新建会话**：点击侧边栏 `+` 按钮，选择工作目录后通过深链导航至 Web UI 创建新会话（v0.9.0 新增敏感目录警告）。
@@ -145,7 +150,7 @@ ide-integration.js   IDE 接入模块（kimi acp 探测、编辑器检测、Zed 
 skills-manager.js    Skills 管理模块（frontmatter 解析、目录扫描、用户级技能读写删）
 plugins-manager.js   插件管理模块（清单扫描、启用状态合并、启用/禁用写回）
 session-export.js    会话导出模块（JSONL 解析、消息提取、Markdown 渲染、子 Agent 扫描）
-acp-client.js        ACP 协议客户端（stdio JSON-RPC 2.0，ndjson 分帧，initialize→session/new→prompt 全链路，权限请求自动取消）
+acp-client.js        ACP 协议客户端（stdio JSON-RPC 2.0，ndjson 分帧，initialize→session/new/load→prompt 全链路，set_config_option/cancel，权限请求自动取消）
 question.html        原生问答窗口（单选/多选/多题/自定义输入，深色主题 UI）
 question.js          问答窗口渲染逻辑（选项渲染、多题翻页、答案校验、提交/回退/取消）
 question-preload.js  问答窗口预加载桥接（contextIsolation 下暴露 kimiQuestion API）
@@ -156,7 +161,7 @@ prompts.html         Prompt 模板库（按场景分类展示 15 条工程实践
 help.html            命令与快捷键速查（F1 快捷键打开）
 agents.html          子 Agent 任务监视器（时间线渲染各 Agent 卡片与后台任务）
 lan.html             局域网访问面板（网卡 URL 展示 + 二维码 + 安全警示）
-chat.html + chat.js + chat-preload.js  ACP 原生聊天原型前端（流式正文渲染、思考折叠区、节流合并、状态栏）
+chat.html + chat.js + chat-preload.js  ACP 原生聊天前端（流式正文渲染、思考折叠区、节流合并、状态栏、历史恢复、configOptions 切换栏、停止生成）
 permission.html + permission.js + permission-preload.js  ACP 原生审批弹窗（once/always 按钮组、工具上下文展示、Esc/关窗取消）
 kimi-theme.css       全应用共享设计令牌样式表（kimi.com 官方黑白灰设计语言，亮/暗双主题跟随系统）
 assets/              应用图标
@@ -164,6 +169,7 @@ scripts/
   mock-kimi-server.js  Mock Kimi 服务端（HTTP+WS，覆盖 client_hello/订阅/问答/审批/用量/任务事件验证）
   pack-versioned.ps1   版本化打包脚本
   acp-probe.js         ACP 协议探测（ndjson 分帧握手验证）
+  acp-probe3.js        第三次 ACP 探测（session/load、set_config_option、list、cancel 实测）
 test-config-manager.js   配置管理模块单元测试
 test-skills-manager.js   Skills 管理模块单元测试
 test-instances-manager.js 多实例管理模块单元测试

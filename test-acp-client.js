@@ -83,6 +83,9 @@ function testEncodeRoundtrip() {
 
 // ---------- 3. 回环假 ACP 服务端端到端 ----------
 // 假服务端：按行读 stdin 的 JSON-RPC，initialize/session/new 直接回结果；
+// session/load 校验参数形态后回 configOptions（sessionId 为 'missing-session' 回 -32603）；
+// session/set_config_option 校验参数形态后回更新后 configOptions（mode->plan 回 -32603）；
+// session/cancel（无 id 通知）回推一条 cancel_seen 的 session/update。
 // session/prompt 先推 3 条 session/update，再按 prompt 文本分发权限场景：
 //   默认     → id=999 空 options 权限请求（期待 cancelled）+ id=998 未知方法（期待 -32601）
 //   '第二轮' → id=997 带 allow/deny 选项的权限请求（期待 selected allow）
@@ -117,6 +120,25 @@ process.stdin.on('data', (chunk) => {
       send({ jsonrpc: '2.0', id: msg.id, result: { protocolVersion: 1, agentInfo: { name: 'fake', version: '0.0.0' }, agentCapabilities: { loadSession: true } } });
     } else if (msg.method === 'session/new') {
       send({ jsonrpc: '2.0', id: msg.id, result: { sessionId: 'fake-s1', configOptions: {} } });
+    } else if (msg.method === 'session/load') {
+      const p = msg.params || {};
+      if (typeof p.sessionId !== 'string' || typeof p.cwd !== 'string' || !Array.isArray(p.mcpServers)) fail('session/load 参数形态不对: ' + JSON.stringify(msg));
+      if (p.sessionId === 'missing-session') {
+        send({ jsonrpc: '2.0', id: msg.id, error: { code: -32603, message: 'Internal error', data: { details: 'Session not found' } } });
+      } else {
+        send({ jsonrpc: '2.0', id: msg.id, result: { configOptions: [{ type: 'select', id: 'model', name: 'Model', category: 'model', currentValue: 'kimi-code/k3', options: [{ value: 'kimi-code/k3', name: 'K3' }] }] } });
+      }
+    } else if (msg.method === 'session/set_config_option') {
+      const p = msg.params || {};
+      if (typeof p.sessionId !== 'string' || typeof p.configId !== 'string' || typeof p.value !== 'string') fail('session/set_config_option 参数形态不对: ' + JSON.stringify(msg));
+      if (p.configId === 'mode' && p.value === 'plan') {
+        send({ jsonrpc: '2.0', id: msg.id, error: { code: -32603, message: 'Internal error', data: { details: 'Already in plan mode' } } });
+      } else {
+        send({ jsonrpc: '2.0', id: msg.id, result: { configOptions: [{ type: 'select', id: p.configId, name: p.configId, category: 'model', currentValue: p.value, options: [] }] } });
+      }
+    } else if (msg.method === 'session/cancel') {
+      // 无 id 通知：回推一条 update 供客户端确认送达
+      send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: (msg.params || {}).sessionId, update: { sessionUpdate: 'cancel_seen' } } });
     } else if (msg.method === 'session/prompt') {
       promptId = msg.id;
       const text = (msg.params.prompt[0] && msg.params.prompt[0].text) || '';
@@ -289,6 +311,86 @@ async function testDisposePendingPermission() {
   console.log('✅ dispose 时挂起权限决策按 cancelled 收尾，不挂死且不重复响应');
 }
 
+// ---------- 6.5 loadSession / setConfigOption / cancel ----------
+async function testLoadSession() {
+  const client = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  await client.start();
+  // 非法入参拒绝（不发请求）
+  await assert.rejects(client.loadSession(''), /sessionId/);
+  await assert.rejects(client.loadSession(123), /sessionId/);
+  // 成功：resolve 完整 result（仅含 configOptions），sessionId 用入参设置（无回显）
+  const result = await client.loadSession('old-session');
+  assert.ok(Array.isArray(result.configOptions));
+  assert.strictEqual(result.configOptions[0].id, 'model');
+  assert.strictEqual(result.configOptions[0].currentValue, 'kimi-code/k3');
+  assert.strictEqual(client.sessionId, 'old-session');
+  // 请求方法名与参数形态（cwd/mcpServers）由假服务端 fail() 断言
+  // JSON-RPC 错误上抛（err.code 透传），且不覆盖已有 sessionId
+  await assert.rejects(client.loadSession('missing-session'), (e) => e.code === -32603 && /Internal error/.test(e.message));
+  assert.strictEqual(client.sessionId, 'old-session');
+  client.dispose('loadSession 测试结束');
+  console.log('✅ loadSession() 参数形态 / 成功置 sessionId / 错误上抛不覆盖 / 空 sessionId 拒绝');
+}
+
+async function testSetConfigOption() {
+  const client = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  await client.start();
+  // 无会话时拒绝
+  await assert.rejects(client.setConfigOption('model', 'kimi-code/k3'), /尚未建立会话/);
+  await client.newSession();
+  // 非法入参拒绝（非字符串 / 空 / 超 200 字符）
+  await assert.rejects(client.setConfigOption('', 'x'), /configId/);
+  await assert.rejects(client.setConfigOption(1, 'x'), /configId/);
+  await assert.rejects(client.setConfigOption('model', ''), /value/);
+  await assert.rejects(client.setConfigOption('model', 'x'.repeat(201)), /value/);
+  // 成功：resolve 完整 result，configOptions 为更新后的完整数组
+  const result = await client.setConfigOption('model', 'kimi-code/kimi-for-coding');
+  assert.ok(Array.isArray(result.configOptions));
+  assert.strictEqual(result.configOptions[0].currentValue, 'kimi-code/kimi-for-coding');
+  // JSON-RPC 错误上抛（探测实录：mode->plan 回 -32603）
+  await assert.rejects(client.setConfigOption('mode', 'plan'), (e) => e.code === -32603 && /Internal error/.test(e.message));
+  client.dispose('setConfigOption 测试结束');
+  console.log('✅ setConfigOption() 参数形态 / 成功 resolve configOptions / 无会话与非法入参拒绝 / 错误上抛');
+}
+
+async function testCancel() {
+  // 白盒：stub _write 捕获写出的通知（不起子进程）
+  const client = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  client.cancel(); // 无会话：静默 no-op，不写也不抛
+  client.sessionId = 's-cancel';
+  const written = [];
+  client._write = (obj) => written.push(obj);
+  const ret = client.cancel();
+  assert.strictEqual(ret, undefined); // 同步返回，不返回 Promise
+  assert.strictEqual(written.length, 1);
+  assert.strictEqual(written[0].jsonrpc, '2.0');
+  assert.strictEqual(written[0].method, 'session/cancel');
+  assert.deepStrictEqual(written[0].params, { sessionId: 's-cancel' });
+  assert.strictEqual(written[0].id, undefined); // JSON-RPC 通知：无 id
+  assert.strictEqual(client.pending.size, 0); // 不进 pending，无响应配对
+  // 子进程不可写：只记日志不抛异常
+  const logs = [];
+  const client2 = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: (m) => logs.push(m) });
+  client2.sessionId = 's2';
+  client2.cancel(); // child 为 null → _write throw → 被吞掉
+  assert.ok(logs.some((m) => m.includes('session/cancel')));
+  console.log('✅ cancel() 发无 id 通知 / 不占 pending / 无会话 no-op / 子进程不可用只记日志');
+
+  // 回环：通知经真实分帧送达假服务端，收到回推的 cancel_seen
+  const client3 = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  const updates = [];
+  client3.on('update', (u) => updates.push(u));
+  await client3.start();
+  await client3.newSession();
+  client3.cancel();
+  for (let i = 0; i < 100 && !updates.some((u) => u && u.sessionUpdate === 'cancel_seen'); i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.ok(updates.some((u) => u && u.sessionUpdate === 'cancel_seen'));
+  client3.dispose('cancel 回环测试结束');
+  console.log('✅ cancel() 回环：通知送达假服务端并收到 cancel_seen 回推');
+}
+
 // ---------- 7. 可选真实 CLI 冒烟（KIMI_ACP_SMOKE=1 才跑） ----------
 async function testSmoke() {
   if (process.env.KIMI_ACP_SMOKE !== '1') {
@@ -346,6 +448,9 @@ async function run() {
     await testPermissionHandlerThrows();
     await testDispose();
     await testDisposePendingPermission();
+    await testLoadSession();
+    await testSetConfigOption();
+    await testCancel();
   } finally {
     process.chdir(oldCwd);
   }

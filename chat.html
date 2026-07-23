@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
-<title>原生聊天原型（ACP 实验）</title>
+<title>原生聊天</title>
 <link rel="stylesheet" href="kimi-theme.css" />
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -52,6 +52,60 @@
   }
   .status-right span { overflow: hidden; text-overflow: ellipsis; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  /* ---------- 会话信息行：恢复会话时展示会话名与工作目录，缺省隐藏 ---------- */
+  .sessionbar {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-bottom: 6px;
+    font-size: 12px;
+    color: var(--label-tertiary);
+    min-width: 0;
+  }
+  .sessionbar[hidden] { display: none; }
+  .session-title {
+    flex: none;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--label-secondary);
+  }
+  .session-workdir {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---------- 配置切换栏：模型/思考/模式三个下拉，数据来自 configOptions ---------- */
+  .configbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 2px 0 8px;
+    font-size: 12px;
+    color: var(--label-tertiary);
+  }
+  .configbar[hidden] { display: none; }
+  .config-item { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .config-item[hidden] { display: none; }
+  .config-label { flex: none; }
+  .config-select {
+    max-width: 180px;
+    padding: 3px 6px;
+    border: 1px solid var(--separator);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--label-primary);
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+  }
+  .config-select:focus { border-color: var(--label-quaternary); }
+  .config-select:disabled { color: var(--label-tertiary); opacity: 0.6; }
 
   /* ---------- 消息列表 ---------- */
   .messages { flex: 1; overflow-y: auto; overflow-x: hidden; }
@@ -231,6 +285,9 @@
   }
   .send:not(:disabled):hover { opacity: 0.85; }
   .send:disabled { opacity: 0.3; cursor: default; }
+  /* busy 态停止按钮：同一节点换文案，由圆形变为胶囊 */
+  .send.stop-mode { width: auto; height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; }
+  .send-stop { white-space: nowrap; }
 
   @media (prefers-reduced-motion: reduce) {
     .dot.connecting, .dot.busy { animation: none; }
@@ -253,6 +310,26 @@
           <span id="commandsInfo" hidden></span>
         </div>
       </div>
+      <!-- 会话信息行：恢复会话时展示，缺省隐藏 -->
+      <div class="col sessionbar" id="sessionBar" hidden>
+        <span class="session-title" id="sessionTitle" hidden></span>
+        <span class="session-workdir mono" id="workDir" hidden></span>
+      </div>
+      <!-- 配置切换栏：模型/思考/模式，数据来自 configOptions，某项缺失则隐藏对应项 -->
+      <div class="col configbar" id="configBar" hidden>
+        <label class="config-item" id="configItem-model" hidden>
+          <span class="config-label">模型</span>
+          <select class="config-select" id="configSelect-model" aria-label="模型"></select>
+        </label>
+        <label class="config-item" id="configItem-thinking" hidden>
+          <span class="config-label">思考</span>
+          <select class="config-select" id="configSelect-thinking" aria-label="思考"></select>
+        </label>
+        <label class="config-item" id="configItem-mode" hidden>
+          <span class="config-label">模式</span>
+          <select class="config-select" id="configSelect-mode" aria-label="模式"></select>
+        </label>
+      </div>
     </header>
 
     <!-- 消息列表 -->
@@ -271,7 +348,8 @@
           <textarea id="input" rows="1" placeholder="给 Kimi 发送消息，Enter 发送，Shift+Enter 换行" aria-label="消息输入框" spellcheck="false" disabled></textarea>
           <div class="composer-actions">
             <button class="send" id="sendBtn" type="button" disabled aria-label="发送" title="发送">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+              <svg id="sendArrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+              <span class="send-stop" id="sendStopLabel" hidden>停止</span>
             </button>
           </div>
         </div>

@@ -9,13 +9,18 @@
 // 其余 server→client 请求回 JSON-RPC 错误 -32601。
 // 与 probe 的差异：不 process.exit、不设全局兜底超时，任何内部异常只通过
 // logFn / 'error' 事件暴露（'error' 无监听时降级为日志，避免 EventEmitter throw）。
+// 会话恢复 / 配置 / 取消（第三次探测实测，详见 docs/acp-probe3-output.txt）：
+// session/load 恢复既有会话（result 仅含 configOptions，无 sessionId 回显）；
+// session/set_config_option 切换配置项（value 为纯字符串，失败为 JSON-RPC 错误）；
+// session/cancel 为无 id 通知，发出后进行中的 prompt 以 { stopReason: 'cancelled' } 返回。
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
 // ---------- 常量 ----------
 const FRAMING_PROBE_MS = 20_000; // ndjson 首发 initialize 的响应窗口，超时改试 LSP 分帧
 const FRAMING_RETRY_DELAY_MS = 500; // kill 旧进程后等它退出的间隔
-const SESSION_NEW_TIMEOUT_MS = 30_000; // session/new 超时（prompt 不设固定超时，LLM 耗时长）
+const SESSION_NEW_TIMEOUT_MS = 30_000; // session/new 与 session/load 超时（prompt 不设固定超时，LLM 耗时长）
+const SET_CONFIG_TIMEOUT_MS = 15_000; // session/set_config_option 超时
 const PERMISSION_DECISION_TIMEOUT_MS = 600_000; // 权限决策的防御性超时（10 分钟），超时按 cancelled 收尾
 const LOG_DUMP_LIMIT = 300; // 日志里消息摘要的截断长度
 
@@ -408,6 +413,15 @@ class AcpClient extends EventEmitter {
     return result;
   }
 
+  // 恢复既有会话；resolve session/load 的 result（仅含 configOptions，无 sessionId 回显），
+  // 成功后把入参 sessionId 记为当前会话（与 newSession 同语义：覆盖旧值）；错误上抛
+  async loadSession(sessionId) {
+    if (typeof sessionId !== 'string' || !sessionId) throw new Error('loadSession: sessionId 必须是非空字符串');
+    const result = await this._request('session/load', { sessionId, cwd: this.cwd, mcpServers: [] }, SESSION_NEW_TIMEOUT_MS);
+    this.sessionId = sessionId;
+    return result;
+  }
+
   // 发送用户输入；不设固定超时（LLM 耗时长），resolve result（{ stopReason }）
   async prompt(text) {
     if (!this.sessionId) throw new Error('尚未建立会话（先调用 newSession）');
@@ -415,6 +429,27 @@ class AcpClient extends EventEmitter {
       sessionId: this.sessionId,
       prompt: [{ type: 'text', text: String(text) }],
     });
+  }
+
+  // 切换会话配置项（model / mode 等，value 为纯字符串）；resolve result
+  // （configOptions 为更新后的完整数组）；agent 拒绝时上抛 JSON-RPC 错误
+  async setConfigOption(configId, value) {
+    if (!this.sessionId) throw new Error('尚未建立会话（先调用 newSession 或 loadSession）');
+    if (typeof configId !== 'string' || !configId || configId.length > 200) throw new Error('setConfigOption: configId 必须是长度不超过 200 的非空字符串');
+    if (typeof value !== 'string' || !value || value.length > 200) throw new Error('setConfigOption: value 必须是长度不超过 200 的非空字符串');
+    return await this._request('session/set_config_option', { sessionId: this.sessionId, configId, value }, SET_CONFIG_TIMEOUT_MS);
+  }
+
+  // 取消当前会话进行中的 prompt：session/cancel 是 JSON-RPC 通知（无 id、不进 pending、
+  // 无响应配对），agent 收到后进行中的 prompt 以 { stopReason: 'cancelled' } 返回。
+  // 无会话时静默 no-op；子进程不可写只记日志不抛异常。同步返回，不返回 Promise
+  cancel() {
+    if (!this.sessionId) return;
+    try {
+      this._write({ jsonrpc: '2.0', method: 'session/cancel', params: { sessionId: this.sessionId } });
+    } catch (e) {
+      this._log(`session/cancel 通知发送失败: ${e && e.message ? e.message : e}`);
+    }
   }
 
   // 设置权限决策回调：fn(params) 返回 Promise，resolve

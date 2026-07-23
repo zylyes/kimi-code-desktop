@@ -429,6 +429,7 @@
         </div>
         <div class="actions">
           <button class="btn btn-primary" id="resumeBtn" type="button" aria-label="恢复此会话" title="恢复此会话，继续之前的对话">恢复会话</button>
+          <button class="btn btn-secondary" id="nativeChatBtn" type="button" aria-label="在原生聊天窗中恢复此会话" title="在 ACP 原生聊天窗中恢复此会话（实验）">原生聊天</button>
           <button class="btn btn-secondary" id="exportBtn" type="button" aria-label="导出此会话为 ZIP 压缩包" title="导出此会话为 ZIP 压缩包">导出 ZIP</button>
           <button class="btn btn-secondary" id="visBtn" type="button" aria-label="打开此会话的可视化视图" title="在新窗口中打开此会话的可视化视图">打开可视化</button>
           <button class="btn btn-secondary" id="exportMdBtn" type="button" aria-label="导出此会话为 Markdown 文件" title="解析会话记录并导出为 Markdown 文件">导出 Markdown</button>
@@ -454,6 +455,7 @@
     const placeholderEl = $('placeholder');
     const panelEl = $('panel');
     const resumeBtn = $('resumeBtn');
+    const nativeChatBtn = $('nativeChatBtn');
     const exportBtn = $('exportBtn');
     const visBtn = $('visBtn');
     const exportMdBtn = $('exportMdBtn');
@@ -667,6 +669,7 @@
     /* ---------- 动作按钮：加载 / 成功 / 失败 ---------- */
     function setActionsEnabled(on) {
       resumeBtn.disabled = !on;
+      nativeChatBtn.disabled = !on;
       exportBtn.disabled = !on;
       visBtn.disabled = !on;
       exportMdBtn.disabled = !on;
@@ -706,6 +709,14 @@
 
     resumeBtn.addEventListener('click', () =>
       runAction(resumeBtn, '正在恢复…', (id) => api.resumeSession(id), '已发送恢复请求，会话即将继续。'));
+    nativeChatBtn.addEventListener('click', () => {
+      const s = sessions.find((x) => x.id === selectedId);
+      if (s && !s.workDir) {
+        report('err', '该会话缺少工作目录信息，无法用原生聊天打开。');
+        return;
+      }
+      runAction(nativeChatBtn, '正在打开…', (id) => api.openInNativeChat(id), '已在原生聊天窗打开。');
+    });
     exportBtn.addEventListener('click', () =>
       runAction(exportBtn, '正在导出…', (id) => api.exportSession(id), '导出完成，ZIP 已保存。'));
     visBtn.addEventListener('click', () =>

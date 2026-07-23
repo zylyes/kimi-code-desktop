@@ -1584,6 +1584,7 @@ function showAgentsMonitor(sessionDir, title) {
 // 直连 `kimi acp`，会话落在系统临时目录；工具执行权限经原生审批窗确认（见下方「ACP 权限审批窗」）
 let acpChatWindow = null;
 let acpClient = null;
+let acpConfigOptions = null; // 当前会话最近一次拿到的 configOptions（set-config 白名单依据，dispose 时清空）
 
 function disposeAcpClient(reason) {
   cancelAllAcpPermissions(reason || '客户端销毁');
@@ -1591,6 +1592,7 @@ function disposeAcpClient(reason) {
     try { acpClient.dispose(reason); } catch { /* ignore */ }
     acpClient = null;
   }
+  acpConfigOptions = null;
 }
 
 function sendAcpEvent(payload) {
@@ -1881,18 +1883,63 @@ function showAcpChatWindow() {
   });
 }
 
-ipcMain.handle('acp-chat:start', async () => {
+// 恢复会话的本地历史兜底（双保险）：agent 在 session/load 期间未重放消息时，
+// 按 session-export 的解析思路从 wire.jsonl 提取 user/assistant 文本消息下发渲染层；
+// 坏行跳过、只取最近 50 条、单条文本封顶 4000 字符；找不到数据一律静默跳过（记日志）
+function sendAcpLocalHistory(sessionId) {
+  try {
+    const entry = readSessionIndex().find((e) => e.sessionId === sessionId);
+    if (!entry || !entry.sessionDir) {
+      logLine('[acp] 本地历史跳过：会话索引无该 sessionId 或缺 sessionDir');
+      return;
+    }
+    const parsed = sessionExport.readJsonl(sessionExport.wirePathFor(entry.sessionDir, 'main'));
+    if (!parsed) {
+      logLine('[acp] 本地历史跳过：wire.jsonl 不存在或不可读');
+      return;
+    }
+    const messages = sessionExport.extractMessages(parsed.events)
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text)
+      .map((m) => ({ role: m.role, text: m.text.length > 4000 ? `${m.text.slice(0, 3997)}...` : m.text }));
+    if (messages.length === 0) {
+      logLine('[acp] 本地历史跳过：wire.jsonl 中无可渲染消息');
+      return;
+    }
+    const recent = messages.slice(-50); // 逆序取最近 50 条后恢复正序（等价写法，保持时间正序下发）
+    logLine(`[acp] 本地历史下发 ${recent.length} 条（共 ${messages.length} 条，坏行 ${parsed.badLines}）`);
+    sendAcpEvent({ type: 'history', messages: recent });
+  } catch (err) {
+    logLine(`[acp] 本地历史读取失败: ${err.message}`);
+  }
+}
+
+// opts 可空：{ cwd, sessionId }。cwd 合法（已存在的绝对路径目录）才采用，否则回退临时目录；
+// 带 sessionId 走 loadSession 恢复既有会话（失败明确报错，不回退新建），否则 newSession
+ipcMain.handle('acp-chat:start', async (_e, opts) => {
   disposeAcpClient('重新启动 ACP 会话');
   const cfg = loadConfig();
   const cli = resolveCliPath(cfg);
   if (!cli) return { ok: false, error: '未找到 Kimi CLI，请先在设置中完成安装' };
-  let cwd;
-  try {
-    cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-acp-chat-'));
-  } catch (err) {
-    logLine(`ACP 临时目录创建失败: ${err.message}`);
-    return { ok: false, error: `创建临时目录失败: ${err.message}` };
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const wantCwd = ensureString(o.cwd).slice(0, 500);
+  const wantSessionId = ensureString(o.sessionId).slice(0, 500);
+  let cwd = '';
+  if (wantCwd && path.isAbsolute(wantCwd)) {
+    try {
+      if (fs.existsSync(wantCwd) && fs.statSync(wantCwd).isDirectory()) cwd = wantCwd;
+    } catch { /* 校验失败按无 cwd 处理 */ }
   }
+  if (!cwd) {
+    try {
+      cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-acp-chat-'));
+    } catch (err) {
+      logLine(`ACP 临时目录创建失败: ${err.message}`);
+      return { ok: false, error: `创建临时目录失败: ${err.message}` };
+    }
+  }
+  // 历史双保险：load 完成前到达的消息类 update 视为 agent 重放（置标记以跳过本地自绘）
+  let loadPending = false;
+  let loadReplayed = false;
   let client;
   try {
     client = new AcpClient({ cliPath: cli, cwd, logFn: (m) => logLine(`[acp] ${m}`) });
@@ -1905,12 +1952,23 @@ ipcMain.handle('acp-chat:start', async () => {
     const kind = update.sessionUpdate;
     const text = update.content && update.content.type === 'text' && typeof update.content.text === 'string'
       ? update.content.text : null;
+    if (loadPending && (kind === 'agent_message_chunk' || kind === 'user_message_chunk'
+      || kind === 'agent_message' || kind === 'user_message')) {
+      loadReplayed = true; // chunk 本身仍走下方管线照常转发，不吞掉
+    }
     if (kind === 'agent_message_chunk' && text !== null) {
       sendAcpEvent({ type: 'message-chunk', text });
+    } else if (kind === 'user_message_chunk' && text !== null) {
+      // 渲染层原先不收 user chunk：补发事件（agent 重放历史时才能看到用户侧消息）
+      sendAcpEvent({ type: 'user-chunk', text });
     } else if (kind === 'agent_thought_chunk' && text !== null) {
       sendAcpEvent({ type: 'thought-chunk', text });
     } else if (kind === 'available_commands_update') {
       sendAcpEvent({ type: 'commands', count: (update.availableCommands || []).length });
+    } else if (kind === 'config_option_update') {
+      // 配置项变更通知（先于 set_config_option 响应到达）：刷新缓存并转发渲染层
+      if (Array.isArray(update.configOptions)) acpConfigOptions = update.configOptions;
+      sendAcpEvent({ type: 'config-options', configOptions: update.configOptions });
     } else if (kind === 'tool_call') {
       // 工具调用卡片：字段直接挂在 update 上，detail 与审批窗共用同一提取逻辑
       sendAcpEvent({
@@ -1947,9 +2005,37 @@ ipcMain.handle('acp-chat:start', async () => {
   sendAcpEvent({ type: 'status', state: 'connecting' });
   try {
     const init = await client.start();
-    const s = await client.newSession();
-    sendAcpEvent({ type: 'status', state: 'ready', agentInfo: init.agentInfo, sessionId: s.sessionId, configOptions: s.configOptions });
-    return { ok: true, agentInfo: init.agentInfo, sessionId: s.sessionId, configOptions: s.configOptions };
+    let sessionId;
+    let configOptions;
+    let resumed = false;
+    if (wantSessionId) {
+      // 恢复既有会话：失败明确报错并销毁 client，不静默回退 newSession
+      loadPending = true;
+      let s;
+      try {
+        s = await client.loadSession(wantSessionId);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        logLine(`ACP 恢复会话失败: ${msg}`);
+        if (acpClient === client) disposeAcpClient('恢复会话失败');
+        sendAcpEvent({ type: 'status', state: 'error', message: `恢复会话失败: ${msg}` });
+        return { ok: false, error: `恢复会话失败: ${msg}` };
+      } finally {
+        loadPending = false;
+      }
+      sessionId = ensureString(s && s.sessionId) || client.sessionId || wantSessionId;
+      configOptions = s && s.configOptions;
+      resumed = true;
+      // agent 未重放历史时从本地 wire.jsonl 自绘（双保险）
+      if (!loadReplayed) sendAcpLocalHistory(wantSessionId);
+    } else {
+      const s = await client.newSession();
+      sessionId = s.sessionId;
+      configOptions = s.configOptions;
+    }
+    acpConfigOptions = Array.isArray(configOptions) ? configOptions : null;
+    sendAcpEvent({ type: 'status', state: 'ready', agentInfo: init.agentInfo, sessionId, configOptions, cwd, resumed });
+    return { ok: true, agentInfo: init.agentInfo, sessionId, configOptions, cwd, resumed };
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
     logLine(`ACP 会话启动失败: ${msg}`);
@@ -1972,6 +2058,40 @@ ipcMain.handle('acp-chat:prompt', async (_e, text) => {
     if (!acpClient) sendAcpEvent({ type: 'status', state: 'exited' });
     return { ok: false, error: msg };
   }
+});
+
+// 会话配置项切换：白名单校验（configId 须在缓存的 configOptions 内，value 须 ∈ 该项 options 取值集合）
+ipcMain.handle('acp-chat:set-config', async (_e, payload) => {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const configId = ensureString(p.configId).slice(0, 200);
+  const value = ensureString(p.value).slice(0, 200);
+  if (!configId || !value) return { ok: false, error: 'configId/value 不能为空' };
+  if (!acpClient) return { ok: false, error: '会话未连接' };
+  const cached = Array.isArray(acpConfigOptions) ? acpConfigOptions : [];
+  const item = cached.find((c) => c && typeof c === 'object' && c.id === configId);
+  const allowed = item && Array.isArray(item.options)
+    ? item.options.map((op) => (op && typeof op === 'object' ? ensureString(op.value) : '')).filter(Boolean)
+    : [];
+  if (!item || !allowed.includes(value)) {
+    logLine(`[acp] set-config 拒绝非法配置: ${configId}=${value}`);
+    return { ok: false, error: '非法配置项或取值' };
+  }
+  try {
+    const r = await acpClient.setConfigOption(configId, value);
+    if (r && Array.isArray(r.configOptions)) acpConfigOptions = r.configOptions;
+    return { ok: true, configOptions: r && r.configOptions };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    logLine(`[acp] set-config 失败: ${msg}`);
+    return { ok: false, error: msg };
+  }
+});
+
+// 取消当前在途 prompt（cancel 约定同步、不抛异常，仍防御性 try）
+ipcMain.handle('acp-chat:cancel', () => {
+  if (!acpClient) return { ok: false };
+  try { acpClient.cancel(); } catch { /* ignore */ }
+  return { ok: true };
 });
 
 // ---------- 重启 ----------
@@ -2465,7 +2585,7 @@ function buildMenu() {
         { label: '轮换访问令牌…', click: rotateToken },
         { label: '局域网访问…', click: showLanWindow },
         { type: 'separator' },
-        { label: '原生聊天原型（ACP 实验）…', click: showAcpChatWindow },
+        { label: '原生聊天（新会话）…', click: showAcpChatWindow },
         { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
         { type: 'separator' },
         { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
@@ -3650,6 +3770,61 @@ ipcMain.handle('session:resumeSession', async (_e, sessionId) => {
     logLine(`resumeSession 失败: ${err.message}`);
     return { ok: false, message: err.message };
   }
+});
+
+// 在原生聊天窗中打开既有会话：查索引 → 敏感目录二次确认 → 开窗并向渲染层下发 open-session
+ipcMain.handle('session:openInNativeChat', async (_e, sessionId) => {
+  if (!sessionId || typeof sessionId !== 'string') {
+    return { ok: false, message: '无效的 sessionId' };
+  }
+  const indexEntries = readSessionIndex();
+  const entry = indexEntries.find((e) => e.sessionId === sessionId);
+  if (!entry) {
+    return { ok: false, message: `未找到会话: ${sessionId}` };
+  }
+  const enriched = enrichSessionFromState(entry);
+  const workDir = ensureString(enriched.workDir);
+  if (!workDir) {
+    return { ok: false, message: '该会话缺少工作目录信息' };
+  }
+  // 敏感目录二次确认（与新建会话同一套检查）
+  if (isSensitiveWorkDir(workDir)) {
+    const warn = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: '敏感目录警告',
+      message: '在敏感目录中打开会话',
+      detail: `会话工作目录「${workDir}」属于敏感位置（用户主目录、盘符根目录、.ssh/.gnupg 或 Kimi 数据目录）。在此运行 Agent 可能读取或修改大量私人文件，建议谨慎操作。`,
+      buttons: ['继续打开', '取消'],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    if (warn.response !== 0) {
+      return { ok: false, message: '已取消' };
+    }
+  }
+  // 窗口已存在且有在途 client 时先断开（切换会话）
+  if (acpClient) disposeAcpClient('切换会话');
+  showAcpChatWindow();
+  const win = acpChatWindow;
+  const payload = {
+    type: 'open-session',
+    cwd: workDir,
+    sessionId,
+    title: ensureString(enriched.title) || sessionId.slice(0, 8),
+  };
+  const deliver = () => {
+    // 窗口已被替换或销毁则不再下发
+    if (acpChatWindow === win && win && !win.isDestroyed()) sendAcpEvent(payload);
+  };
+  if (win && !win.isDestroyed()) {
+    if (win.webContents.isLoading()) {
+      win.webContents.once('did-finish-load', deliver); // once 一次性监听，防重复绑定
+    } else {
+      deliver(); // 窗口已存在且已加载完：立即下发
+    }
+  }
+  logLine(`原生聊天打开会话: ${sessionId} (cwd=${workDir})`);
+  return { ok: true };
 });
 
 ipcMain.handle('session:exportSession', async (_e, sessionId) => {

@@ -101,6 +101,43 @@
 - 会话实际处于 plan mode（agent 自述 + ExitPlanMode 工具出现），但 `session/new` 的 mode configOption 显示 `default`（日志2:L89-131）——configOption 值与实际权限模式可能不一致（或 CLI 恢复了持久化模式），待查。
 - stdout 依旧 0 段不可解析输出；除 request_permission 外无其它 server→client 请求（日志2:L1277-1278）。
 
+### 第三次探测（2026-07-23）：set_config_option / session/load / session/list / session/cancel
+
+> 原始输出日志：[`docs/acp-probe3-output.txt`](./acp-probe3-output.txt)（786 行，下文以 `日志3:Lxx` 引用行号）。
+> 探测脚本 `scripts/acp-probe3.js`：同一进程内顺序执行 阶段A（session/new + prompt）→ B（set_config_option × 3 + 观察 prompt）→ C（session/load）→ D（session/list）→ E（session/cancel）；总超时 120s，退出码 0，全程 0 次 request_permission、0 段不可解析输出（日志3:L765-786）。
+
+**结论：四个目标方法全部存在且按 ACP 规范形态工作。`session/set_config_option` 切换成功并伴随 `config_option_update` 通知；`session/load` 成功但对「当前活跃会话」不重放历史（仅补发 1 条 available_commands_update）；`session/list` 一次成功，条目字段 `{sessionId, cwd, title, updatedAt}` 外加 `nextCursor` 分页字段；`session/cancel` 生效，prompt 以 `stopReason:"cancelled"` 结束。**
+
+#### 阶段B：session/set_config_option（日志3:L298-445）
+
+- 请求形态：`{sessionId, configId, value}`，`value` 为**纯字符串**（取该项 options 中第一个不等于 currentValue 的 value）。
+- 成功响应：`result.configOptions` = 更新后的**完整 configOptions 数组**（与 session/new 同构），对应项 `currentValue` 已变为新值（日志3:L302-373）。
+- 成功切换**伴随** `session/update` 通知：`sessionUpdate:"config_option_update"`，`update.configOptions` 同为完整数组；实测通知**先于**响应到达（日志3:L300 vs L301）。
+- model：`kimi-code/k3` → `kimi-code/kimi-for-coding` 成功（往返 46ms）。
+- thinking：可选值仅 `on` 一项，无值可切，写入侧未实测（跳过，日志3:L375）。
+- mode：`default` → `plan` **失败**：`-32603 Internal error`，`error.data.details:"Already in plan mode"`（日志3:L393-402）——再次证实 configOption 显示的 `default` 与会话实际权限模式（plan）不一致，CLI 按实际模式拒绝重复切换；失败时无任何通知。
+- 切换后观察 prompt（`Reply with exactly: PROBE3-AFTER-CONFIG`）：`stopReason:"end_turn"` 且口令精确回显（日志3:L438-445），未触发审批循环。注意：set_config_option 的修改**不持久**——阶段C 的 session/load 响应中 model 已回到 `kimi-code/k3`。
+
+#### 阶段C：session/load 历史重放（日志3:L446-593）
+
+- 方法名 `session/load` **存在**（未触发 -32601，`session/resume` 未启用）。参数 `{sessionId, cwd, mcpServers:[]}`，往返 206ms。
+- 成功响应：`result` **仅含 `configOptions`**（无 sessionId 回显），各 currentValue 为**持久化原值**（不继承阶段B的内存态切换）。
+- **历史重放：未发生**。load 响应前 0 条通知、响应后仅 1 条 `available_commands_update`（日志3:L523-593）；无 `user_message_chunk`/`agent_message_chunk`/`tool_call` 重放，亦无专门的重放终止信号。
+- 重要 caveat：本次 load 的正是**本进程内已活跃的同一会话**；「加载非活跃历史会话是否重放」未覆盖，属残留缺口（需第四次探测：建 B 会话后 load A 会话，或跨进程 load）。
+- 推论：v0.12.0 恢复会话时，UI 消息历史**不能依赖** session/load 重放，需自行从本地会话文件渲染；load 仅作「接续 agent 侧上下文」用途。
+
+#### 阶段D：session/list（日志3:L594-717 + 补充实测）
+
+- 参数 `{}` 一次成功（往返 64ms）。响应 `result.sessions` 为数组（本机 22 条，按 `updatedAt` 倒序，当前会话在最前），`result.nextCursor` 存在、本次为 `null`（分页游标，经补充实测确认 result 仅 `sessions` + `nextCursor` 两键）。
+- 条目字段（4 个）：`sessionId`、`cwd`、`title`（由首条 prompt 截断生成）、`updatedAt`（ISO8601）。
+- 与 `~/.kimi-code/session_index.jsonl` 对照（日志3:L715-717）：本地索引字段为 `{sessionId, sessionDir, workDir}`——命名不同（`workDir` vs `cwd`）且无 title/updatedAt；ACP 的 list 信息更全，桌面端会话启动器可直接改用 `session/list`。
+- 注意 `cwd` 路径分隔符不统一（`D:\code\...` 与 `D:/code/...` 混存），匹配时需归一化。
+
+#### 阶段E：session/cancel（日志3:L718-764）
+
+- 长输出 prompt（数 1..50）发出 2s 后发 `session/cancel` 通知（JSON-RPC 通知，无 id，参数 `{sessionId}`）。
+- **生效**：cancel 发出后 23ms prompt 响应 `result.stopReason:"cancelled"`（日志3:L756-764）；此前已推 33 条 `agent_thought_chunk`，cancel 后无新 chunk，agent 即刻停止。
+
 ## ② ACP 与现有 REST+WS 路线的能力差分析
 
 | 维度 | 现有 REST+WS（`kimi server` + WebView） | ACP（spawn `kimi acp`，stdio JSON-RPC） |
@@ -151,7 +188,7 @@
 ### 未验证项与后续探测清单
 
 1. ~~`session/request_permission` 字段级结构~~ **已验证（第二次探测，见 §①「第二次探测」）**：params=`{sessionId, options, toolCall}`，options 的 kind 实测 `allow_once`/`reject_once`。残留缺口：`allow_always`/`reject_always` 与写工作区文件类权限请求未触发（本轮会话处于 plan mode）。
-2. `session/set_config_option`（configOptions 的写入侧）与 `session/list` / `session/resume` 的实际行为。
+2. ~~`session/set_config_option`（configOptions 的写入侧）与 `session/list` / `session/load` 的实际行为~~ **已验证（第三次探测，见 §①「第三次探测」）**：set_config_option 参数 `{sessionId, configId, value(字符串)}`，成功响应 `result.configOptions` 全量并伴随 `config_option_update` 通知；list 条目 `{sessionId, cwd, title, updatedAt}` + `nextCursor`；cancel 生效（`stopReason:"cancelled"`）。残留缺口：①`session/load` 加载**非活跃**历史会话是否重放消息（本次 load 的是当前活跃会话，未重放）；②thinking 仅单值 `on`，写入侧未实测；③mode 因「实际模式=plan 与 configOption 显示 default 不一致」切换被拒（-32603 `Already in plan mode`），default/auto/yolo 之间互切未验证；④`session/resume` 未触发（load 存在即未回退），其行为未知；⑤set_config_option 的修改不持久（load 后还原为持久化原值）的准确语义边界。
 3. 客户端声明 `fs/terminal: true` 后 `fs/read_text_file`、`terminal/*` 请求的形态（桌面端是否要接管文件读写）。
 4. Content-Length 分帧回退路径仅有代码、未对真实对端验证（ndjson 已够用，此项仅作健壮性储备）。
 5. 备选交叉验证：用 Zed 配置 `agent_servers` 指向 `kimi.exe acp` 实测一轮（本项目 v0.8.0 的 IDE 接入向导已能生成该配置），从成熟客户端视角对照。
@@ -161,3 +198,5 @@
 - 探测脚本：`scripts/acp-probe.js`（纯 Node 无依赖，可重复运行；探测 prompt 可用环境变量 `KIMI_ACP_PROBE_PROMPT` 覆盖，默认口令不变）
 - 输出日志：`docs/acp-probe-output.txt`（647 行时间线，毫秒级方向标记）
 - 第二次探测日志：`docs/acp-probe2-output.txt`（1282 行，文件创建类 prompt，含 4 次 request_permission 完整结构与 tool_call 全形态）
+- 第三次探测脚本：`scripts/acp-probe3.js`（阶段A-E：set_config_option / session/load / session/list / session/cancel）
+- 第三次探测日志：`docs/acp-probe3-output.txt`（786 行，四方法全部实测通过，含 config_option_update 通知与 list 条目全量）

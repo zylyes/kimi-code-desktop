@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   getSessions: () => ipcRenderer.invoke('session:getSessions'),
   refreshSessions: () => ipcRenderer.invoke('session:refreshSessions'),
   resumeSession: (id) => ipcRenderer.invoke('session:resumeSession', id),
+  openInNativeChat: (id) => ipcRenderer.invoke('session:openInNativeChat', id),
   exportSession: (id) => ipcRenderer.invoke('session:exportSession', id),
   visualiseSession: (id) => ipcRenderer.invoke('session:visualiseSession', id),
   createSessionInDirectory: (opts) => ipcRenderer.invoke('session:createSessionInDirectory', opts),
