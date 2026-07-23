@@ -313,6 +313,18 @@
       </div>
     </div>
 
+    <div class="group">
+      <div class="form-row" style="margin-top:10px">
+        <div class="switch">
+          <div>
+            <div class="switch-label">启动时自动连接 CLI</div>
+            <div class="switch-desc">关闭后，应用启动时先停留在本配置页，点击下方「保存并连接」进入</div>
+          </div>
+          <input type="checkbox" id="autoStartCli" />
+        </div>
+      </div>
+    </div>
+
     <div class="group" id="cliGroup">
       <label>Kimi Code CLI 路径（留空则自动探测）</label>
       <div class="row">
@@ -716,6 +728,7 @@
       'load-failed': '页面加载失败。服务可能已停止，请重新启动或更新地址。',
       'server-stopped': 'kimi web 服务已停止运行。可重新启动，或改用手动填写地址。',
       'manual': '',
+      'startup-paused': '已按你的设置跳过自动启动。确认或修改配置后，点击下方「保存并连接」进入。',
     };
 
     const qs = new URLSearchParams(location.search);
@@ -767,6 +780,7 @@
     const noAutoUpdateEl = $('noAutoUpdate');
     const disableTelemetryEl = $('disableTelemetry');
     const debugModeEl = $('debugMode');
+    const autoStartCliEl = $('autoStartCli');
     const pluginMarketplaceUrlEl = $('pluginMarketplaceUrl');
     const oauthHostEl = $('oauthHost');
     const selfHostedBaseUrlEl = $('selfHostedBaseUrl');
@@ -867,6 +881,7 @@
         noAutoUpdateEl.checked = !!c.noAutoUpdate;
         disableTelemetryEl.checked = !!c.disableTelemetry;
         debugModeEl.checked = !!c.debugMode;
+        autoStartCliEl.checked = c.autoStartCli !== false;
         if (c.pluginMarketplaceUrl) pluginMarketplaceUrlEl.value = c.pluginMarketplaceUrl;
         if (c.oauthHost) oauthHostEl.value = c.oauthHost;
         if (c.selfHostedBaseUrl) selfHostedBaseUrlEl.value = c.selfHostedBaseUrl;
@@ -1041,6 +1056,7 @@
         noAutoUpdate: noAutoUpdateEl.checked,
         disableTelemetry: disableTelemetryEl.checked,
         debugMode: debugModeEl.checked,
+        autoStartCli: autoStartCliEl.checked,
         pluginMarketplaceUrl: pluginMarketplaceUrlEl.value.trim(),
         oauthHost: oauthHostEl.value.trim(),
         selfHostedBaseUrl: selfHostedBaseUrlEl.value.trim(),

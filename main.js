@@ -128,7 +128,7 @@ function loadConfig() {
     mode: 'auto', cliPath: '', manualUrl: '', shellPath: '',
     httpProxy: '', httpsProxy: '', allProxy: '', noProxy: '',
     port: null, host: '', logLevel: '', kimiCodeHome: '',
-    noAutoUpdate: false, disableTelemetry: false,
+    noAutoUpdate: false, disableTelemetry: false, autoStartCli: true,
   }, readJSON(configFile(), {}));
 }
 
@@ -2427,6 +2427,7 @@ function buildTrayMenu(statusLabel) {
     { label: '新建 Web 会话', click: () => { showMainWindow(); restartServer(); } },
     { label: '默认模型', submenu: buildModelSubmenu() },
     { label: '多实例', submenu: buildInstancesSubmenu() },
+    { label: '设置…', click: () => { showMainWindow(); showSetup('manual'); } },
     { type: 'separator' },
     { label: '退出', click: () => { quitting = true; app.quit(); } },
   );
@@ -2680,6 +2681,7 @@ function buildMenu() {
         { type: 'separator' },
         { label: '原生聊天（新会话）…', click: showAcpChatWindow },
         { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
+        { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => showSetup('manual') },
         { type: 'separator' },
         { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
         { type: 'separator' },
@@ -3084,6 +3086,7 @@ ipcMain.handle('app:info', () => {
       kimiCodeHome: cfg.kimiCodeHome || '',
       noAutoUpdate: cfg.noAutoUpdate === true,
       disableTelemetry: cfg.disableTelemetry === true,
+      autoStartCli: cfg.autoStartCli !== false,
       debugMode: cfg.debugMode === true,
       pluginMarketplaceUrl: cfg.pluginMarketplaceUrl || '',
       oauthHost: cfg.oauthHost || '',
@@ -3114,6 +3117,7 @@ ipcMain.handle('setup:save', async (_e, payload) => {
     kimiCodeHome: ensureString(p.kimiCodeHome),
     noAutoUpdate: p.noAutoUpdate === true,
     disableTelemetry: p.disableTelemetry === true,
+    autoStartCli: p.autoStartCli !== false,
     debugMode: p.debugMode === true,
     pluginMarketplaceUrl: ensureString(p.pluginMarketplaceUrl),
     oauthHost: ensureString(p.oauthHost),
@@ -4369,6 +4373,9 @@ if (!gotLock) {
       } else if (cfg.mode === 'manual' && cfg.manualUrl) {
         logLine(`手动模式，直接加载: ${cfg.manualUrl}`);
         loadMain(cfg.manualUrl);
+      } else if (cfg.autoStartCli === false) {
+        logLine('已按设置跳过自动启动，显示设置页面');
+        showSetup('startup-paused');
       } else {
         startKimiServer();
       }
