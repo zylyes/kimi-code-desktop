@@ -92,10 +92,23 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   backToSession: () => ipcRenderer.invoke('app:backToSession'),
 });
 
-// 在 kimi web UI 会话页（loopback http(s) 页面）右下角注入浮动设置按钮；
-// 样式由主进程 webContents.insertCSS 注入，此处不写任何内联样式。
+// 主窗口标记：createWindow 经 additionalArguments 传入，辅助窗口复用本 preload 时不带此标记
+const IS_MAIN_WINDOW = process.argv.includes('--kcd-main-window');
+// 拖拽条标记：无边框窗口都需要顶部拖拽条（主窗口所有页面 + 可视化等外部页面窗口）
+const NEEDS_DRAG_STRIP = IS_MAIN_WINDOW || process.argv.includes('--kcd-drag-strip');
+
+// 主窗口（无边框）注入顶部拖拽条；kimi web UI 会话页（loopback http(s) 页面）右下角
+// 注入浮动设置按钮与 ☰ 菜单按钮；样式由主进程 webContents.insertCSS 注入，此处不写任何内联样式。
 window.addEventListener('DOMContentLoaded', () => {
   try {
+    // 顶部拖拽条：无边框窗口页面（含 loading/setup/sessions 本地页与 kimi vis 外部页）都需要
+    if (NEEDS_DRAG_STRIP && !document.getElementById('kcd-drag-strip')) {
+      const strip = document.createElement('div');
+      strip.id = 'kcd-drag-strip';
+      strip.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(strip);
+    }
+
     if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
     if (!['127.0.0.1', 'localhost', '[::1]', '::1'].includes(location.hostname)) return;
     if (document.getElementById('kcd-settings-fab')) return;
@@ -110,6 +123,20 @@ window.addEventListener('DOMContentLoaded', () => {
       ipcRenderer.invoke('app:showSetup');
     });
     document.body.appendChild(fab);
+
+    // ☰ 菜单按钮：无边框主窗口无原生菜单栏，点击弹出完整应用菜单（快捷键不受影响）
+    if (IS_MAIN_WINDOW && !document.getElementById('kcd-menu-fab')) {
+      const menuFab = document.createElement('button');
+      menuFab.id = 'kcd-menu-fab';
+      menuFab.type = 'button';
+      menuFab.title = '菜单';
+      menuFab.setAttribute('aria-label', '菜单');
+      menuFab.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>';
+      menuFab.addEventListener('click', () => {
+        ipcRenderer.invoke('app:popupMenu');
+      });
+      document.body.appendChild(menuFab);
+    }
   } catch (err) {
     // 注入失败不影响页面本身
   }

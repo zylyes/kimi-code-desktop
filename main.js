@@ -1035,6 +1035,33 @@ function windowBackground() {
   return nativeTheme.shouldUseDarkColors ? '#121212' : '#fbfaf9';
 }
 
+// 主窗口悬浮窗控（titleBarOverlay）配色：背景对齐窗口背景，符号色随亮/暗主题
+function titleBarOverlayOpts() {
+  return {
+    color: windowBackground(),
+    symbolColor: nativeTheme.shouldUseDarkColors ? '#ffffff' : '#111111',
+    height: 32,
+  };
+}
+
+// 无边框窗口通用选项与后配置：全窗口统一无边框 + 悬浮窗控（品牌一致性），
+// 页面拖拽区由 kimi-theme.css（#kcd-drag-strip/.topbar）与 preload 注入提供
+function framelessOpts() {
+  return { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlayOpts() };
+}
+
+function applyFrameless(win) {
+  // 无边框窗口上禁止 Alt 唤出原生菜单条（菜单加速键不受影响）
+  win.setMenuBarVisibility(false);
+}
+
+// 亮/暗主题变化时同步刷新所有窗口的悬浮窗控配色（applyAppSettings 切 themeSource 亦触发此事件）
+nativeTheme.on('updated', () => {
+  for (const w of BrowserWindow.getAllWindows()) {
+    try { w.setTitleBarOverlay(titleBarOverlayOpts()); } catch { /* 无 overlay 的窗口忽略 */ }
+  }
+});
+
 // ---------- 问答窗口 ----------
 function createQuestionWindow(sessionId, payload, gen) {
   const questionId = payload.question_id;
@@ -1056,6 +1083,7 @@ function createQuestionWindow(sessionId, payload, gen) {
       title: 'Kimi 的提问',
       backgroundColor: windowBackground(),
       autoHideMenuBar: true,
+      ...framelessOpts(),
       icon: path.join(__dirname, 'assets', 'icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'question-preload.js'),
@@ -1070,6 +1098,7 @@ function createQuestionWindow(sessionId, payload, gen) {
     fallbackQuestionWindowFailure(sessionId, payload, gen);
     return;
   }
+  applyFrameless(win);
 
   questionWindow = win;
   questionWindowQuestionId = questionId;
@@ -1558,6 +1587,7 @@ function makeSingletonWindow(title, file) {
       title,
       backgroundColor: windowBackground(),
       autoHideMenuBar: true,
+      ...framelessOpts(),
       icon: path.join(__dirname, 'assets', 'icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -1568,6 +1598,7 @@ function makeSingletonWindow(title, file) {
         partition: 'persist:kimi-code',
       },
     });
+    applyFrameless(win);
     win.on('closed', () => { win = null; });
     win.loadFile(path.join(__dirname, file)).catch((err) => {
       logLine(`加载 ${file} 失败: ${err.message}`);
@@ -1594,6 +1625,7 @@ function showAgentsMonitor(sessionDir, title) {
     title: title ? `子 Agent 监视 - ${title}` : '子 Agent 监视',
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
+    ...framelessOpts(),
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1604,6 +1636,7 @@ function showAgentsMonitor(sessionDir, title) {
       partition: 'persist:kimi-code',
     },
   });
+  applyFrameless(win);
   win.loadFile(path.join(__dirname, 'agents.html'), {
     query: { dir, title: ensureString(title) },
   }).catch((err) => {
@@ -1789,6 +1822,7 @@ function openAcpPermissionWindow(payload, settle) {
       title: '操作审批',
       backgroundColor: windowBackground(),
       autoHideMenuBar: true,
+      ...framelessOpts(),
       icon: path.join(__dirname, 'assets', 'icon.png'),
       webPreferences: {
         preload: path.join(__dirname, 'permission-preload.js'),
@@ -1803,6 +1837,7 @@ function openAcpPermissionWindow(payload, settle) {
     fallbackAcpPermissionDialog(payload, settle);
     return;
   }
+  applyFrameless(win);
   acpPermissionWindow = win;
   let fellBack = false; // 加载失败回退对话框时，关窗不再按取消收尾
   win.on('closed', () => {
@@ -1895,6 +1930,7 @@ function showAcpChatWindow() {
     title: '原生聊天原型（ACP 实验）',
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
+    ...framelessOpts(),
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'chat-preload.js'),
@@ -1904,6 +1940,7 @@ function showAcpChatWindow() {
       spellcheck: false,
     },
   });
+  applyFrameless(win);
   acpChatWindow = win;
   win.on('closed', () => {
     if (acpChatWindow === win) acpChatWindow = null;
@@ -2439,7 +2476,7 @@ function hideToTray() {
     try {
       tray.displayBalloon({
         title: APP_NAME,
-        content: '已最小化到系统托盘。单击图标恢复窗口，双击图标秒开新会话。',
+        content: '已最小化到系统托盘。单击图标恢复窗口，双击图标秒开新对话。',
         icon: nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')),
       });
     } catch { /* ignore */ }
@@ -2455,7 +2492,7 @@ function buildTrayMenu(statusLabel) {
   template.push(
     { label: '显示主窗口', click: showMainWindow },
     { label: '打开会话启动器', click: showSessionLauncher },
-    { label: '新建 Web 会话', click: () => { showMainWindow(); restartServer(); } },
+    { label: '新建对话', click: () => { showMainWindow(); restartServer(); } },
     { label: '默认模型', submenu: buildModelSubmenu() },
     { label: '多实例', submenu: buildInstancesSubmenu() },
     { label: '设置…', click: () => { showMainWindow(); showSetup('manual'); } },
@@ -2548,6 +2585,8 @@ function createWindow() {
     title: APP_NAME,
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
+    // 无边框：原生标题栏与 Web UI 品牌区/会话头部重复，改为悬浮窗控（右上角叠加 min/max/close）
+    ...framelessOpts(),
     icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -2556,8 +2595,12 @@ function createWindow() {
       sandbox: false,
       spellcheck: false,
       partition: 'persist:kimi-code',
+      // 供 preload 识别主窗口（注入拖拽条/菜单按钮），辅助窗口不带此标记
+      additionalArguments: ['--kcd-main-window'],
     },
   });
+  // 无边框窗口上禁止 Alt 唤出原生菜单条（菜单加速键不受影响，菜单经页面内 ☰ 按钮弹出）
+  applyFrameless(mainWindow);
   if (state.maximized) mainWindow.maximize();
 
   // 应用设置：窗口置顶与界面缩放
@@ -2673,20 +2716,30 @@ function createWindow() {
     }
   });
 
-  // 会话页（loopback http(s)）注入浮动设置按钮样式；按钮 DOM 由 preload 注入，
+  // 主窗口注入：顶部拖拽条样式（无边框窗口拖动用，本地页与 Web UI 页均需要）；
+  // 会话页（loopback http(s)）追加浮动设置/菜单按钮样式；按钮 DOM 由 preload 注入，
   // insertCSS 在主进程侧执行，不受页面 CSP 的 style-src 限制
   mainWindow.webContents.on('did-finish-load', () => {
     try {
+      // 拖拽条：10px 只覆盖页面顶部 padding 区，不遮挡 Web UI 头部交互；双击 drag 区自动切换最大化
+      mainWindow.webContents.insertCSS(
+        '#kcd-drag-strip{position:fixed;top:0;left:0;right:0;height:10px;-webkit-app-region:drag;z-index:2147483646;}'
+      );
       const u = new URL(mainWindow.webContents.getURL());
       const isLoopback = (u.protocol === 'http:' || u.protocol === 'https:')
         && ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(u.hostname);
       if (!isLoopback) return;
       // 色值对齐 kimi-theme.css 令牌（--separator/--shadow-card），因注入目标页面无法用 var()
       mainWindow.webContents.insertCSS([
-        '#kcd-settings-fab{position:fixed;right:18px;bottom:18px;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;z-index:2147483647;transition:opacity .15s;background:#ffffff;color:#111111;border:1px solid #00000021;box-shadow:0 5px 16px -4px #00000012;}',
-        '#kcd-settings-fab:hover{opacity:1;}',
-        '#kcd-settings-fab svg{width:18px;height:18px;pointer-events:none;}',
-        '@media (prefers-color-scheme:dark){#kcd-settings-fab{background:#1f1f1f;color:#ffffff;border-color:#ffffff1f;box-shadow:0 5px 16px -4px #00000012;}}',
+        '#kcd-settings-fab,#kcd-menu-fab{position:fixed;right:18px;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;z-index:2147483647;transition:opacity .15s;background:#ffffff;color:#111111;border:1px solid #00000021;box-shadow:0 5px 16px -4px #00000012;}',
+        '#kcd-settings-fab{bottom:18px;}',
+        '#kcd-menu-fab{bottom:64px;}',
+        '#kcd-settings-fab:hover,#kcd-menu-fab:hover{opacity:1;}',
+        '#kcd-settings-fab svg,#kcd-menu-fab svg{width:18px;height:18px;pointer-events:none;}',
+        '@media (prefers-color-scheme:dark){#kcd-settings-fab,#kcd-menu-fab{background:#1f1f1f;color:#ffffff;border-color:#ffffff1f;box-shadow:0 5px 16px -4px #00000012;}}',
+        // 会话头部：右让 154px 避开悬浮窗控（原 16px + 3×46px 窗控），整行作拖拽区、交互控件除外
+        'header.chat-header{padding-right:154px !important;-webkit-app-region:drag;}',
+        'header.chat-header button,header.chat-header a,header.chat-header input,header.chat-header select,header.chat-header textarea,header.chat-header [role=button],header.chat-header [contenteditable]{-webkit-app-region:no-drag;}',
       ].join('\n'));
     } catch { /* ignore */ }
   });
@@ -2738,7 +2791,7 @@ function buildMenu() {
       submenu: [
         { label: '打开会话启动器', accelerator: 'CmdOrCtrl+Shift+S', click: showSessionLauncher },
         { type: 'separator' },
-        { label: '新建 Web 会话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
+        { label: '新建对话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
         { label: '默认模型', submenu: buildModelSubmenu() },
         { label: '轮换访问令牌…', click: rotateToken },
         { label: '局域网访问…', click: showLanWindow },
@@ -3246,6 +3299,14 @@ ipcMain.handle('setup:save', async (_e, payload) => {
 });
 
 ipcMain.handle('app:showSetup', () => { showSetup('manual'); return true; });
+// 页面内 ☰ 菜单按钮：弹出完整应用菜单（不传坐标 → 弹在鼠标位置，避开缩放下的坐标换算）
+ipcMain.handle('app:popupMenu', () => {
+  const menu = Menu.getApplicationMenu();
+  if (menu && mainWindow && !mainWindow.isDestroyed()) {
+    menu.popup({ window: mainWindow });
+  }
+  return true;
+});
 ipcMain.handle('app:restart', async () => { await restartServer(); return true; });
 
 // 应用设置保存：白名单合并 8 键（theme 枚举校验、zoomFactor 数字钳制、其余布尔归一），即时生效
@@ -4218,6 +4279,7 @@ ipcMain.handle('session:visualiseSession', async (_e, sessionId) => {
             title: `Kimi Code 可视化 - ${sessionId.slice(0, 8)}`,
             backgroundColor: windowBackground(),
             autoHideMenuBar: true,
+            ...framelessOpts(),
             icon: path.join(__dirname, 'assets', 'icon.png'),
             webPreferences: {
               preload: path.join(__dirname, 'preload.js'),
@@ -4226,7 +4288,18 @@ ipcMain.handle('session:visualiseSession', async (_e, sessionId) => {
               sandbox: false,
               spellcheck: false,
               partition: `persist:kimi-vis-${sessionId.slice(0, 8)}`,
+              // 外部页面（kimi vis）无内嵌拖拽条元素，靠 preload 按此标记注入
+              additionalArguments: ['--kcd-drag-strip'],
             },
+          });
+          applyFrameless(visWindow);
+          // 外部页面无 kimi-theme.css，拖拽条样式改由主进程注入
+          visWindow.webContents.on('did-finish-load', () => {
+            try {
+              visWindow.webContents.insertCSS(
+                '#kcd-drag-strip{position:fixed;top:0;left:0;right:0;height:10px;-webkit-app-region:drag;z-index:2147483646;}'
+              );
+            } catch { /* ignore */ }
           });
           visWindow.loadURL(visUrl).catch((err) => {
             logLine(`可视化窗口加载失败: ${err.message}`);

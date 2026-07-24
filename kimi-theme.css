@@ -319,6 +319,33 @@ kbd {
   white-space: nowrap;
 }
 
+/* ================= 无边框窗口拖拽（各窗口页 <body> 内嵌 #kcd-drag-strip 元素） ================= */
+/* 顶部 10px 细条：只覆盖页面顶部 padding 区，不遮挡交互；双击 drag 区自动切换最大化 */
+#kcd-drag-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  -webkit-app-region: drag;
+  z-index: 2147483646;
+}
+
+/* 顶栏整行作拖拽区（交互控件排除在外），与主窗口 Web UI 头部行为一致 */
+.topbar {
+  -webkit-app-region: drag;
+}
+
+.topbar a,
+.topbar button,
+.topbar input,
+.topbar select,
+.topbar textarea,
+.topbar [role="button"],
+.topbar [contenteditable] {
+  -webkit-app-region: no-drag;
+}
+
 /* 桥接警告 */
 .bridge-warn {
   flex: none;
