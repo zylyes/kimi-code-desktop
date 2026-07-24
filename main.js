@@ -1,6 +1,6 @@
 // Kimi Code Desktop — 网页版桌面套壳
 // 自动启动 `kimi web`，从输出中捕获带 token 的本地地址，并在桌面窗口中打开。
-const { app, BrowserWindow, Menu, Tray, shell, ipcMain, dialog, nativeImage, nativeTheme, Notification, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, ipcMain, dialog, nativeImage, nativeTheme, Notification, globalShortcut, session } = require('electron');
 const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -1479,13 +1479,10 @@ function showDesktopNotification(title, body) {
   try {
     const notif = new Notification({ title, body, icon: path.join(__dirname, 'assets', 'icon.png') });
     notif.on('click', () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show();
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.focus();
-        // 取消任务栏闪烁
-        mainWindow.flashFrame(false);
-      }
+      // 与托盘点击同一入口：窗口被销毁（mainWindow 为 null）时自动重建并拉起服务
+      showMainWindow();
+      // 取消任务栏闪烁
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(false);
     });
     notif.show();
     // 通知闪烁前重新确认窗口未聚焦（窗口可能在消息到达后被聚焦）
@@ -1493,6 +1490,17 @@ function showDesktopNotification(title, body) {
       mainWindow.flashFrame(true);
     }
   } catch { /* Electron Notification 不可用时静默 */ }
+}
+
+// 屏蔽网页自身的 HTML5 通知：桌面端统一由主进程原生通知展示，避免同一事件弹出网页+原生两条通知
+function blockWebPageNotifications() {
+  const shouldDeny = (permission) => permission === 'notifications';
+  const sessions = [session.defaultSession, session.fromPartition('persist:kimi-code')];
+  for (const ses of sessions) {
+    if (!ses) continue;
+    ses.setPermissionRequestHandler((_wc, permission, callback) => callback(!shouldDeny(permission)));
+    ses.setPermissionCheckHandler((_wc, permission) => !shouldDeny(permission));
+  }
 }
 
 // ---------- 页面加载 ----------
@@ -3525,9 +3533,9 @@ ipcMain.handle('cli:checkUpdate', async () => {
     try {
       const latestFile = path.join(getKimiHomeDir(), 'updates', 'latest.json');
       const data = JSON.parse(fs.readFileSync(latestFile, 'utf8'));
-      latest = String(data.latest_version || data.version || data.tag_name || '').replace(/^v/, '');
+      latest = String(data.latest || data.latest_version || data.version || data.tag_name || '').replace(/^v/, '');
     } catch { /* latest.json 不存在或损坏时视为无更新信息 */ }
-    const updateAvailable = !!(current && latest && compareSemver(current, latest) !== 0);
+    const updateAvailable = !!(current && latest && compareSemver(current, latest) < 0);
     return { ok: true, current, latest, updateAvailable };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -4460,6 +4468,7 @@ if (!gotLock) {
 
   app.whenReady().then(() => {
     applyKimiCodeHomeFromConfig();
+    blockWebPageNotifications();
     createWindow();
     buildMenu();
     createTray();
