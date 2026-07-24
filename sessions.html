@@ -3,16 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
-<title>Kimi Code Desktop · 会话</title>
+<title>Kimi Code Desktop · 会话启动器</title>
 <link rel="stylesheet" href="kimi-theme.css" />
+<script src="menu-panel.js" defer></script>
 <style>
   /* 主题令牌全部来自共享主题样式表；状态色纪律：仅成功/错误用点缀色，其余一律灰阶 */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
-  body { overflow: hidden; }
-  .mono { font-family: var(--font-mono); }
+  body { overflow: hidden; display: flex; flex-direction: column; }
 
-  .app { display: flex; height: 100vh; }
+  /* 统一头部 .app-topbar（48px、整行可拖拽、右侧 150px 避让悬浮窗控）由共享主题提供，本页不做任何本地重定义 */
+  .app { display: flex; flex: 1; min-height: 0; }
 
   /* ---------- 左侧会话导航 ---------- */
   .sidebar {
@@ -27,10 +28,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding: 14px 14px 10px;
   }
-  .side-title { font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
-  .side-tools { display: flex; gap: 6px; }
+  /* 分组小标题：与共享 .side-group 完全一致（12px / 三级文字、无字距） */
+  .side-title { font-size: 12px; color: var(--label-tertiary); white-space: nowrap; }
+  .side-tools { display: flex; gap: 6px; align-items: center; }
   .icon-btn:disabled { opacity: 0.5; cursor: default; }
   .icon-btn .plus { font-size: 16px; line-height: 1; font-weight: 600; }
 
@@ -44,7 +47,7 @@
     border: 1px solid var(--separator);
     border-radius: var(--radius-sm);
     background: var(--bg-secondary);
-    color: var(--label-tertiary);
+    color: var(--label-secondary);
     font-size: 12px;
   }
   .perm-ctl select {
@@ -70,35 +73,37 @@
   .search-wrap { padding: 0 14px 10px; }
   #search { width: 100%; }
 
+  /* 列表纵向间距由共享 .side-nav（纵向 flex、gap:2px）提供 */
   .list {
     flex: 1;
     overflow-y: auto;
     list-style: none;
     padding: 2px 8px 8px;
   }
+  /* .item 是共享 .side-item 的多行会话条目变体：同一组令牌（13px、二级文字、8px 圆角、
+     hover 浅灰底、选中更深底+主文字），仅改为块级布局与更宽松内边距以容纳标题/目录/状态三行内容 */
   .item {
     display: block;
     width: 100%;
     text-align: left;
-    padding: 9px 10px;
-    margin-bottom: 2px;
-    border: 1px solid transparent;
-    border-radius: 12px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: var(--label-primary);
+    color: var(--label-secondary);
     font-family: inherit;
+    font-size: 13px;
     cursor: pointer;
     animation: rise 0.25s ease both;
   }
-  .item:hover { background: var(--bg-secondary-hover); }
+  .item:hover { background: var(--bg-secondary-hover); color: var(--label-primary); }
   .item[aria-selected="true"] {
     background: var(--bg-secondary-active);
-    border-color: var(--separator);
+    color: var(--label-primary);
   }
   .item:focus-visible { outline-offset: -1px; }
   .item-title {
     display: block;
-    font-size: 13px;
     font-weight: 500;
     white-space: nowrap;
     overflow: hidden;
@@ -108,7 +113,7 @@
   .item-dir {
     display: block;
     margin-top: 3px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--label-tertiary);
     white-space: nowrap;
     overflow: hidden;
@@ -118,40 +123,28 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-top: 5px;
-    font-size: 11px;
+    margin-top: 4px;
+    font-size: 12px;
     color: var(--label-tertiary);
   }
+  /* 时间戳右置、12px、三级弱化 */
+  .item-time { margin-left: auto; font-size: 12px; color: var(--label-tertiary); white-space: nowrap; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--label-quaternary); flex-shrink: 0; }
   .dot.run { background: var(--color-success); }
   .dot.arc { background: var(--label-quaternary); }
   .dot.err { background: var(--color-error); }
 
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .empty {
-    flex: 1;
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 24px;
-    text-align: center;
-    color: var(--label-tertiary);
-    font-size: 12px;
-    line-height: 1.7;
-  }
-  .empty.show { display: flex; }
+  /* 入场动画 rise 由共享主题提供；空态排版由共享 .notice 提供，此处仅保留显隐与侧栏留白 */
+  .empty { flex: 1; display: none; padding: 24px 14px; }
+  .empty.show { display: block; }
+  /* 加载态内联 spinner 与文字的间距/对齐（.notice 非 flex 布局，故局部补齐） */
+  .empty .spinner { margin-right: 8px; vertical-align: -2px; }
   .empty .link {
     color: var(--label-tertiary);
     background: none;
     border: none;
     border-bottom: 1px solid transparent;
-    font-size: 12px;
+    font-size: inherit;
     font-family: inherit;
     cursor: pointer;
     padding: 0;
@@ -161,7 +154,7 @@
   .side-foot {
     padding: 9px 14px;
     border-top: 1px solid var(--separator);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--label-tertiary);
   }
 
@@ -186,7 +179,7 @@
   }
   .placeholder .mark {
     width: 44px; height: 44px;
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     background: var(--bg-secondary);
     border: 1px solid var(--separator);
     color: var(--label-tertiary);
@@ -194,7 +187,8 @@
     display: flex; align-items: center; justify-content: center;
     margin-bottom: 6px;
   }
-  .placeholder .hint { font-size: 12px; }
+  /* 共享 .hint 自带 margin-bottom，在 flex 居中布局中会破坏垂直居中，此处归零（12px 字号沿用共享组件） */
+  .placeholder .hint { margin-bottom: 0; }
 
   .panel {
     padding: 26px 32px 32px;
@@ -203,27 +197,27 @@
   }
   .panel-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
     flex-wrap: wrap;
   }
+  /* 详情标题沿用全局标题层级：14px / 600（与 .app-topbar-title 一致） */
   .panel-head h1 {
     flex: 1;
     min-width: 200px;
-    font-size: 20px;
+    font-size: 14px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.5;
     word-break: break-all;
   }
   .badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-top: 4px;
     padding: 3px 10px;
     border: 1px solid var(--separator);
     border-radius: var(--radius-pill);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--label-tertiary);
     white-space: nowrap;
   }
@@ -264,9 +258,9 @@
   .prompt {
     padding: 12px 14px;
     border: 1px solid var(--separator);
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     background: var(--bg-secondary);
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.7;
     color: var(--label-primary);
     white-space: pre-wrap;
@@ -286,42 +280,28 @@
   /* 按钮主体沿用共享主题的 .btn / .btn-primary / .btn-secondary / .btn-danger，此处仅补间距与悬停态 */
   .actions .btn { gap: 8px; }
   .btn-primary:hover { opacity: 0.88; }
-  .btn-secondary:hover { background: var(--bg-secondary-hover); border-color: var(--separator-hover); }
+  /* 背景 hover 已由共享主题 .btn-secondary:hover 提供，此处仅补边框加深 */
+  .btn-secondary:hover { border-color: var(--separator-hover); }
   .btn-danger:hover { border-color: var(--color-error); background: color-mix(in srgb, var(--color-error) 8%, transparent); }
 
-  .spinner {
-    display: inline-block;
-    width: 12px; height: 12px;
-    flex-shrink: 0;
-    border: 2px solid var(--separator);
-    border-top-color: var(--label-primary);
-    border-radius: 50%;
-    animation: rot 0.8s linear infinite;
-  }
+  /* .spinner 与 @keyframes rot 由共享主题提供；此处仅保留主按钮内加载圈的反色 */
   .btn-primary .spinner {
     border-color: color-mix(in srgb, var(--bg-ground) 35%, transparent);
     border-top-color: var(--bg-ground);
   }
-  @keyframes rot { to { transform: rotate(360deg); } }
 
   .action-status {
     margin-top: 14px;
     font-size: 12px;
     min-height: 18px;
     line-height: 1.5;
+    color: var(--label-tertiary);
     word-break: break-all;
   }
   .action-status.ok { color: var(--color-success); }
   .action-status.err { color: var(--color-error); }
 
-  .bridge-warn {
-    padding: 9px 14px;
-    border-bottom: 1px solid var(--separator);
-    background: var(--bg-primary);
-    color: var(--label-secondary);
-    font-size: 12px;
-    line-height: 1.6;
-  }
+  /* .bridge-warn 桥接警告由共享主题提供（错误色点缀），本页不再本地覆盖 */
 
   @media (max-width: 720px) {
     .app { flex-direction: column; }
@@ -336,13 +316,20 @@
 
   @media (prefers-reduced-motion: reduce) {
     .item, .panel { animation: none; }
-    .spinner { animation-duration: 1.6s; }
   }
 </style>
 </head>
 <body>
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
+  <!-- 统一头部：品牌 + 页面标题（组件样式见 kimi-theme.css .app-topbar 系列，本页不本地重定义） -->
+  <header class="app-topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">K</span>
+      <span class="brand-name">Kimi Code</span>
+    </div>
+    <div class="app-topbar-title">会话启动器</div>
+  </header>
   <div class="app">
     <aside class="sidebar" aria-label="会话导航">
       <div class="side-head">
@@ -365,8 +352,8 @@
       <div class="search-wrap">
         <input type="search" class="input" id="search" placeholder="搜索标题或目录…" aria-label="搜索会话" spellcheck="false" />
       </div>
-      <ul class="list" id="sessionList" role="listbox" aria-label="会话列表"></ul>
-      <div class="empty" id="emptyState"></div>
+      <ul class="list side-nav" id="sessionList" role="listbox" aria-label="会话列表"></ul>
+      <div class="empty notice" id="emptyState"></div>
       <div class="side-foot" id="countLabel">正在加载…</div>
     </aside>
 
@@ -589,7 +576,12 @@
         dot.className = 'dot' + (info.cls ? ' ' + info.cls : '');
         dot.setAttribute('aria-hidden', 'true');
         meta.appendChild(dot);
-        meta.appendChild(document.createTextNode(info.label + ' · ' + (relTime(s.updatedAt) || '时间未知')));
+        meta.appendChild(document.createTextNode(info.label));
+        // 时间戳独立为右置的弱化小字（样式见 .item-time）
+        const time = document.createElement('span');
+        time.className = 'item-time';
+        time.textContent = relTime(s.updatedAt) || '时间未知';
+        meta.appendChild(time);
 
         btn.appendChild(title);
         btn.appendChild(dir);

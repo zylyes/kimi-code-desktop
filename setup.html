@@ -5,54 +5,28 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
 <title>Kimi Code Desktop · 设置</title>
 <link rel="stylesheet" href="kimi-theme.css">
+<script src="menu-panel.js" defer></script>
 <style>
   /* 颜色一律引用官方主题的设计令牌 var(--*)，本文件不出现任何硬编码颜色 */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { height: 100%; }
-  body { min-height: 100%; }
+  /* body 纵向 flex：48px 统一头部（.app-topbar，样式见 kimi-theme.css）+ 下方自适应主区 */
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-  /* 布局骨架：左侧分组导航 + 右侧内容（对齐 sessions.html） */
-  .app { display: flex; height: 100vh; }
+  /* 布局骨架：左侧分组导航（.side-nav 官方风）+ 右侧内容（对齐 sessions.html） */
+  .app { display: flex; flex: 1; min-height: 0; }
   .sidebar {
     width: 232px;
     flex: none;
     background: var(--bg-primary);
     border-right: 1px solid var(--separator);
-    display: flex;
-    flex-direction: column;
     overflow-y: auto;
+    padding: 4px 8px 12px;
   }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 18px 16px 12px; }
-  .brand-name { font-size: 16px; font-weight: 600; }
-  .mark {
-    width: 32px; height: 32px;
-    border-radius: var(--radius-sm);
-    background: var(--label-primary);
-    color: var(--bg-ground);
-    font-size: 18px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex: none;
-  }
-  .nav-group { font-size: 11px; color: var(--label-tertiary); padding: 14px 16px 6px; }
-  .nav-item {
-    display: block;
-    width: calc(100% - 16px);
-    margin: 1px 8px;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--label-secondary);
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .nav-item:hover { background: var(--bg-secondary-hover); color: var(--label-primary); }
-  .nav-item.active { background: var(--bg-secondary-active); color: var(--label-primary); font-weight: 500; }
   .content { flex: 1; overflow-y: auto; }
   .content-inner { max-width: 760px; margin: 0 auto; padding: 24px 28px 48px; }
-  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  /* 内容区小节头部：当前标签名 + 返回会话按钮（统一头部由 .app-topbar 承担） */
+  .content-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   h1 { font-size: 18px; font-weight: 600; }
   .reason {
     margin-top: 10px;
@@ -67,19 +41,23 @@
   }
   .reason.show { display: block; }
   .group { margin-top: 22px; }
+  /* 分组小标题：官方侧栏 .side-group 同款弱化风格（12px / 三级文字 / 字距） */
   .group label {
     display: block;
     font-size: 12px;
-    color: var(--label-secondary);
+    color: var(--label-tertiary);
+    letter-spacing: 0.04em;
     margin-bottom: 8px;
   }
+  /* 状态列表：提为官方 .card 同款视觉（主背景 + 分隔线描边 + 卡片阴影） */
   .status {
     border: 1px solid var(--separator);
     border-radius: var(--radius-card);
-    background: var(--bg-secondary);
-    padding: 2px 12px;
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-card);
+    padding: 4px 14px;
   }
-  .srow { display: flex; align-items: center; gap: 8px; padding: 9px 0; font-size: 12px; }
+  .srow { display: flex; align-items: center; gap: 8px; padding: 10px 0; font-size: 12px; }
   .srow + .srow { border-top: 1px solid var(--separator); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--label-quaternary); flex: none; }
   .dot.ok { background: var(--color-success); }
@@ -104,9 +82,12 @@
     font-size: 13px;
     text-align: center;
     color: var(--label-tertiary);
+    user-select: none;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
   }
+  .mode:hover { border-color: var(--separator-hover); color: var(--label-secondary); }
   .mode small { display: block; margin-top: 4px; font-size: 11px; color: var(--label-tertiary); opacity: 0.8; }
-  .mode.active { border-color: var(--label-primary); color: var(--label-primary); }
+  .mode.active { border-color: var(--label-primary); background: var(--bg-primary); color: var(--label-primary); }
   /* 输入控件外观由官方 .input 规格提供，这里只保留布局宽度和等宽字体 */
   input.input,
   select.input,
@@ -115,11 +96,12 @@
   input[type="password"].input,
   textarea.input { font-family: var(--font-mono); }
   textarea.input { resize: vertical; min-height: 80px; }
-  .hint { margin-top: 8px; font-size: 11px; color: var(--label-tertiary); line-height: 1.6; }
+  /* 说明文字对齐共享 .hint 规格（12px / 三级文字），此处仅补上方间距与行高 */
+  .hint { margin-top: 8px; font-size: 12px; color: var(--label-tertiary); line-height: 1.6; }
   .hint code {
     background: var(--bg-secondary);
     border: 1px solid var(--separator);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 1px 5px;
     font-size: 11px;
   }
@@ -163,18 +145,20 @@
   .badge {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 11px;
     border: 1px solid var(--separator);
     color: var(--label-tertiary);
   }
   .badge.ok { color: var(--color-success); border-color: color-mix(in srgb, var(--color-success) 40%, transparent); background: color-mix(in srgb, var(--color-success) 8%, transparent); }
   .badge.bad { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 40%, transparent); background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+  /* 日志/代码片段框：与 .input 同级的内嵌次要底 + 小圆角，区别于内容卡片 */
   .log {
     margin-top: 12px;
     padding: 10px 12px;
     border: 1px solid var(--separator);
-    border-radius: var(--radius-card);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
     height: 110px;
     overflow-y: auto;
     font-family: var(--font-mono);
@@ -189,18 +173,19 @@
   .ok { margin-top: 12px; color: var(--color-success); font-size: 12px; min-height: 16px; text-align: center; }
   .err { margin-top: 12px; color: var(--color-error); font-size: 12px; min-height: 16px; text-align: center; }
 
-  /* 面板切换 */
+  /* 面板切换（入场动画 rise 由 kimi-theme.css 统一提供，本地不重复定义） */
   .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
+  .tab-panel.active { display: block; animation: rise 0.2s ease both; }
 
   /* 配置表单 */
   .form-row { margin-top: 16px; }
-  .form-row label { display: block; font-size: 12px; color: var(--label-secondary); margin-bottom: 6px; }
+  .form-row label { display: block; font-size: 12px; color: var(--label-tertiary); letter-spacing: 0.04em; margin-bottom: 6px; }
   .switch {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px;
+    gap: 12px;
+    padding: 12px 14px;
     border: 1px solid var(--separator);
     border-radius: var(--radius-card);
     background: var(--bg-secondary);
@@ -209,11 +194,13 @@
   .switch-desc { font-size: 11px; color: var(--label-tertiary); margin-top: 2px; }
   input[type="checkbox"] {
     width: 36px; height: 20px;
+    flex: none;
     appearance: none;
     border-radius: var(--radius-pill);
     background: var(--label-quaternary);
     position: relative;
     cursor: pointer;
+    transition: background-color 0.15s ease;
   }
   input[type="checkbox"]::after {
     content: '';
@@ -226,14 +213,15 @@
   }
   input[type="checkbox"]:checked { background: var(--label-primary); }
   input[type="checkbox"]:checked::after { transform: translateX(16px); }
+  /* 分区标题：官方侧栏 .side-group 同款弱化风格（12px / 三级文字 / 字距），面板内首个不保留上间距 */
   .section-title {
-    margin-top: 24px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--label-primary);
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--separator);
+    margin: 26px 0 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--label-tertiary);
+    letter-spacing: 0.04em;
   }
+  .tab-panel > .section-title:first-child { margin-top: 0; }
   .dimmed { opacity: 0.45; pointer-events: none; }
 
   /* 规则表格 */
@@ -253,12 +241,12 @@
   /* 列表卡片（视觉规格由官方 .card 提供，这里只补内边距与间距） */
   .card-list { margin-top: 10px; }
   .card {
-    padding: 12px;
-    margin-bottom: 10px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
   }
   .card-title { font-size: 13px; font-weight: 600; }
   .card-meta { font-size: 11px; color: var(--label-tertiary); margin-top: 4px; }
-  .card-actions { margin-top: 10px; display: flex; gap: 8px; }
+  .card-actions { margin-top: 12px; display: flex; gap: 8px; }
   .card-actions .btn { flex: 1; }
 
   /* 插件表格 */
@@ -278,31 +266,34 @@
 <body>
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
+  <!-- 统一应用头部（结构固定，样式见 kimi-theme.css .app-topbar，页面内不重定义） -->
+  <header class="app-topbar">
+    <div class="brand"><span class="mark">K</span><span class="brand-name">Kimi Code</span></div>
+    <span class="app-topbar-title">设置</span>
+  </header>
   <div class="app">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="mark">K</div>
-        <div class="brand-name">设置</div>
-      </div>
-      <div class="nav-group">应用</div>
-      <button class="nav-item" data-tab="app">应用设置</button>
-      <div class="nav-group">环境</div>
-      <button class="nav-item active" data-tab="env">环境</button>
-      <button class="nav-item" data-tab="maint">维护</button>
-      <div class="nav-group">配置</div>
-      <button class="nav-item" data-tab="general">通用配置</button>
-      <button class="nav-item" data-tab="rules">权限规则</button>
-      <button class="nav-item" data-tab="providers">供应商</button>
-      <button class="nav-item" data-tab="mcp">MCP</button>
-      <button class="nav-item" data-tab="skills">Skills</button>
-      <button class="nav-item" data-tab="hooks">Hooks</button>
-      <div class="nav-group">集成</div>
-      <button class="nav-item" data-tab="ide">IDE 接入</button>
-      <button class="nav-item" data-tab="plugins">插件</button>
+      <nav class="side-nav">
+        <div class="side-group">应用</div>
+        <button class="side-item" data-tab="app">应用设置</button>
+        <div class="side-group">环境</div>
+        <button class="side-item active" data-tab="env">环境</button>
+        <button class="side-item" data-tab="maint">维护</button>
+        <div class="side-group">配置</div>
+        <button class="side-item" data-tab="general">通用配置</button>
+        <button class="side-item" data-tab="rules">权限规则</button>
+        <button class="side-item" data-tab="providers">供应商</button>
+        <button class="side-item" data-tab="mcp">MCP</button>
+        <button class="side-item" data-tab="skills">Skills</button>
+        <button class="side-item" data-tab="hooks">Hooks</button>
+        <div class="side-group">集成</div>
+        <button class="side-item" data-tab="ide">IDE 接入</button>
+        <button class="side-item" data-tab="plugins">插件</button>
+      </nav>
     </aside>
     <main class="content">
       <div class="content-inner">
-        <div class="topbar">
+        <div class="content-head">
           <h1 id="topbarTitle">环境</h1>
           <button class="btn btn-secondary mini hidden" id="backToSession" type="button">← 返回会话</button>
         </div>
@@ -707,13 +698,13 @@
     <!-- IDE 接入面板 -->
     <div class="tab-panel" id="panel-ide">
       <div class="section-title">ACP 状态</div>
-      <div class="status" style="margin-top:10px">
+      <div class="status">
         <div class="srow"><span class="dot" id="dotAcp"></span><span class="sname">kimi acp</span><span class="sval" id="stAcp">未检测</span></div>
       </div>
-      <div class="hint hidden" id="ideUpgradeHint" style="margin-top:10px"></div>
+      <div class="hint hidden" id="ideUpgradeHint"></div>
 
       <div id="ideSections">
-        <div class="section-title" style="margin-top:18px">Zed 编辑器</div>
+        <div class="section-title">Zed 编辑器</div>
         <div class="card">
           <div class="card-title">Zed</div>
           <div class="card-meta" id="zedMetaExec">检测中…</div>
@@ -730,7 +721,7 @@
           </div>
         </div>
 
-        <div class="section-title" style="margin-top:18px">JetBrains IDE</div>
+        <div class="section-title">JetBrains IDE</div>
         <div class="card">
           <div class="card-title">JetBrains 系列</div>
           <div class="card-meta" id="jbMeta">检测中…</div>
@@ -741,7 +732,7 @@
           </div>
         </div>
 
-        <div class="section-title" style="margin-top:18px">其它 ACP 客户端</div>
+        <div class="section-title">其它 ACP 客户端</div>
         <div class="card">
           <div class="card-title">通用片段</div>
           <div class="hint">适用于其它支持 ACP（Agent Client Protocol）的客户端，按其配置格式接入以下片段：</div>
@@ -780,7 +771,7 @@
       <div class="ok" id="upgradeOk"></div>
       <div class="err" id="upgradeErr"></div>
 
-      <div class="section-title" style="margin-top:18px">数据目录</div>
+      <div class="section-title">数据目录</div>
       <div class="hint" id="dataDirPath"></div>
       <div class="card-list" id="dataDirList"></div>
       <div class="btn-row">
@@ -790,7 +781,7 @@
       <div class="ok" id="dataDirOk"></div>
       <div class="err" id="dataDirErr"></div>
 
-      <div class="section-title" style="margin-top:18px">诊断打包</div>
+      <div class="section-title">诊断打包</div>
       <div class="hint">打包应用日志、kimi doctor 输出与最近一次会话导出，用于问题反馈。</div>
       <div class="btn-row">
         <button class="btn btn-secondary" id="packDiagBtn" type="button">打包诊断信息…</button>
@@ -838,7 +829,7 @@
     const $ = (id) => document.getElementById(id);
 
     // 侧栏导航切换（switchTab 供点击与 URL ?tab= 初始定位共用）
-    const tabs = document.querySelectorAll('.nav-item');
+    const tabs = document.querySelectorAll('.side-item');
     const panels = document.querySelectorAll('.tab-panel');
     function switchTab(key) {
       const tab = [...tabs].find((t) => t.dataset.tab === key);

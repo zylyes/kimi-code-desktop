@@ -11,6 +11,8 @@
  * 本文件是后续各原生窗口翻新的唯一事实来源，令牌名与值提取自 kimi.com 官方 CSS。
  * 除设计令牌外，还提供 .mono 工具类、.btn.ghost / .icon-btn 按钮变体，
  * 以及从弹窗类页面（permission / question）上提的共享组件（.topbar / .brand / .bridge-warn / .spinner 等）。
+ * 另有所有无边框窗口的统一规范头部 .app-topbar（配套 .brand / .app-topbar-title / .app-topbar-sub / .app-topbar-actions）
+ * 与侧栏官方风组件（.side-nav / .side-item / .side-group），页面直接使用，勿在页面内重定义。
  */
 
 /* ================= 亮色主题（默认） ================= */
@@ -280,17 +282,7 @@ kbd {
   border-color: var(--separator-hover);
 }
 
-/* ================= 弹窗家族共享组件（自 permission.html / question.html 逐字上提） ================= */
-/* 顶栏（右侧预留 150px 避开右上角悬浮窗控，与 Web UI 会话头部的 154px 对齐） */
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 150px 10px 18px;
-  flex: none;
-}
-
+/* ================= 品牌组件（.app-topbar 及各页头部共用） ================= */
 .brand {
   display: flex;
   align-items: center;
@@ -319,6 +311,106 @@ kbd {
   white-space: nowrap;
 }
 
+/* ================= 统一应用头部（所有无边框窗口的唯一规范头部） ================= */
+/* 48px 高，背景与窗口底色/titleBarOverlay 同色（var(--bg-ground)），右侧 150px 避开悬浮窗控；
+   整行作拖拽区，内部交互控件 no-drag。各页结构：
+   <header class="app-topbar"><div class="brand"><span class="mark">K</span><span class="brand-name">Kimi Code</span></div>
+   <span class="app-topbar-title">标题</span><div class="app-topbar-actions">…</div></header> */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 150px 0 14px;
+  flex: none;
+  background: var(--bg-ground);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.app-topbar .brand {
+  flex: none;
+}
+
+.app-topbar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--label-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.app-topbar-sub {
+  font-size: 12px;
+  color: var(--label-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.app-topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.app-topbar a,
+.app-topbar button,
+.app-topbar input,
+.app-topbar select,
+.app-topbar textarea,
+.app-topbar [role="button"],
+.app-topbar [contenteditable] {
+  -webkit-app-region: no-drag;
+}
+
+/* ================= 侧栏官方风组件（sessions/setup 等侧栏页共用） ================= */
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--label-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.side-item:hover {
+  background: var(--bg-secondary-hover);
+  color: var(--label-primary);
+}
+
+.side-item.active {
+  background: var(--bg-secondary-active);
+  color: var(--label-primary);
+  font-weight: 500;
+}
+
+.side-group {
+  padding: 14px 10px 4px;
+  font-size: 12px;
+  color: var(--label-tertiary);
+  user-select: none;
+}
+
 /* ================= 无边框窗口拖拽（各窗口页 <body> 内嵌 #kcd-drag-strip 元素） ================= */
 /* 顶部 10px 细条：只覆盖页面顶部 padding 区，不遮挡交互；双击 drag 区自动切换最大化 */
 #kcd-drag-strip {
@@ -331,29 +423,7 @@ kbd {
   z-index: 2147483646;
 }
 
-/* 顶栏整行作拖拽区（交互控件排除在外），与主窗口 Web UI 头部行为一致；
-   .statusbar 为 chat.html 原生聊天页顶栏，同样整行可拖拽、内部按钮/下拉保持可点击 */
-.topbar,
-.statusbar {
-  -webkit-app-region: drag;
-}
-
-.topbar a,
-.topbar button,
-.topbar input,
-.topbar select,
-.topbar textarea,
-.topbar [role="button"],
-.topbar [contenteditable],
-.statusbar a,
-.statusbar button,
-.statusbar input,
-.statusbar select,
-.statusbar textarea,
-.statusbar [role="button"],
-.statusbar [contenteditable] {
-  -webkit-app-region: no-drag;
-}
+/* 顶栏整行作拖拽区（交互控件排除在外）由 .app-topbar 组件自带，无需额外规则 */
 
 /* 桥接警告 */
 .bridge-warn {
@@ -444,9 +514,6 @@ kbd {
 
 /* ================= 弹窗家族响应式（仅作用于已上提组件，页面专属部分仍留在各页面） ================= */
 @media (max-width: 420px) {
-  .topbar {
-    padding: 12px 14px 8px;
-  }
   .foot {
     padding: 10px 14px 12px;
   }

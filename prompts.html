@@ -5,6 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
 <title>Kimi Code Desktop · Prompt 模板</title>
 <link rel="stylesheet" href="kimi-theme.css" />
+<script src="menu-panel.js" defer></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
@@ -15,32 +16,8 @@
 
   .app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
 
-  /* ---------- 顶栏 ---------- */
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 18px 10px;
-    flex: none;
-  }
-  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .mark {
-    width: 28px; height: 28px;
-    border-radius: var(--radius-sm);
-    background: var(--label-primary);
-    color: var(--bg-ground);
-    font-size: 15px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex: none;
-  }
-  .brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
-  .topbar-note {
-    font-size: 12px;
-    color: var(--label-secondary);
-    white-space: nowrap;
-    flex: none;
-  }
+  /* ---------- 顶栏：统一使用主题 .app-topbar 共享组件（48px 高、右侧 150px 避让悬浮窗控），本地不重新定义；
+     右侧统计文字直接使用主题 .app-topbar-sub ---------- */
 
   /* ---------- 页面说明 ---------- */
   .page-desc {
@@ -59,22 +36,20 @@
     padding: 4px 18px 18px;
   }
 
-  .group { margin-bottom: 22px; animation: rise 0.22s ease both; }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  /* rise 关键帧由 kimi-theme.css 统一提供，本地不重复定义 */
+  .group { margin-bottom: 24px; animation: rise 0.22s ease both; }
   .group-title {
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.02em;
     margin-bottom: 10px;
+    color: var(--label-tertiary);
   }
 
   /* ---------- 模板卡片（基础外观来自主题样式表的 .card） ---------- */
-  .cards { display: flex; flex-direction: column; gap: 8px; }
+  .cards { display: flex; flex-direction: column; gap: 10px; }
   .card {
-    padding: 12px 14px;
+    padding: 14px 16px;
     transition: border-color 0.15s ease;
   }
   .card:hover { border-color: var(--separator-hover); }
@@ -87,7 +62,7 @@
   .card-title { font-size: 13px; font-weight: 600; line-height: 1.5; min-width: 0; }
   .card-body {
     margin-top: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--label-secondary);
     line-height: 1.7;
     word-break: break-word;
@@ -96,9 +71,10 @@
   }
 
   /* ---------- 复制按钮（归入 .btn 体系，此处仅保留尺寸与状态色） ---------- */
+  /* min-width 取最长文案"复制失败"（4 字 × 12px + 左右 padding 24px），三态切换时宽度不跳动 */
   .copy-btn {
     flex: none;
-    min-width: 58px;
+    min-width: 72px;
     padding: 5px 12px;
     font-size: 12px;
   }
@@ -106,7 +82,6 @@
   .copy-btn.fail { color: var(--color-error); border-color: var(--color-error); }
 
   @media (max-width: 420px) {
-    .topbar { padding: 12px 14px 8px; }
     .page-desc { padding: 0 14px 10px; }
     .main { padding: 4px 14px 14px; }
   }
@@ -121,12 +96,15 @@
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
   <div class="app">
-    <header class="topbar">
+    <header class="app-topbar">
       <div class="brand">
         <span class="mark" aria-hidden="true">K</span>
-        <span class="brand-name">Prompt 模板库</span>
+        <span class="brand-name">Kimi Code</span>
       </div>
-      <div class="topbar-note">5 大场景 · 15 条模板</div>
+      <span class="app-topbar-title">Prompt 模板库</span>
+      <div class="app-topbar-actions">
+        <span class="app-topbar-sub">5 大场景 · 15 条模板</span>
+      </div>
     </header>
 
     <div class="page-desc">复制后粘贴到 Kimi Code 输入框使用。</div>

@@ -1041,7 +1041,7 @@ function fallbackQuestionWindowFailure(sessionId, payload, gen) {
 
 // 原生窗口背景色跟随系统亮/暗主题
 function windowBackground() {
-  return nativeTheme.shouldUseDarkColors ? '#121212' : '#fbfaf9';
+  return nativeTheme.shouldUseDarkColors ? '#181817' : '#fbfaf9';
 }
 
 // 主窗口悬浮窗控（titleBarOverlay）配色：背景对齐窗口背景，符号色随亮/暗主题
@@ -1053,8 +1053,57 @@ function titleBarOverlayOpts() {
   };
 }
 
+// 主窗口 Web UI 页右上角窗控区采样色（preload 采样上报；本地页恒为 null → 用 windowBackground()）
+let mainTitlebarSampleColor = null;
+// menu-panel.js 文件内容缓存（did-finish-load 时 executeJavaScript 注入 Web UI 页）
+let menuPanelCodeCache = null;
+
+// 解析 'rgb(r, g, b)' / 'rgba(r, g, b, a)' 为 [r,g,b]，非法返回 null
+function parseTitlebarColor(color) {
+  if (typeof color !== 'string') return null;
+  const m = color.match(/rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+// 判断 URL 是否为 loopback 的 kimi web UI 页（与 did-finish-load 注入处同一判定）
+function isLoopbackWebUIUrl(url) {
+  try {
+    const u = new URL(url);
+    return (u.protocol === 'http:' || u.protocol === 'https:')
+      && ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// 逐窗计算悬浮窗控配色：主窗口且当前 URL 是 loopback http(s) 且有采样色 → 采样色，
+// 逐窗计算悬浮窗控配色：主窗口且当前 URL 是 loopback http(s) 且有采样色 → 采样色，
+// symbolColor 按采样色 Rec.601 亮度 > 0.6 用 '#111111' 否则 '#ffffff'；否则回退 windowBackground()。
+// 覆盖层（sessions/setup 本地页）打开时主窗口 Web UI 虽仍在 loopback URL，但可视顶栏是覆盖层的
+// .app-topbar（bg 同 windowBackground()），此时须回退 windowBackground()，否则采样色会成异色补丁
+function titlebarColorForWindow(win) {
+  if (win && win === mainWindow && !win.isDestroyed() && mainTitlebarSampleColor && !overlayView) {
+    const rgb = parseTitlebarColor(mainTitlebarSampleColor);
+    if (rgb && isLoopbackWebUIUrl(win.webContents.getURL())) {
+      const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+      return {
+        color: mainTitlebarSampleColor,
+        symbolColor: luminance > 0.6 ? '#111111' : '#ffffff',
+        height: 32,
+      };
+    }
+  }
+  return titleBarOverlayOpts();
+}
+
+function applyTitlebarOverlay(win) {
+  if (!win || win.isDestroyed()) return;
+  try { win.setTitleBarOverlay(titlebarColorForWindow(win)); } catch { /* 无 overlay 的窗口忽略 */ }
+}
+
 // 无边框窗口通用选项与后配置：全窗口统一无边框 + 悬浮窗控（品牌一致性），
-// 页面拖拽区由 kimi-theme.css（#kcd-drag-strip/.topbar）与 preload 注入提供
+// 页面拖拽区由 kimi-theme.css（#kcd-drag-strip/.app-topbar）与 preload 注入提供
 function framelessOpts() {
   return { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlayOpts() };
 }
@@ -1064,10 +1113,11 @@ function applyFrameless(win) {
   win.setMenuBarVisibility(false);
 }
 
-// 亮/暗主题变化时同步刷新所有窗口的悬浮窗控配色（applyAppSettings 切 themeSource 亦触发此事件）
+// 亮/暗主题变化时同步刷新所有窗口的悬浮窗控配色（applyAppSettings 切 themeSource 亦触发此事件）；
+// 逐窗用 titlebarColorForWindow：主窗口 Web UI 页保留页面采样色，其余窗口跟随 windowBackground()
 nativeTheme.on('updated', () => {
   for (const w of BrowserWindow.getAllWindows()) {
-    try { w.setTitleBarOverlay(titleBarOverlayOpts()); } catch { /* 无 overlay 的窗口忽略 */ }
+    applyTitlebarOverlay(w);
   }
 });
 
@@ -1612,6 +1662,8 @@ function showOverlay(kind, file, query) {
   });
   overlayKind = kind;
   overlayView.webContents.focus();
+  // 覆盖层可视顶栏为本地页 .app-topbar（bg 同 windowBackground()）：刷新悬浮窗控配色，防采样色成补丁
+  applyTitlebarOverlay(mainWindow);
 }
 
 // 关闭覆盖层：移除子视图并销毁其 webContents，Web UI 立即回到前台（不重载）
@@ -1628,6 +1680,8 @@ function closeOverlay() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.focus();
   }
+  // Web UI 回到前台：恢复采样色窗控配色
+  applyTitlebarOverlay(mainWindow);
 }
 
 // 前台 webContents：覆盖层（sessions/setup）可见时页面在覆盖层里，否则是主窗口内容。
@@ -2350,6 +2404,8 @@ ipcMain.handle('acp-chat:open-webui', () => {
 });
 
 // ---------- 重启 ----------
+// restartServer 杀进程整体重启，仅保留给手动重载/恢复会话等需要重建服务的场景；
+// 「新建对话」走下方 newConversationInPlace（点击 Web UI 官方按钮，不重启进程）
 async function restartServer() {
   if (restartPromise) return restartPromise;
   restartPromise = (async () => {
@@ -2371,6 +2427,60 @@ async function restartServer() {
   })();
   restartPromise.then(() => { restartPromise = null; }, () => { restartPromise = null; });
   return restartPromise;
+}
+
+// 新建对话（不重启进程）：聚焦主窗口并点击 Web UI 侧栏官方「新建对话」按钮（.btn-new-chat）；
+// 当前不在 Web UI 页时先回到 Web UI，服务未运行时退化为 restartServer（重启本身就是新对话）
+async function newConversationInPlace() {
+  showMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  closeOverlay(); // 覆盖层（会话启动器/设置）打开时先关掉，否则点击发生在被遮挡的 Web UI 上
+  const wc = mainWindow.webContents;
+  // 判断当前是否已在 loopback 的 Web UI 页（与注入 FAB 样式处同一判定）
+  let onWebUI = false;
+  try {
+    const u = new URL(wc.getURL());
+    onWebUI = (u.protocol === 'http:' || u.protocol === 'https:')
+      && ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(u.hostname);
+  } catch { /* ignore */ }
+  if (!onWebUI) {
+    if (knownServerBase && knownServerToken) {
+      try {
+        await wc.loadURL(knownServerBase + '/#token=' + encodeURIComponent(knownServerToken));
+      } catch (err) {
+        logLine(`新建对话：加载 Web UI 失败: ${err.message}`);
+        return;
+      }
+    } else {
+      // 服务未运行：重启服务本身就是新对话
+      logLine('新建对话：服务未运行，改为重启服务');
+      restartServer();
+      return;
+    }
+  }
+  // 程序化 click() 对隐藏元素同样生效，按钮存在即可点。
+  // 候选选择器数组逐个尝试（Playwright 实测 2026-07：官方按钮为侧栏 button.btn-new-chat「新建对话」，
+  // JS click 后原地切回新空会话，无整页 reload/新窗口）；兜底再按按钮文本匹配一次
+  const CLICK_NEW_CHAT_JS = `(() => { try {
+    const sels = ['.btn-new-chat', 'button[aria-label*="新建对话"]', 'button[aria-label*="新建会话"]'];
+    for (const s of sels) { const b = document.querySelector(s); if (b) { b.click(); return 'clicked'; } }
+    for (const b of document.querySelectorAll('button, a, [role="button"]')) {
+      const t = (b.textContent || '').trim();
+      if (t === '新建对话' || t === '新对话' || /^new chat$/i.test(t)) { b.click(); return 'clicked'; }
+    }
+    return 'not-found';
+  } catch (e) { return 'not-found'; } })()`;
+  let result = await wc.executeJavaScript(CLICK_NEW_CHAT_JS).catch(() => 'not-found');
+  if (result === 'not-found') {
+    // Vue 侧栏可能尚未渲染完，等 500ms 重试一次
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    result = await wc.executeJavaScript(CLICK_NEW_CHAT_JS).catch(() => 'not-found');
+  }
+  if (result === 'clicked') {
+    logLine('新建对话：已点击 Web UI 官方新建按钮');
+  } else {
+    logLine('新建对话：未找到 Web UI 新建按钮（候选选择器均未命中）');
+  }
 }
 
 // ---------- 默认模型切换 ----------
@@ -2571,7 +2681,7 @@ function hideToTray() {
     try {
       tray.displayBalloon({
         title: APP_NAME,
-        content: '已最小化到系统托盘。单击图标恢复窗口，双击图标秒开新对话。',
+        content: '已最小化到系统托盘。单击图标恢复窗口。',
         icon: nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')),
       });
     } catch { /* ignore */ }
@@ -2587,7 +2697,7 @@ function buildTrayMenu(statusLabel) {
   template.push(
     { label: '显示主窗口', click: showMainWindow },
     { label: '打开会话启动器', click: showSessionLauncher },
-    { label: '新建对话', click: () => { showMainWindow(); restartServer(); } },
+    { label: '新建对话', click: () => { newConversationInPlace(); } },
     { label: '默认模型', submenu: buildModelSubmenu() },
     { label: '多实例', submenu: buildInstancesSubmenu() },
     { label: '设置…', click: () => { showMainWindow(); showSetup('manual'); } },
@@ -2603,7 +2713,7 @@ function createTray() {
   tray.setToolTip(APP_NAME);
   tray.setContextMenu(buildTrayMenu(''));
   tray.on('click', showMainWindow);
-  tray.on('double-click', () => { showMainWindow(); restartServer(); });
+  tray.on('double-click', showMainWindow);
 }
 
 // ---------- 托盘用量/进度状态 ----------
@@ -2830,7 +2940,7 @@ function createWindow() {
   });
 
   // 主窗口注入：顶部拖拽条样式（无边框窗口拖动用，本地页与 Web UI 页均需要）；
-  // 会话页（loopback http(s)）追加浮动设置/菜单按钮样式；按钮 DOM 由 preload 注入，
+  // 会话页（loopback http(s)）追加会话头部样式；☰ 菜单按钮 DOM 与样式由 menu-panel.js 自带，
   // insertCSS 在主进程侧执行，不受页面 CSP 的 style-src 限制
   mainWindow.webContents.on('did-finish-load', () => {
     try {
@@ -2842,23 +2952,40 @@ function createWindow() {
       const isLoopback = (u.protocol === 'http:' || u.protocol === 'https:')
         && ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(u.hostname);
       if (!isLoopback) return;
-      // 色值对齐 kimi-theme.css 令牌（--separator/--shadow-card），因注入目标页面无法用 var()
       mainWindow.webContents.insertCSS([
-        '#kcd-settings-fab,#kcd-menu-fab{position:fixed;right:18px;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.7;z-index:2147483647;transition:opacity .15s;background:#ffffff;color:#111111;border:1px solid #00000021;box-shadow:0 5px 16px -4px #00000012;}',
-        '#kcd-settings-fab{bottom:18px;}',
-        '#kcd-menu-fab{bottom:64px;}',
-        '#kcd-settings-fab:hover,#kcd-menu-fab:hover{opacity:1;}',
-        '#kcd-settings-fab svg,#kcd-menu-fab svg{width:18px;height:18px;pointer-events:none;}',
-        '@media (prefers-color-scheme:dark){#kcd-settings-fab,#kcd-menu-fab{background:#1f1f1f;color:#ffffff;border-color:#ffffff1f;box-shadow:0 5px 16px -4px #00000012;}}',
-        // 会话头部：右让 154px 避开悬浮窗控（原 16px + 3×46px 窗控），整行作拖拽区、交互控件除外；
-        // 背景强制对齐窗口背景色（亮 #fbfaf9/暗 #121212，同 windowBackground()），与右上角 OS 悬浮窗控
-        // 融为一体、消除异色补丁；box-shadow 置 none 去掉头部底部分隔阴影造成的接缝
-        'header.chat-header{padding-right:154px !important;-webkit-app-region:drag;background:#fbfaf9 !important;box-shadow:none !important;}',
-        '@media (prefers-color-scheme:dark){header.chat-header{background:#121212 !important;}}',
+        // 会话头部：右让 228px 避开悬浮窗控与 ☰ 菜单按钮（138px 窗控 + 38px 按钮 + 余量），
+        // 整行作拖拽区、交互控件除外；背景强制对齐窗口背景色（亮 #fbfaf9/暗 #181817，同 windowBackground()），
+        // 与右上角 OS 悬浮窗控融为一体、消除异色补丁；box-shadow 置 none 去掉头部底部分隔阴影造成的接缝
+        'header.chat-header{padding-right:228px !important;-webkit-app-region:drag;background:#fbfaf9 !important;box-shadow:none !important;}',
+        '@media (prefers-color-scheme:dark){header.chat-header{background:#181817 !important;}}',
         'header.chat-header button,header.chat-header a,header.chat-header input,header.chat-header select,header.chat-header textarea,header.chat-header [role=button],header.chat-header [contenteditable]{-webkit-app-region:no-drag;}',
       ].join('\n'));
+      // ☰ 菜单面板：Web UI 页 CSP（default-src 'self'）拦截 <script> 文本节点注入（实测被拒绝执行），
+      // 改由主进程 executeJavaScript 在页面主世界执行（DevTools 级求值不受页面 CSP 限制）；
+      // menu-panel.js 自带 __kcdMenuPanelLoaded 幂等守卫，重复执行安全
+      try {
+        if (menuPanelCodeCache === null) {
+          menuPanelCodeCache = fs.readFileSync(path.join(__dirname, 'menu-panel.js'), 'utf8');
+        }
+        mainWindow.webContents.executeJavaScript(menuPanelCodeCache).catch(() => { /* 页面已销毁等 */ });
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
   });
+
+  // 窗控区颜色同步：导航/加载完成时刷新悬浮窗控配色（离开 Web UI 页时清掉采样色，
+  // 本地页恒为 windowBackground()；Web UI 页等 preload 采样上报后再换成页面实际颜色）
+  const syncTitlebarColor = () => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!isLoopbackWebUIUrl(mainWindow.webContents.getURL())) {
+        mainTitlebarSampleColor = null;
+      }
+      applyTitlebarOverlay(mainWindow);
+    } catch { /* ignore */ }
+  };
+  mainWindow.webContents.on('did-navigate', syncTitlebarColor);
+  mainWindow.webContents.on('did-navigate-in-page', syncTitlebarColor);
+  mainWindow.webContents.on('did-finish-load', syncTitlebarColor);
 
   mainWindow.loadFile(path.join(__dirname, 'loading.html'));
 }
@@ -2900,19 +3027,73 @@ function unregisterGlobalShortcut() {
 }
 
 // ---------- 菜单 ----------
+// 窗口置顶：应用 + 写回 config.json，供设置页与下次启动读取（原生菜单勾选与菜单面板共用）
+function setAlwaysOnTopFlag(v) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(v);
+  const c = readJSON(configFile(), {});
+  c.alwaysOnTop = v === true;
+  writeJSON(configFile(), c);
+}
+
+// 运行 kimi doctor 并弹窗展示结果（原生菜单与菜单面板共用）
+function runKimiDoctorWithDialog() {
+  return runKimiDoctor().then((result) => {
+    const title = result.ok ? '诊断完成' : '诊断失败';
+    const detail = result.ok
+      ? `kimi doctor 诊断通过。\n\n输出：\n${result.output}`
+      : `${result.error}\n\n输出：\n${result.output}`;
+    dialog.showMessageBox({ type: result.ok ? 'info' : 'error', title, message: title, detail });
+  });
+}
+
+// 打包诊断信息并弹窗展示结果（原生菜单与菜单面板共用）
+async function packDiagnosticsWithDialog() {
+  const r = await packDiagnostics();
+  dialog.showMessageBox({
+    type: r.ok ? 'info' : 'error',
+    title: '打包诊断信息',
+    message: r.ok ? '诊断包已保存' : '打包失败',
+    detail: r.ok ? r.path : (r.message || ''),
+  });
+}
+
+// 关于对话框（原生菜单与菜单面板共用）
+function showAboutDialog() {
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  const ver = cli ? getCliVersion(cli) : null;
+  const cliVerStr = ver ? ver.version : (cli ? '未知' : '未安装');
+  dialog.showMessageBox({
+    type: 'info',
+    title: '关于',
+    message: APP_NAME,
+    detail: `版本 ${app.getVersion()}\nCLI 版本: ${cliVerStr}\nKimi Code 网页版的桌面套壳。\n自动启动 kimi web 并嵌入窗口，登录状态持久保存。`,
+  });
+}
+
+// 隐藏菜单栏仅作快捷键载体（setMenuBarVisibility(false)，不再 popup）；
+// 顶层结构与 menu-panel.js 面板分组对齐（会话/模型/多实例/设置/视图/帮助 + 底部应用动作）
 function buildMenu() {
-  // 单层扁平结构：常用动作直接平铺在顶层，「视图」「帮助」保留为子菜单
   const template = [
-    { label: '打开会话启动器', accelerator: 'CmdOrCtrl+Shift+S', click: showSessionLauncher },
-    { label: '新建对话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
-    { label: '默认模型', submenu: buildModelSubmenu() },
-    { type: 'separator' },
-    { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => showSetup('manual') },
-    { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
-    { label: '轮换访问令牌…', click: rotateToken },
-    { label: '局域网访问…', click: showLanWindow },
-    { label: '原生聊天（新会话）…', click: showAcpChatWindow },
-    { type: 'separator' },
+    {
+      label: '会话',
+      submenu: [
+        { label: '打开会话启动器', accelerator: 'CmdOrCtrl+Shift+S', click: showSessionLauncher },
+        { label: '新建对话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { newConversationInPlace(); } },
+        { label: '原生聊天（新会话）…', click: showAcpChatWindow },
+      ],
+    },
+    { label: '模型', submenu: buildModelSubmenu() },
+    { label: '多实例', submenu: buildInstancesSubmenu() },
+    {
+      label: '设置',
+      submenu: [
+        { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => showSetup('manual') },
+        { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
+        { label: '轮换访问令牌…', click: rotateToken },
+        { label: '局域网访问…', click: showLanWindow },
+      ],
+    },
     {
       label: '视图',
       submenu: [
@@ -2924,13 +3105,7 @@ function buildMenu() {
         {
           label: '窗口置顶', type: 'checkbox', accelerator: 'CmdOrCtrl+T',
           checked: loadConfig().alwaysOnTop === true,
-          click: (item) => {
-            if (mainWindow) mainWindow.setAlwaysOnTop(item.checked);
-            // 写回 config.json，供设置页与下次启动读取
-            const c = readJSON(configFile(), {});
-            c.alwaysOnTop = item.checked;
-            writeJSON(configFile(), c);
-          },
+          click: (item) => setAlwaysOnTopFlag(item.checked),
         },
         { type: 'separator' },
         { role: 'zoomIn', label: '放大' },
@@ -2945,47 +3120,21 @@ function buildMenu() {
       label: '帮助',
       submenu: [
         { label: '打开数据目录(日志/配置)', click: () => shell.openPath(userDataDir()) },
-        { label: '运行 kimi doctor', click: () => {
-          runKimiDoctor().then((result) => {
-            const title = result.ok ? '诊断完成' : '诊断失败';
-            const detail = result.ok
-              ? `kimi doctor 诊断通过。\n\n输出：\n${result.output}`
-              : `${result.error}\n\n输出：\n${result.output}`;
-            dialog.showMessageBox({ type: result.ok ? 'info' : 'error', title, message: title, detail });
-          });
-        } },
+        { label: '运行 kimi doctor', click: () => { void runKimiDoctorWithDialog(); } },
         { label: 'IDE 接入向导…', click: () => showSetup('manual', 'ide') },
         { label: 'Prompt 模板库…', click: showPromptLibrary },
         { label: '命令与快捷键速查…', accelerator: 'F1', click: showHelpWindow },
-        { label: '打包诊断信息…', click: async () => {
-          const r = await packDiagnostics();
-          dialog.showMessageBox({
-            type: r.ok ? 'info' : 'error',
-            title: '打包诊断信息',
-            message: r.ok ? '诊断包已保存' : '打包失败',
-            detail: r.ok ? r.path : (r.message || ''),
-          });
-        } },
-        {
-          label: '关于',
-          click: () => {
-            const cfg = loadConfig();
-            const cli = resolveCliPath(cfg);
-            const ver = cli ? getCliVersion(cli) : null;
-            const cliVerStr = ver ? ver.version : (cli ? '未知' : '未安装');
-            dialog.showMessageBox({
-              type: 'info',
-              title: '关于',
-              message: APP_NAME,
-              detail: `版本 ${app.getVersion()}\nCLI 版本: ${cliVerStr}\nKimi Code 网页版的桌面套壳。\n自动启动 kimi web 并嵌入窗口，登录状态持久保存。`,
-            });
-          },
-        },
+        { label: '打包诊断信息…', click: () => { void packDiagnosticsWithDialog(); } },
+        { label: '关于', click: showAboutDialog },
       ],
     },
-    { type: 'separator' },
-    { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => { const wc = foregroundContents(); if (wc) wc.reload(); } },
-    { role: 'quit', label: '退出' },
+    {
+      label: '应用',
+      submenu: [
+        { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => { const wc = foregroundContents(); if (wc) wc.reload(); } },
+        { role: 'quit', label: '退出' },
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -3410,22 +3559,156 @@ ipcMain.handle('setup:save', async (_e, payload) => {
 });
 
 ipcMain.handle('app:showSetup', () => { showSetup('manual'); return true; });
-// 页面内 ☰ 菜单按钮：弹出完整应用菜单，锚定到按钮左上角（按钮近窗口底部，菜单会自动向上展开）。
-// 渲染进程传来的 rect 是 CSS 像素，需乘以 zoomFactor 换算为窗口 DIP 坐标；rect 缺失/非法时回退为不传坐标（弹在鼠标位置）
-ipcMain.handle('app:popupMenu', (_e, rect) => {
-  const menu = Menu.getApplicationMenu();
-  if (menu && mainWindow && !mainWindow.isDestroyed()) {
-    if (rect && Number.isFinite(rect.x) && Number.isFinite(rect.y)) {
-      const zf = mainWindow.webContents.zoomFactor || 1;
-      const x = Math.round(rect.x * zf);
-      const y = Math.round(rect.y * zf);
-      menu.popup({ window: mainWindow, x, y });
-    } else {
-      menu.popup({ window: mainWindow });
+
+// ---------- 菜单面板 IPC（渲染端 menu-panel.js 自绘面板的数据与动作）----------
+// menu:getDefinition 返回分组结构：数组，组含 title 与 items；
+// item: {id, label, shortcut?, checked?, disabled?, submenu?, separator?}
+function buildMenuDefinition() {
+  const currentModel = getCurrentDefaultModel();
+  // 模型候选：数据复用 buildModelSubmenu 来源（cachedModels + getCurrentDefaultModel）
+  const modelItems = (cachedModels && cachedModels.length > 0)
+    ? cachedModels.map((m) => ({ id: `model:${m}`, label: m, checked: m === currentModel }))
+    : [{ id: 'model:none', label: '（服务就绪后可用）', disabled: true }];
+  // 多实例候选：数据复用 buildInstancesSubmenu 来源（lastInstances）
+  const instanceItems = lastInstances.map((inst, i) => {
+    const parts = [`${inst.host || ''}:${inst.port || '?'}`];
+    if (inst.version) parts.push(`v${inst.version}`);
+    if (inst.current) parts.push('当前');
+    else if (!inst.alive) parts.push('已退出');
+    return { id: `instance:${i}`, label: parts.join(' '), disabled: !inst.alive };
+  });
+  if (instanceItems.length === 0) instanceItems.push({ id: 'instance:none', label: '未发现实例', disabled: true });
+  instanceItems.push({ separator: true }, { id: 'instances:rescan', label: '重新扫描' });
+  return [
+    {
+      title: '会话',
+      items: [
+        { id: 'session.launcher', label: '打开会话启动器', shortcut: 'Ctrl+Shift+S' },
+        { id: 'session.new', label: '新建对话', shortcut: 'Ctrl+Shift+N' },
+        { id: 'session.acpChat', label: '原生聊天（新会话）…' },
+      ],
+    },
+    {
+      title: '模型',
+      items: [
+        { id: 'models', label: `默认模型：${currentModel}`, submenu: modelItems },
+      ],
+    },
+    {
+      title: '多实例',
+      items: [
+        { id: 'instances', label: '切换实例', submenu: instanceItems },
+      ],
+    },
+    {
+      title: '设置',
+      items: [
+        { id: 'app.setup', label: '设置…', shortcut: 'Ctrl+,' },
+        { id: 'app.manualUrl', label: '手动输入地址…', shortcut: 'Ctrl+L' },
+        { id: 'app.rotateToken', label: '轮换访问令牌…' },
+        { id: 'app.lan', label: '局域网访问…' },
+      ],
+    },
+    {
+      title: '视图',
+      items: [
+        { id: 'view.toggleWindow', label: '显示/隐藏窗口', shortcut: 'Ctrl+Shift+Space' },
+        { id: 'view.alwaysOnTop', label: '窗口置顶', shortcut: 'Ctrl+T', checked: loadConfig().alwaysOnTop === true },
+        { separator: true },
+        { id: 'view.zoomIn', label: '放大', shortcut: 'Ctrl+=' },
+        { id: 'view.zoomOut', label: '缩小', shortcut: 'Ctrl+-' },
+        { id: 'view.resetZoom', label: '重置缩放', shortcut: 'Ctrl+0' },
+        { separator: true },
+        { id: 'view.fullscreen', label: '全屏', shortcut: 'F11' },
+        { id: 'view.devtools', label: '开发者工具', shortcut: 'Ctrl+Shift+I' },
+      ],
+    },
+    {
+      title: '帮助',
+      items: [
+        { id: 'help.dataDir', label: '打开数据目录(日志/配置)' },
+        { id: 'help.doctor', label: '运行 kimi doctor' },
+        { id: 'help.ide', label: 'IDE 接入向导…' },
+        { id: 'help.prompts', label: 'Prompt 模板库…' },
+        { id: 'help.shortcuts', label: '命令与快捷键速查…', shortcut: 'F1' },
+        { id: 'help.diagnostics', label: '打包诊断信息…' },
+        { id: 'help.about', label: '关于' },
+      ],
+    },
+    {
+      title: '',
+      items: [
+        { id: 'app.reload', label: '重新加载', shortcut: 'Ctrl+R' },
+        { id: 'app.quit', label: '退出' },
+      ],
+    },
+  ];
+}
+
+ipcMain.handle('menu:getDefinition', () => buildMenuDefinition());
+
+// menu:run 用 id 白名单映射复用现有函数；缩放/全屏/DevTools/重新加载直接操作发起调用的 webContents
+ipcMain.handle('menu:run', (e, id) => {
+  try {
+    const wc = e.sender;
+    const win = wc ? BrowserWindow.fromWebContents(wc) : null;
+    if (typeof id === 'string' && id.startsWith('model:')) {
+      const m = id.slice('model:'.length);
+      if (m && m !== 'none') void switchModel(m);
+      return { ok: true };
     }
+    if (typeof id === 'string' && id.startsWith('instance:')) {
+      const inst = lastInstances[Number(id.slice('instance:'.length))];
+      if (inst && inst.alive) void switchInstanceFromTray(inst);
+      return { ok: true };
+    }
+    const actions = {
+      'session.launcher': () => showSessionLauncher(),
+      'session.new': () => { void newConversationInPlace(); },
+      'session.acpChat': () => showAcpChatWindow(),
+      'instances:rescan': () => { void refreshInstancesCache(true); },
+      'app.setup': () => showSetup('manual'),
+      'app.manualUrl': () => showSetup('manual'),
+      'app.rotateToken': () => { void rotateToken(); },
+      'app.lan': () => showLanWindow(),
+      'view.toggleWindow': () => toggleMainWindow(),
+      'view.alwaysOnTop': () => setAlwaysOnTopFlag(!(loadConfig().alwaysOnTop === true)),
+      'view.zoomIn': () => { if (wc && !wc.isDestroyed()) wc.setZoomLevel(wc.getZoomLevel() + 0.5); },
+      'view.zoomOut': () => { if (wc && !wc.isDestroyed()) wc.setZoomLevel(wc.getZoomLevel() - 0.5); },
+      'view.resetZoom': () => { if (wc && !wc.isDestroyed()) wc.setZoomLevel(0); },
+      'view.fullscreen': () => { if (win && !win.isDestroyed()) win.setFullScreen(!win.isFullScreen()); },
+      'view.devtools': () => { if (wc && !wc.isDestroyed()) wc.toggleDevTools(); },
+      'help.dataDir': () => { void shell.openPath(userDataDir()); },
+      'help.doctor': () => { void runKimiDoctorWithDialog(); },
+      'help.ide': () => showSetup('manual', 'ide'),
+      'help.prompts': () => showPromptLibrary(),
+      'help.shortcuts': () => showHelpWindow(),
+      'help.diagnostics': () => { void packDiagnosticsWithDialog(); },
+      'help.about': () => showAboutDialog(),
+      'app.reload': () => { if (wc && !wc.isDestroyed()) wc.reload(); },
+      'app.quit': () => { quitting = true; app.quit(); },
+    };
+    const fn = actions[id];
+    if (!fn) return { ok: false, error: `unknown menu id: ${id}` };
+    fn();
+    return { ok: true };
+  } catch (err) {
+    logLine(`menu:run 失败(${id}): ${err.message}`);
+    return { ok: false, error: err.message };
   }
-  return true;
 });
+
+// 主窗口 Web UI 页窗控区采样色上报（preload 采样）：缓存并刷新悬浮窗控配色
+ipcMain.on('kcd:titlebar-color', (e, color) => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
+    if (!parseTitlebarColor(color)) return;
+    if (color === mainTitlebarSampleColor) return;
+    mainTitlebarSampleColor = color;
+    applyTitlebarOverlay(mainWindow);
+  } catch { /* ignore */ }
+});
+
 ipcMain.handle('app:restart', async () => { await restartServer(); return true; });
 
 // 应用设置保存：白名单合并 8 键（theme 枚举校验、zoomFactor 数字钳制、其余布尔归一），即时生效

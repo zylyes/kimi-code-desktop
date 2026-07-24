@@ -91,3 +91,9 @@ contextBridge.exposeInMainWorld('kimiChat', {
     return () => ipcRenderer.removeListener('acp-chat:event', listener);
   },
 });
+
+// 应用菜单面板桥接：与 preload.js 同名同构，供 menu-panel.js（chat.html 经 <script src> 挂载）消费
+contextBridge.exposeInMainWorld('kimiDesktopMenu', {
+  getDefinition: () => ipcRenderer.invoke('menu:getDefinition'),
+  run: (id) => ipcRenderer.invoke('menu:run', id),
+});

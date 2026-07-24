@@ -5,47 +5,18 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
 <title>Kimi Code Desktop · 子 Agent 任务监视器</title>
 <link rel="stylesheet" href="kimi-theme.css" />
+<script src="menu-panel.js" defer></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body { overflow: hidden; }
-  .mono { font-family: var(--font-mono); }
-
   .app { display: flex; flex-direction: column; height: 100vh; }
 
-  /* ---------- 标题栏 ---------- */
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--separator);
-    background: var(--bg-primary);
-    flex-shrink: 0;
-  }
-  .title-wrap { min-width: 0; }
-  .page-title { font-size: 11px; color: var(--label-tertiary); letter-spacing: 0.04em; }
-  .session-title {
-    margin-top: 3px;
-    font-size: 15px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  /* 头部使用 kimi-theme.css 统一 .app-topbar 组件（48px、bg-ground 无缝、整行拖拽），页面内不重定义 */
   /* .icon-btn 基础样式与 hover 由 kimi-theme.css 共享类提供；主题未收录 :disabled，本地保留 */
   .icon-btn:disabled { opacity: 0.5; cursor: default; }
 
-  .bridge-warn {
-    padding: 9px 14px;
-    border-bottom: 1px solid var(--separator);
-    background: var(--bg-primary);
-    color: var(--label-secondary);
-    font-size: 12px;
-    line-height: 1.6;
-    flex-shrink: 0;
-  }
+  /* .bridge-warn 使用 kimi-theme.css 共享样式（error 点缀色警示条） */
 
   /* ---------- 主体 ---------- */
   .body {
@@ -76,7 +47,7 @@
     gap: 12px;
   }
   .card {
-    padding: 12px 14px;
+    padding: 14px 16px;
     animation: rise 0.25s ease both;
   }
   .card-head {
@@ -101,20 +72,18 @@
     border: 1px solid var(--separator);
     border-radius: var(--radius-pill);
     font-size: 11px;
-    color: var(--label-secondary);
+    color: var(--label-tertiary);
     white-space: nowrap;
     flex-shrink: 0;
   }
-  /* 状态色纪律：仅 成功 / 失败 使用点缀色，其余一律灰阶 */
-  .badge.main { color: var(--label-primary); }
-  .badge.run { color: var(--label-secondary); }
+  /* 状态色纪律：仅 成功 / 失败 使用点缀色，其余状态（主 Agent / 运行中 / 已停止）沿用基础灰阶 */
   .badge.ok { color: var(--color-success); }
   .badge.err { color: var(--color-error); }
-  .badge.warn { color: var(--label-quaternary); }
 
   .card-stats {
     margin-top: 8px;
     font-size: 12px;
+    color: var(--label-secondary);
   }
   .card-times { margin-top: 8px; }
   .kv {
@@ -160,7 +129,7 @@
     border: 1px solid var(--separator);
     border-radius: var(--radius-sm);
     background: var(--bg-primary);
-    padding: 10px 12px;
+    padding: 12px 14px;
   }
   .task-head {
     display: flex;
@@ -186,33 +155,10 @@
     user-select: text;
   }
 
-  /* ---------- 空态 ---------- */
-  .empty {
-    padding: 40px 24px;
-    text-align: center;
-    color: var(--label-secondary);
-    font-size: 12px;
-    line-height: 1.7;
-  }
-
-  .spinner {
-    display: inline-block;
-    width: 12px; height: 12px;
-    flex-shrink: 0;
-    border: 2px solid var(--separator);
-    border-top-color: var(--label-primary);
-    border-radius: 50%;
-    animation: rot 0.8s linear infinite;
-  }
-  @keyframes rot { to { transform: rotate(360deg); } }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
+  /* ---------- 空态 / 加载态 ---------- */
+  /* 空态用 kimi-theme.css 共享 .notice；加载态用共享 .loading + .spinner；rot / rise 动画亦由主题提供，页面内不重定义 */
   @media (prefers-reduced-motion: reduce) {
     .card { animation: none; }
-    .spinner { animation-duration: 1.6s; }
   }
 </style>
 </head>
@@ -220,12 +166,13 @@
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
   <div class="app">
-    <header class="topbar">
-      <div class="title-wrap">
-        <div class="page-title">子 Agent 任务监视器</div>
-        <div class="session-title" id="sessionTitle">未命名会话</div>
+    <header class="app-topbar">
+      <div class="brand"><span class="mark">K</span><span class="brand-name">Kimi Code</span></div>
+      <span class="app-topbar-title">子 Agent 任务监视器</span>
+      <span class="app-topbar-sub" id="sessionTitle">未命名会话</span>
+      <div class="app-topbar-actions">
+        <button class="icon-btn" id="refreshBtn" type="button" aria-label="重新扫描会话目录" title="重新扫描会话目录">刷新</button>
       </div>
-      <button class="icon-btn" id="refreshBtn" type="button" aria-label="重新扫描会话目录" title="重新扫描会话目录">刷新</button>
     </header>
     <div class="bridge-warn" id="bridgeWarn" hidden>
       未检测到桌面桥接接口（window.kimiDesktop），当前页面无法执行任何操作。
@@ -234,7 +181,7 @@
       <div class="status" id="statusLine" hidden></div>
       <div class="summary" id="summaryLine" hidden></div>
       <div class="cards" id="agentCards"></div>
-      <div class="empty" id="agentsEmpty" hidden>该会话暂无子 Agent 记录</div>
+      <div class="notice" id="agentsEmpty" hidden>该会话暂无子 Agent 记录</div>
       <section class="tasks-section" id="tasksSection" hidden>
         <div class="sec-title">后台任务</div>
         <ul class="tasks" id="taskList"></ul>
@@ -293,8 +240,9 @@
     }
 
     /* ---------- 状态行 ---------- */
+    /* 加载态用 kimi-theme.css 共享 .loading（自带 spinner 排版）；错误/提示沿用本地 .status */
     function showStatus(kind, msg) {
-      statusEl.className = 'status' + (kind ? ' ' + kind : '');
+      statusEl.className = kind === 'loading' ? 'loading' : 'status' + (kind ? ' ' + kind : '');
       statusEl.textContent = '';
       if (kind === 'loading') {
         const sp = document.createElement('span');

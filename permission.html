@@ -15,14 +15,15 @@
 
   .app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
 
-  /* ---------- 顶栏 ---------- */
+  /* ---------- 顶栏（.app-topbar/.brand/.mark/.app-topbar-title 见 kimi-theme.css） ---------- */
   .kind-chip {
     display: inline-block;
-    max-width: 50%;
+    /* 固定上限：在 shrink-to-fit 的 .app-topbar-actions 内百分比 max-width 会误截断 */
+    max-width: 220px;
     padding: 3px 10px;
     border: 1px solid var(--separator);
     border-radius: var(--radius-pill);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--label-tertiary);
     white-space: nowrap;
     overflow: hidden;
@@ -49,7 +50,7 @@
   }
   .req-sub {
     margin-top: 6px;
-    font-size: 12.5px;
+    font-size: 13px;
     color: var(--label-secondary);
     line-height: 1.7;
   }
@@ -57,7 +58,7 @@
   /* ---------- 详情区 ---------- */
   .detail-wrap { margin-top: 14px; }
   .block-label {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--label-tertiary);
     letter-spacing: 0.02em;
     margin-bottom: 6px;
@@ -67,7 +68,7 @@
     overflow: auto;
     padding: 10px 12px;
     border: 1px solid var(--separator);
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     background: var(--bg-secondary);
     font-family: var(--font-mono);
     font-size: 12px;
@@ -79,7 +80,7 @@
   }
   .detail-trunc {
     margin-top: 6px;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--label-tertiary);
   }
 
@@ -127,12 +128,14 @@
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
   <div class="app">
-    <header class="topbar">
+    <header class="app-topbar">
       <div class="brand">
         <span class="mark" aria-hidden="true">K</span>
-        <span class="brand-name">权限请求</span>
+        <span class="brand-name app-topbar-title">权限请求</span>
       </div>
-      <span class="kind-chip" id="kindChip" hidden></span>
+      <div class="app-topbar-actions">
+        <span class="kind-chip" id="kindChip" hidden></span>
+      </div>
     </header>
 
     <div class="bridge-warn" id="bridgeWarn" hidden>

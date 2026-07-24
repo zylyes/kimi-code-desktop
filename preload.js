@@ -92,13 +92,91 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   backToSession: () => ipcRenderer.invoke('app:backToSession'),
 });
 
+// 应用菜单面板 API：menu-panel.js（本地页经 <script src="menu-panel.js"> 加载、主窗口 Web UI 页由
+// 主进程 did-finish-load 时 executeJavaScript 注入——该页 CSP 为 default-src 'self'，<script> 文本
+// 节点注入会被拦截，故不在此处注入）消费；所有使用本 preload 的窗口统一暴露
+contextBridge.exposeInMainWorld('kimiDesktopMenu', {
+  getDefinition: () => ipcRenderer.invoke('menu:getDefinition'),
+  run: (id) => ipcRenderer.invoke('menu:run', id),
+});
+
 // 主窗口标记：createWindow 经 additionalArguments 传入，辅助窗口复用本 preload 时不带此标记
 const IS_MAIN_WINDOW = process.argv.includes('--kcd-main-window');
 // 拖拽条标记：无边框窗口都需要顶部拖拽条（主窗口所有页面 + 可视化等外部页面窗口）
 const NEEDS_DRAG_STRIP = IS_MAIN_WINDOW || process.argv.includes('--kcd-drag-strip');
 
-// 主窗口（无边框）注入顶部拖拽条；kimi web UI 会话页（loopback http(s) 页面）右下角
-// 注入浮动设置按钮与 ☰ 菜单按钮；样式由主进程 webContents.insertCSS 注入，此处不写任何内联样式。
+// 当前页是否为 kimi web UI 会话页（loopback http(s)）
+function isLoopbackWebUI() {
+  try {
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return false;
+    return ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(location.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// 窗控区颜色采样：取右上角（悬浮窗控覆盖处）第一个 alpha >= 0.9 的背景色并上报主进程，
+// 主进程据此把 titleBarOverlay 背景对齐页面实际颜色，消除窗控「补丁」感。
+// elementsFromPoint 自顶向下遍历层叠元素（跳过本应用注入的拖拽条/菜单按钮），
+// 每个元素沿父链向上取第一个有效背景色（透明继续向上至 body/html）
+function sampleTitlebarColor() {
+  try {
+    const x = window.innerWidth - 69;
+    const stack = document.elementsFromPoint
+      ? document.elementsFromPoint(x, 6)
+      : [document.elementFromPoint(x, 6)];
+    for (const el of stack) {
+      if (!el || el.id === 'kcd-drag-strip') continue;
+      if (el.classList && (el.classList.contains('kcd-menu-btn') || el.classList.contains('kcd-menu-panel'))) continue;
+      let node = el;
+      while (node && node.nodeType === 1) {
+        const bg = getComputedStyle(node).backgroundColor;
+        const m = bg && bg.match(/rgba?\(([^)]+)\)/);
+        if (m) {
+          const parts = m[1].split(',').map((v) => parseFloat(v));
+          const alpha = parts.length === 4 ? parts[3] : 1;
+          if (alpha >= 0.9) return `rgb(${parts[0] | 0}, ${parts[1] | 0}, ${parts[2] | 0})`;
+        }
+        if (node === document.documentElement) break;
+        node = node.parentElement;
+      }
+    }
+  } catch { /* 采样失败时保留上次颜色 */ }
+  return null;
+}
+
+// MutationObserver（节流 300ms）+ 1s 轮询兜底 + visibilitychange 触发重采样
+function startTitlebarSampling() {
+  let lastSent = '';
+  let scheduled = false;
+  const report = () => {
+    scheduled = false;
+    const color = sampleTitlebarColor();
+    if (color && color !== lastSent) {
+      lastSent = color;
+      ipcRenderer.send('kcd:titlebar-color', color);
+    }
+  };
+  const schedule = () => {
+    if (!scheduled) {
+      scheduled = true;
+      setTimeout(report, 300);
+    }
+  };
+  report();
+  const observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['class', 'style'],
+  });
+  setInterval(report, 1000); // 兜底：CSS 变量/媒体查询变化不触发 MutationObserver
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) report(); });
+}
+
+// 主窗口（无边框）注入顶部拖拽条；kimi web UI 会话页（loopback http(s) 页面）启动窗控区颜色采样
+// （☰ 菜单面板由主进程 did-finish-load 时 executeJavaScript 注入 menu-panel.js，见 main.js）
 window.addEventListener('DOMContentLoaded', () => {
   try {
     // 顶部拖拽条：无边框窗口页面（含 loading/setup/sessions 本地页与 kimi vis 外部页）都需要
@@ -109,36 +187,8 @@ window.addEventListener('DOMContentLoaded', () => {
       document.body.appendChild(strip);
     }
 
-    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
-    if (!['127.0.0.1', 'localhost', '[::1]', '::1'].includes(location.hostname)) return;
-    if (document.getElementById('kcd-settings-fab')) return;
-
-    const fab = document.createElement('button');
-    fab.id = 'kcd-settings-fab';
-    fab.type = 'button';
-    fab.title = '设置 (Ctrl+,)';
-    fab.setAttribute('aria-label', '设置');
-    fab.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>';
-    fab.addEventListener('click', () => {
-      ipcRenderer.invoke('app:showSetup');
-    });
-    document.body.appendChild(fab);
-
-    // ☰ 菜单按钮：无边框主窗口无原生菜单栏，点击弹出完整应用菜单（快捷键不受影响）
-    if (IS_MAIN_WINDOW && !document.getElementById('kcd-menu-fab')) {
-      const menuFab = document.createElement('button');
-      menuFab.id = 'kcd-menu-fab';
-      menuFab.type = 'button';
-      menuFab.title = '菜单';
-      menuFab.setAttribute('aria-label', '菜单');
-      menuFab.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>';
-      menuFab.addEventListener('click', () => {
-        // 把按钮位置传给主进程，菜单将锚定到按钮左上角弹出
-        const r = menuFab.getBoundingClientRect();
-        ipcRenderer.invoke('app:popupMenu', { x: r.left, y: r.top, width: r.width, height: r.height });
-      });
-      document.body.appendChild(menuFab);
-    }
+    if (!IS_MAIN_WINDOW || !isLoopbackWebUI()) return;
+    startTitlebarSampling();
   } catch (err) {
     // 注入失败不影响页面本身
   }

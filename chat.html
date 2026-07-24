@@ -5,12 +5,16 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
 <title>原生聊天</title>
 <link rel="stylesheet" href="kimi-theme.css" />
+<script src="menu-panel.js" defer></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body { overflow: hidden; }
 
   .app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* .icon-btn 基础样式与 hover 由 kimi-theme.css 共享类提供；主题未收录 :disabled，本地补齐（桥接不可用时禁用 Web UI 按钮） */
+  .icon-btn:disabled { opacity: 0.5; cursor: default; }
 
   /* 内容列：居中、限宽 768px、左右留白 16px */
   .col {
@@ -21,17 +25,7 @@
     padding-right: 16px;
   }
 
-  /* ---------- 顶部状态条 ---------- */
-  .statusbar { flex: none; padding: 10px 0; }
-  .statusbar-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 12px;
-    color: var(--label-tertiary);
-  }
-  .status-left { display: flex; align-items: center; gap: 8px; flex: none; }
+  /* ---------- 状态点：顶栏连接状态与工具卡片状态共用（顶栏结构类 .app-topbar/.brand/.app-topbar-sub/.app-topbar-actions 见 kimi-theme.css） ---------- */
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
   .dot.connecting { background: var(--label-quaternary); animation: breathe 1.4s ease-in-out infinite; }
   .dot.ready { background: var(--color-success); }
@@ -42,38 +36,13 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.25; }
   }
-  .status-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  .status-right span { overflow: hidden; text-overflow: ellipsis; }
-  .mono { font-family: var(--font-mono); }
 
-  /* Web UI 降级入口：状态条右侧小号描边按钮 */
-  .webui-btn {
-    flex: none;
-    padding: 2px 10px;
-    border: 1px solid var(--separator);
-    border-radius: 6px;
-    background: transparent;
-    color: var(--label-tertiary);
-    font-family: inherit;
-    font-size: 12px;
-    line-height: 1.5;
-    cursor: pointer;
-  }
-  .webui-btn:hover { color: var(--label-primary); border-color: var(--separator-hover); }
-
-  /* ---------- 会话信息行：恢复会话时展示会话名与工作目录，缺省隐藏 ---------- */
+  /* ---------- 会话信息行：topbar 下方可折叠行，恢复会话时展示会话名与工作目录，缺省隐藏 ---------- */
   .sessionbar {
     display: flex;
     align-items: baseline;
     gap: 10px;
-    padding-bottom: 6px;
+    padding: 8px 0 4px;
     font-size: 12px;
     color: var(--label-tertiary);
     min-width: 0;
@@ -95,12 +64,12 @@
     white-space: nowrap;
   }
 
-  /* ---------- 配置切换栏：模型/思考/模式三个下拉，数据来自 configOptions ---------- */
+  /* ---------- 配置切换栏：模型/思考/模式三个下拉，数据来自 configOptions；select 走 .input 共享风格，本地仅收敛尺寸 ---------- */
   .configbar {
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 2px 0 8px;
+    padding: 4px 0 10px;
     font-size: 12px;
     color: var(--label-tertiary);
   }
@@ -108,19 +77,33 @@
   .config-item { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .config-item[hidden] { display: none; }
   .config-label { flex: none; }
-  .config-select {
-    max-width: 180px;
-    padding: 3px 6px;
-    border: 1px solid var(--separator);
-    border-radius: 6px;
-    background: var(--bg-secondary);
-    color: var(--label-primary);
-    font-family: inherit;
-    font-size: 12px;
-    outline: none;
-  }
-  .config-select:focus { border-color: var(--label-quaternary); }
+  .config-select { max-width: 180px; padding: 4px 8px; font-size: 12px; }
   .config-select:disabled { color: var(--label-tertiary); opacity: 0.4; }
+
+  /* ---------- 底部细状态栏：agent / 会话 / 命令计数，仅可见项之间以 · 分隔，不可拖拽 ---------- */
+  .chat-statusbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 14px;
+    border-top: 1px solid var(--separator);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--label-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    -webkit-app-region: no-drag;
+  }
+  .chat-statusbar span { overflow: hidden; text-overflow: ellipsis; }
+  .chat-statusbar > span:not([hidden]) ~ span:not([hidden])::before {
+    content: '·';
+    margin-right: 8px;
+    color: var(--label-quaternary);
+  }
+  /* 三项全隐藏时整条收起，不留空栏 */
+  .chat-statusbar:not(:has(> span:not([hidden]))) { display: none; }
 
   /* ---------- 消息列表 ---------- */
   .messages { flex: 1; overflow-y: auto; overflow-x: hidden; }
@@ -132,6 +115,21 @@
     padding-bottom: 20px;
   }
 
+  /* 空态：消息列表为空（.messages-inner:empty）时纯 CSS 展示，首条内容一到即隐去，无需 JS 介入 */
+  .chat-empty { display: none; }
+  .messages-inner:empty ~ .chat-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 100%;
+  }
+
+  /* 消息与工具卡片入场：复用 kimi-theme.css 的 rise 关键帧，节点插入时上浮淡入一次 */
+  .msg,
+  .tool-card { animation: rise 0.25s ease both; }
+
   /* 用户消息：右侧气泡 */
   .msg-user {
     align-self: flex-end;
@@ -140,6 +138,7 @@
     background: var(--bg-secondary);
     border: 1px solid var(--separator);
     border-radius: var(--radius-card);
+    line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
   }
@@ -157,7 +156,7 @@
     max-width: 160px;
     max-height: 160px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
 
   /* assistant 消息：左侧无气泡纯文本 */
@@ -175,11 +174,12 @@
   .thought summary {
     display: inline-flex;
     align-items: center;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--label-tertiary);
     cursor: pointer;
     user-select: none;
   }
+  .thought summary:hover { color: var(--label-secondary); }
   .thought-body {
     margin-top: 6px;
     max-height: 240px;
@@ -197,9 +197,9 @@
     margin: 8px 0;
     padding: 8px 12px;
     border-left: 2px solid var(--label-quaternary);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     background: var(--bg-secondary);
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--label-secondary);
   }
   .tool-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -218,11 +218,11 @@
     flex: none;
     padding: 1px 6px;
     border: 1px solid var(--separator);
-    border-radius: 6px;
+    border-radius: var(--radius-pill);
     font-size: 11px;
     color: var(--label-tertiary);
   }
-  .tool-status { flex: none; font-size: 11.5px; color: var(--label-tertiary); }
+  .tool-status { flex: none; font-size: 11px; color: var(--label-tertiary); }
   .tool-detail summary {
     display: inline-flex;
     align-items: center;
@@ -232,11 +232,17 @@
     cursor: pointer;
     user-select: none;
   }
+  .tool-detail summary:hover { color: var(--label-secondary); }
+  /* detail 文本与输出摘要：等宽小字嵌块，亮暗两态均与卡片底色拉开一层 */
   .tool-detail-body,
   .tool-output {
     margin-top: 6px;
     max-height: 200px;
     overflow-y: auto;
+    padding: 8px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
     font-family: var(--font-mono);
     font-size: 12px;
     line-height: 1.6;
@@ -314,14 +320,14 @@
     padding: 4px;
     background: var(--bg-tertiary);
     border: 1px solid var(--separator);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
   }
   .chip img {
     display: block;
     width: 40px;
     height: 40px;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
   }
   .chip-remove {
     flex: none;
@@ -363,7 +369,7 @@
     padding: 8px 12px;
     background: transparent;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     text-align: left;
     font-family: inherit;
@@ -375,7 +381,7 @@
   .slash-name {
     flex: none;
     font-family: var(--font-mono);
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--label-primary);
   }
   .slash-desc {
@@ -398,7 +404,7 @@
     color: var(--label-quaternary);
   }
 
-  .composer-actions { display: flex; align-items: center; justify-content: space-between; }
+  .composer-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
   /* 圆形附件按钮：发送按钮左侧，透明底，仅图标着色 */
   .attach {
@@ -412,9 +418,9 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: color 0.15s ease;
+    transition: color 0.15s ease, background-color 0.15s ease;
   }
-  .attach:not(:disabled):hover { color: var(--label-primary); }
+  .attach:not(:disabled):hover { color: var(--label-primary); background: var(--bg-secondary-hover); }
   .attach:disabled { opacity: 0.4; cursor: default; }
 
   /* 圆形发送按钮：亮色下深底浅箭头，暗色下随令牌自动反转 */
@@ -439,6 +445,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .dot.connecting, .dot.busy { animation: none; }
+    .msg, .tool-card { animation: none; }
     .send { transition: none; }
   }
 </style>
@@ -447,45 +454,48 @@
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
   <div class="app">
-    <!-- 顶部状态条 -->
-    <header class="statusbar">
-      <div class="col statusbar-row">
-        <div class="status-left">
-          <span class="dot connecting" id="statusDot" aria-hidden="true"></span>
-          <span id="statusText">正在连接…</span>
-        </div>
-        <div class="status-right">
-          <span id="agentInfo" hidden></span>
-          <span id="sessionInfo" class="mono" hidden></span>
-          <span id="commandsInfo" hidden></span>
-          <button class="webui-btn" id="webuiBtn" type="button" title="在 Web UI 高级面板中打开">Web UI</button>
-        </div>
+    <!-- 统一头部（结构类 .app-topbar/.brand/.app-topbar-sub/.app-topbar-actions 见 kimi-theme.css，页面内不重定义） -->
+    <header class="app-topbar">
+      <div class="brand">
+        <span class="mark">K</span>
+        <span class="brand-name">Kimi Code</span>
       </div>
-      <!-- 会话信息行：恢复会话时展示，缺省隐藏 -->
-      <div class="col sessionbar" id="sessionBar" hidden>
-        <span class="session-title" id="sessionTitle" hidden></span>
-        <span class="session-workdir mono" id="workDir" hidden></span>
-      </div>
-      <!-- 配置切换栏：模型/思考/模式，数据来自 configOptions，某项缺失则隐藏对应项 -->
-      <div class="col configbar" id="configBar" hidden>
-        <label class="config-item" id="configItem-model" hidden>
-          <span class="config-label">模型</span>
-          <select class="config-select" id="configSelect-model" aria-label="模型"></select>
-        </label>
-        <label class="config-item" id="configItem-thinking" hidden>
-          <span class="config-label">思考</span>
-          <select class="config-select" id="configSelect-thinking" aria-label="思考"></select>
-        </label>
-        <label class="config-item" id="configItem-mode" hidden>
-          <span class="config-label">模式</span>
-          <select class="config-select" id="configSelect-mode" aria-label="模式"></select>
-        </label>
+      <span class="dot connecting" id="statusDot" aria-hidden="true"></span>
+      <span class="app-topbar-sub" id="statusText">正在连接…</span>
+      <div class="app-topbar-actions">
+        <button class="icon-btn" id="webuiBtn" type="button" title="在 Web UI 高级面板中打开">Web UI</button>
       </div>
     </header>
+
+    <!-- 会话信息行：topbar 下方可折叠行，恢复会话时展示，缺省隐藏 -->
+    <div class="col sessionbar" id="sessionBar" hidden>
+      <span class="session-title" id="sessionTitle" hidden></span>
+      <span class="session-workdir mono" id="workDir" hidden></span>
+    </div>
+    <!-- 配置切换栏：模型/思考/模式，数据来自 configOptions，某项缺失则隐藏对应项 -->
+    <div class="col configbar" id="configBar" hidden>
+      <label class="config-item" id="configItem-model" hidden>
+        <span class="config-label">模型</span>
+        <select class="config-select input" id="configSelect-model" aria-label="模型"></select>
+      </label>
+      <label class="config-item" id="configItem-thinking" hidden>
+        <span class="config-label">思考</span>
+        <select class="config-select input" id="configSelect-thinking" aria-label="思考"></select>
+      </label>
+      <label class="config-item" id="configItem-mode" hidden>
+        <span class="config-label">模式</span>
+        <select class="config-select input" id="configSelect-mode" aria-label="模式"></select>
+      </label>
+    </div>
 
     <!-- 消息列表 -->
     <main class="messages" id="messages">
       <div class="col messages-inner" id="messagesInner"></div>
+      <!-- 空态：仅消息列表为空时经 .messages-inner:empty ~ .chat-empty 纯 CSS 显示（共享 .notice/.mark 组件），首条内容一到即隐去 -->
+      <div class="col notice chat-empty">
+        <span class="mark" aria-hidden="true">K</span>
+        <span>给 Kimi 发送消息，开始新的对话</span>
+      </div>
     </main>
 
     <!-- 底部：错误提示条 + 输入区 -->
@@ -513,6 +523,13 @@
         </div>
       </div>
     </footer>
+
+    <!-- 底部细状态栏：agent / 会话 / 命令计数（自原顶部状态行迁入），· 分隔、不可拖拽 -->
+    <div class="chat-statusbar">
+      <span id="agentInfo" hidden></span>
+      <span id="sessionInfo" class="mono" hidden></span>
+      <span id="commandsInfo" hidden></span>
+    </div>
   </div>
 
   <script src="chat.js"></script>

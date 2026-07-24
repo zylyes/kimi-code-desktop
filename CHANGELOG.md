@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.0] - 2026-07-24
+
+### 改进
+
+- **窗控区颜色运行时同步**：主窗口 Web UI 页由 preload 采样右上角实际背景色（elementsFromPoint + 父链首个不透明背景，MutationObserver 节流 300ms + 1s 轮询兜底），主进程据此动态 `setTitleBarOverlay`（`titlebarColorForWindow`，symbolColor 按采样色亮度自适应）；预览栏、改动条等任意顶栏状态下悬浮窗控与页面背景融为一体，彻底消除窗控「补丁」感。本地页仍恒用窗口背景色。
+- **应用菜单重做（Kimi 官方风自绘面板）**：右上角两个浮动小按钮合并为单个 ☰ 按钮（与悬浮窗控同排同风格），点击展开自绘下拉面板（新文件 `menu-panel.js`，渲染端共享）——圆角卡片浮层、分组标题、勾选态、右侧快捷键提示、模型/多实例二级子面板、Esc/点外部/失焦关闭、亮暗双主题；菜单结构与动作走新 IPC `menu:getDefinition`/`menu:run`（分组：会话/模型/多实例/设置/视图/帮助）。隐藏的原生应用菜单重组为同构分组、仅作快捷键载体；`app:popupMenu` 与旧浮动按钮注入移除。全窗口统一入口：主窗口 Web UI 页经 preload 注入，本地页（chat/agents/help/prompts/lan/sessions/setup/loading）经 `<script src="menu-panel.js" defer>` 挂载，`chat-preload.js` 补同名桥接。
+- **新建对话确认保留并鲁棒化**：实测当前 Web UI 官方新建按钮（`button.btn-new-chat`）存在，点击后 SPA 原地切换到新空会话（无整页重载、无新进程）；`newConversationInPlace` 改为候选选择器数组逐个尝试（`.btn-new-chat` → `aria-label` → 按钮文本匹配），500ms 重试与「不在 Web UI 先导航回 / 服务未运行退化为重启」路径不变。
+- **全页面官方风美化**：chat/sessions/setup/agents/help/prompts/lan/loading/permission/question 十页逐页对齐 kimi-theme.css 令牌——硬编码色值清零，圆角/字号/间距统一，按钮归一 `.btn`/`.icon-btn` 体系，空态/加载态走共享 `.notice`/`.loading`/`.spinner`，卡片留白与 hover/focus 态规范，暗色主题逐页核验；loading 页进度条改共享 `.spinner`，sessions 详情标题收敛至 14px 全局层级，setup 分区标题改 `.side-group` 弱化风，重复 CSS（`.topbar-note`/`@keyframes rise`/`.mono` 等）去重回落主题。
+
+### 其他
+
+- `scripts/screenshot-pages.js` 离屏连拍禁用硬件加速并加窗口建毁间隔，修复第二页起 ERR_FAILED 崩溃；新增 `scripts/screenshot-one.js`（单页单进程截图）与 `scripts/probe-one-page.js`（单页加载探针）。
+- 无破坏性变更。
+
 ## [0.18.0] - 2026-07-24
 
 ### 改进

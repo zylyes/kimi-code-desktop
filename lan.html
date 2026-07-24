@@ -6,27 +6,20 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
 <title>Kimi Code Desktop · 局域网访问</title>
 <link rel="stylesheet" href="kimi-theme.css" />
+<script src="menu-panel.js" defer></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body { overflow: hidden; }
-  .mono { font-family: var(--font-mono); }
-
   .app { display: flex; flex-direction: column; height: 100vh; }
 
+  /* 头部使用 kimi-theme.css 统一 .app-topbar 组件（48px、bg-ground 无缝、整行拖拽），页面内不重定义 */
   /* ---------- 安全警示横幅 ---------- */
-  /* 右侧预留 150px 避开右上角悬浮窗控，防止首行警示文字被窗控遮住 */
+  /* 配色 / 内边距 / 边框由主题共享 .bridge-warn 警示条提供，此处仅补 flex 排布 */
   .danger-banner {
     display: flex;
     gap: 10px;
     align-items: flex-start;
-    padding: 12px 150px 12px 18px;
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--separator);
-    color: var(--label-secondary);
-    font-size: 12px;
-    line-height: 1.7;
-    flex-shrink: 0;
   }
   .danger-banner .lead {
     font-weight: 700;
@@ -45,8 +38,7 @@
     padding: 22px 24px 26px;
   }
   .wrap { max-width: 640px; margin: 0 auto; }
-  h1 { font-size: 18px; font-weight: 600; }
-  .sub { margin-top: 6px; font-size: 12px; color: var(--label-secondary); line-height: 1.7; }
+  .sub { font-size: 13px; color: var(--label-secondary); line-height: 1.7; }
 
   .status {
     display: flex;
@@ -62,16 +54,7 @@
   .status.ok { color: var(--color-success); }
   .status.err { color: var(--color-error); }
 
-  .bridge-warn {
-    margin-top: 14px;
-    padding: 9px 14px;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
-    background: var(--bg-primary);
-    color: var(--label-secondary);
-    font-size: 12px;
-    line-height: 1.6;
-  }
+  /* #bridgeWarn 与 .danger-banner 均使用 kimi-theme.css 共享 .bridge-warn 警示条（error 点缀色），页面内不重定义 */
 
   .port-line {
     margin-top: 16px;
@@ -83,7 +66,7 @@
   /* 卡片外观由主题 .card 提供（元素加 card 类）；改名 .lan-notice 以避开主题弹窗家族的 .notice */
   .lan-notice {
     margin-top: 14px;
-    padding: 16px;
+    padding: 18px;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -112,7 +95,7 @@
   }
   .nic-card {
     margin-top: 14px;
-    padding: 14px 16px;
+    padding: 16px 18px;
     animation: rise 0.25s ease both;
   }
   .nic-ip {
@@ -123,19 +106,23 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 8px;
+    margin-top: 10px;
   }
+  /* 地址块：bg-secondary 衬底 + radius-sm，等宽字体由元素上的 .mono 提供 */
   .nic-url {
     flex: 1;
     min-width: 0;
+    padding: 6px 10px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
     font-size: 12px;
     color: var(--label-secondary);
     word-break: break-all;
     user-select: text;
     line-height: 1.6;
   }
-  /* 二维码容器：图像本体由 qrcode 库生成为 data: URL，颜色不在此修改；
-     容器用 bg-primary + separator 边框，内边距兼作静区保证扫码对比度 */
+  /* 二维码容器：图像本体由 qrcode 库生成为 data: URL（默认白底黑码），颜色不在此修改；
+     容器用 bg-primary + separator 边框，内边距兼作静区保证扫码对比度；圆角与主题 .input 一致 */
   .nic-qr {
     margin-top: 12px;
     width: 168px;
@@ -143,33 +130,19 @@
     padding: 8px;
     background: var(--bg-primary);
     border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
+    border-radius: 12px;
     display: block;
   }
   .qr-hint {
     margin-top: 8px;
-    font-size: 11px;
-    color: var(--label-secondary);
+    font-size: 12px;
+    color: var(--label-tertiary);
   }
 
-  .spinner {
-    display: inline-block;
-    width: 12px; height: 12px;
-    flex-shrink: 0;
-    border: 2px solid var(--separator);
-    border-top-color: var(--label-primary);
-    border-radius: 50%;
-    animation: rot 0.8s linear infinite;
-  }
-  @keyframes rot { to { transform: rotate(360deg); } }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+  /* .mono / .spinner / @keyframes rot / @keyframes rise 均由 kimi-theme.css 共享提供 */
 
   @media (prefers-reduced-motion: reduce) {
     .nic-card { animation: none; }
-    .spinner { animation-duration: 1.6s; }
   }
 </style>
 </head>
@@ -177,17 +150,20 @@
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
   <div class="app">
-    <div class="danger-banner" role="alert">
+    <header class="app-topbar">
+      <div class="brand"><span class="mark">K</span><span class="brand-name">Kimi Code</span></div>
+      <span class="app-topbar-title">局域网访问</span>
+    </header>
+    <div class="bridge-warn danger-banner" role="alert">
       <span class="lead">⚠ 安全警示</span>
       <span>URL 中的 token 即完整访问凭证，仅在可信局域网使用，勿截图外传；严禁叠加 <code>--dangerous-bypass-auth</code>（会关闭全部鉴权）。</span>
     </div>
+    <div class="bridge-warn" id="bridgeWarn" hidden>
+      未检测到桌面桥接接口（window.kimiDesktop），当前页面无法执行任何操作。
+    </div>
     <main class="body" aria-label="局域网访问设置">
       <div class="wrap">
-        <h1>局域网访问</h1>
         <p class="sub">将 Web UI 暴露到局域网后，可用手机或其他电脑通过下方地址访问本机会话。</p>
-        <div class="bridge-warn" id="bridgeWarn" hidden>
-          未检测到桌面桥接接口（window.kimiDesktop），当前页面无法执行任何操作。
-        </div>
         <div class="status" id="statusLine" hidden></div>
         <div id="content"></div>
       </div>

@@ -5,6 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
 <title>Kimi Code Desktop · 帮助</title>
 <link rel="stylesheet" href="kimi-theme.css" />
+<script src="menu-panel.js" defer></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
@@ -12,36 +13,11 @@
     overflow: hidden;
     display: flex;
   }
-  .mono { font-family: var(--font-mono); }
 
   .app { display: flex; flex-direction: column; width: 100%; height: 100vh; }
 
-  /* ---------- 顶栏 ---------- */
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 18px 10px;
-    flex: none;
-  }
-  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .mark {
-    width: 28px; height: 28px;
-    border-radius: var(--radius-sm);
-    background: var(--label-primary);
-    color: var(--bg-ground);
-    font-size: 15px; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    flex: none;
-  }
-  .brand-name { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
-  .topbar-note {
-    font-size: 12px;
-    color: var(--label-secondary);
-    white-space: nowrap;
-    flex: none;
-  }
+  /* ---------- 顶栏：统一使用主题 .app-topbar 共享组件（48px 高、右侧 150px 避让悬浮窗控），本地不重新定义；
+     右上说明文字直接使用共享 .app-topbar-sub 样式 ---------- */
 
   /* ---------- 页面说明 ---------- */
   .page-desc {
@@ -60,16 +36,14 @@
     padding: 4px 18px 18px;
   }
 
+  /* 入场动画 keyframes rise 来自 kimi-theme.css，本地不重复定义 */
   .group { margin-bottom: 22px; animation: rise 0.22s ease both; }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
   .group-title {
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.02em;
     margin-bottom: 10px;
+    color: var(--label-tertiary);
   }
 
   /* ---------- 速查表格（卡片外观来自主题 .card，本地仅布局增量） ---------- */
@@ -84,9 +58,10 @@
     vertical-align: top;
   }
   tr + tr td { border-top: 1px solid var(--separator); }
+  /* 行 hover 浅灰背景，对齐官方条目 hover 风格 */
+  tr:hover td { background: var(--bg-secondary-hover); }
   td.cmd {
     width: 168px;
-    flex-shrink: 0;
     white-space: nowrap;
     font-family: var(--font-mono);
     font-size: 12px;
@@ -105,7 +80,6 @@
   }
 
   @media (max-width: 420px) {
-    .topbar { padding: 12px 14px 8px; }
     .page-desc { padding: 0 14px 10px; }
     .main { padding: 4px 14px 14px; }
     td.cmd { width: 128px; }
@@ -120,12 +94,15 @@
   <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
   <div id="kcd-drag-strip" aria-hidden="true"></div>
   <div class="app">
-    <header class="topbar">
+    <header class="app-topbar">
       <div class="brand">
         <span class="mark" aria-hidden="true">K</span>
-        <span class="brand-name">命令与快捷键速查</span>
+        <span class="brand-name">Kimi Code</span>
       </div>
-      <div class="topbar-note">输入 / 触发命令补全</div>
+      <span class="app-topbar-title">命令与快捷键速查</span>
+      <div class="app-topbar-actions">
+        <span class="app-topbar-sub">输入 / 触发命令补全</span>
+      </div>
     </header>
 
     <div class="page-desc">Kimi Code TUI 的常用斜杠命令与快捷键，以及本桌面端的窗口快捷键。内容基于官方文档整理。</div>

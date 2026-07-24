@@ -46,7 +46,7 @@
   var slashMenu = document.getElementById('slashMenu'); // 斜杠命令浮层（.composer 内）
   var attachBtn = document.getElementById('attachBtn'); // 附件按钮（发送按钮左侧）
   var chips = document.getElementById('chips'); // 附件缩略行（textarea 上方）
-  var webuiBtn = document.getElementById('webuiBtn'); // Web UI 入口按钮（状态条右侧）
+  var webuiBtn = document.getElementById('webuiBtn'); // Web UI 入口按钮（顶栏右侧）
 
   // 配置切换栏三项：按 configOptions 项的 id 匹配，label 为固定中文小字
   var CONFIG_IDS = ['model', 'thinking', 'mode'];
