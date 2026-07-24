@@ -133,7 +133,9 @@ window.addEventListener('DOMContentLoaded', () => {
       menuFab.setAttribute('aria-label', '菜单');
       menuFab.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>';
       menuFab.addEventListener('click', () => {
-        ipcRenderer.invoke('app:popupMenu');
+        // 把按钮位置传给主进程，菜单将锚定到按钮左上角弹出
+        const r = menuFab.getBoundingClientRect();
+        ipcRenderer.invoke('app:popupMenu', { x: r.left, y: r.top, width: r.width, height: r.height });
       });
       document.body.appendChild(menuFab);
     }

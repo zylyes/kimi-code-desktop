@@ -1,6 +1,6 @@
 // Kimi Code Desktop — 网页版桌面套壳
 // 自动启动 `kimi web`，从输出中捕获带 token 的本地地址，并在桌面窗口中打开。
-const { app, BrowserWindow, Menu, Tray, shell, ipcMain, dialog, nativeImage, nativeTheme, Notification, globalShortcut, session } = require('electron');
+const { app, BrowserWindow, WebContentsView, Menu, Tray, shell, ipcMain, dialog, nativeImage, nativeTheme, Notification, globalShortcut, session } = require('electron');
 const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -31,6 +31,9 @@ let quitting = false;
 let tray = null;
 let trayHintShown = false;
 let sessionLauncherVisible = false; // 会话启动器当前可见（防止 startPolling 覆盖）
+// 覆盖层视图：sessions/setup 本地页盖在 Web UI 之上，切回时移除覆盖层即可，零重载
+let overlayView = null;
+let overlayKind = null; // 当前覆盖层类型：'sessions' | 'setup'
 
 // 版本缓存
 let cliVersionCache = null; // { version: string, semver: number[] } | null
@@ -50,6 +53,9 @@ let pendingSessionId = null;
 let wsClient = null;
 let wsReconnectTimer = null;
 let wsGeneration = 0;
+// 当前 WS 连接对应的服务地址/token（startWsSubscription 幂等判断用）
+let wsConnectedBase = null;
+let wsConnectedToken = null;
 // 窗口聚焦状态
 let mainWindowFocused = true;
 // 问答相关状态
@@ -813,6 +819,9 @@ function cleanupWsSoft() {
     } catch { /* ignore */ }
     wsClient = null;
   }
+  // 连接记录随 socket 一并失效（cleanupWsPermanent 经由此处同步清除）
+  wsConnectedBase = null;
+  wsConnectedToken = null;
   wsSubscribedSessions.clear();
   // wsActiveQuestions 保持不变，防止重连后服务器回放重复触发
 }
@@ -1317,6 +1326,12 @@ function focusMainWindow() {
 
 function startWsSubscription() {
   if (!knownServerBase || !knownServerToken) return;
+  // 幂等：已有指向同一服务（base/token 一致）且处于 OPEN/CONNECTING 的连接时直接复用，不重复建连
+  if (wsClient
+    && (wsClient.readyState === WebSocket.OPEN || wsClient.readyState === WebSocket.CONNECTING)
+    && wsConnectedBase === knownServerBase && wsConnectedToken === knownServerToken) {
+    return;
+  }
   cleanupWsSoft();
   wsGeneration++;
   const gen = wsGeneration;
@@ -1333,6 +1348,9 @@ function startWsSubscription() {
     wsClient = null;
     return;
   }
+  // 记录本次连接对应的服务地址/token，供幂等判断
+  wsConnectedBase = knownServerBase;
+  wsConnectedToken = knownServerToken;
 
   wsClient.on('open', () => {
     if (gen !== wsGeneration) { cleanupWsSoft(); return; }
@@ -1535,6 +1553,7 @@ function blockWebPageNotifications() {
 // ---------- 页面加载 ----------
 function loadMain(url) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  closeOverlay(); // 不变式：Web UI 回到前台时覆盖层必关
   sessionLauncherVisible = false; // 显式加载 Web UI 时清除启动器可见状态
   loadedUrl = url;
   mainWindow.loadURL(url).catch((err) => {
@@ -1550,12 +1569,87 @@ function showSetup(reason, tab) {
   sessionLauncherVisible = false; // 从会话启动器进入设置后，确保 startPolling 能加载页面
   const query = { reason: reason || '' };
   if (tab) query.tab = tab; // 指定初始标签页（如 'ide'），由 setup.html 的 ?tab= 逻辑消费
+  // Web UI 已常驻时，设置页改为覆盖层展示，切回零重载
+  if (loadedUrl) {
+    showOverlay('setup', 'setup.html', query);
+    return;
+  }
+  closeOverlay(); // 防御：整页加载前确保覆盖层已关闭
   mainWindow.loadFile(path.join(__dirname, 'setup.html'), { query });
+}
+
+// ---------- 覆盖层（本地页盖在常驻 Web UI 之上，切回零重载）----------
+// 懒创建覆盖层视图：webPreferences 与主窗口完全一致，bounds 铺满内容区
+function ensureOverlayView() {
+  if (overlayView || !mainWindow || mainWindow.isDestroyed()) return;
+  overlayView = new WebContentsView({
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false,
+      partition: 'persist:kimi-code',
+      // 与主窗口相同的标记，preload 据此注入拖拽条/菜单按钮
+      additionalArguments: ['--kcd-main-window'],
+    },
+  });
+  mainWindow.contentView.addChildView(overlayView);
+  const [w, h] = mainWindow.getContentSize();
+  overlayView.setBounds({ x: 0, y: 0, width: w, height: h });
+  // 与主窗口相同的新窗策略：外部链接交系统浏览器，拒绝弹新窗
+  overlayView.webContents.setWindowOpenHandler(handleWindowOpen);
+}
+
+// 打开/切换覆盖层：每次 show 重新 loadFile，保证 sessions 列表等数据新鲜
+function showOverlay(kind, file, query) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (overlayView) closeOverlay(); // 已有覆盖层（含不同 kind）先销毁重建
+  ensureOverlayView();
+  if (!overlayView) return;
+  overlayView.webContents.loadFile(path.join(__dirname, file), query ? { query } : undefined).catch((err) => {
+    logLine(`加载 ${file} 失败: ${err.message}`);
+  });
+  overlayKind = kind;
+  overlayView.webContents.focus();
+}
+
+// 关闭覆盖层：移除子视图并销毁其 webContents，Web UI 立即回到前台（不重载）
+function closeOverlay() {
+  if (!overlayView) { overlayKind = null; return; }
+  const view = overlayView;
+  overlayView = null;
+  overlayKind = null;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.contentView.removeChildView(view); } catch { /* ignore */ }
+  }
+  // WebContentsView 的 webContents 不会随移除自动销毁，需显式 close 释放页面资源
+  try { view.webContents.close(); } catch { /* ignore */ }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.focus();
+  }
+}
+
+// 前台 webContents：覆盖层（sessions/setup）可见时页面在覆盖层里，否则是主窗口内容。
+// 页面定向消息（setup 的登录/安装日志等）与「重新加载」都应作用于前台页面
+function foregroundContents() {
+  if (overlayView && !overlayView.webContents.isDestroyed()) return overlayView.webContents;
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow.webContents;
+  return null;
 }
 
 // ---------- 会话启动器 ----------
 function showSessionLauncher() {
   sessionLauncherVisible = true;
+  // Web UI 已常驻时，启动器改为覆盖层展示，切回零重载（窗口 show/focus 逻辑不变）
+  if (loadedUrl && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    showOverlay('sessions', 'sessions.html');
+    return;
+  }
+  closeOverlay(); // 防御：整页加载前确保覆盖层已关闭
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow();
     // 不启动 server，用户将在启动器中选取会话恢复
@@ -2259,6 +2353,7 @@ ipcMain.handle('acp-chat:open-webui', () => {
 async function restartServer() {
   if (restartPromise) return restartPromise;
   restartPromise = (async () => {
+    closeOverlay(); // 重启前关闭覆盖层，避免 loading 页被覆盖
     stoppingIntentionally = true;
     // 在停止前递增 generation，使旧进程回调失效
     serverGeneration++;
@@ -2573,6 +2668,41 @@ function updateTrayStatus() {
 }
 
 // ---------- 窗口 ----------
+// 新窗策略（主窗口与覆盖层共用）：同源 Kimi 本地服务保留，其他 http(s) 交默认浏览器，未知协议拒绝
+function handleWindowOpen({ url }) {
+  try {
+    const parsed = new URL(url);
+    // 同源 Kimi 本地服务放行
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      const isLocalhost = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost' || parsed.hostname === '[::1]';
+      if (isLocalhost && knownServerBase) {
+        const knownPort = new URL(knownServerBase).port;
+        if (parsed.port === knownPort) {
+          return { action: 'allow' };
+        }
+      }
+      // 其他 http(s) 在默认浏览器打开
+      shell.openExternal(url).catch(() => {});
+      return { action: 'deny' };
+    }
+    // mailto/tel 交给外部系统
+    if (parsed.protocol === 'mailto:' || parsed.protocol === 'tel:') {
+      shell.openExternal(url).catch(() => {});
+      return { action: 'deny' };
+    }
+    // open-in 协议（IDE 等）交给外部应用
+    if (OPEN_IN_PROTOCOLS.has(parsed.protocol)) {
+      shell.openExternal(url).catch(() => {});
+      return { action: 'deny' };
+    }
+    // 未知自定义协议拒绝并记录
+    logLine(`拒绝未知协议导航: ${parsed.protocol}//${parsed.hostname}`);
+    return { action: 'deny' };
+  } catch {
+    return { action: 'deny' };
+  }
+}
+
 function createWindow() {
   const state = readJSON(stateFile(), {});
   mainWindow = new BrowserWindow({
@@ -2640,46 +2770,29 @@ function createWindow() {
     }
     saveWindowState();
   });
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    // 覆盖层子视图随窗口销毁：显式关闭其 webContents 防泄漏（Electron 不会自动销毁），再清引用
+    if (overlayView) {
+      try { overlayView.webContents.close(); } catch { /* ignore */ }
+      overlayView = null;
+      overlayKind = null;
+    }
+  });
 
   // 窗口聚焦状态跟踪
   mainWindow.on('focus', () => { mainWindowFocused = true; });
   mainWindow.on('blur', () => { mainWindowFocused = false; });
 
-  // 强化导航：同源 Kimi 本地服务保留，其他 http(s) 交默认浏览器，未知协议拒绝
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      const parsed = new URL(url);
-      // 同源 Kimi 本地服务放行
-      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-        const isLocalhost = parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost' || parsed.hostname === '[::1]';
-        if (isLocalhost && knownServerBase) {
-          const knownPort = new URL(knownServerBase).port;
-          if (parsed.port === knownPort) {
-            return { action: 'allow' };
-          }
-        }
-        // 其他 http(s) 在默认浏览器打开
-        shell.openExternal(url).catch(() => {});
-        return { action: 'deny' };
-      }
-      // mailto/tel 交给外部系统
-      if (parsed.protocol === 'mailto:' || parsed.protocol === 'tel:') {
-        shell.openExternal(url).catch(() => {});
-        return { action: 'deny' };
-      }
-      // open-in 协议（IDE 等）交给外部应用
-      if (OPEN_IN_PROTOCOLS.has(parsed.protocol)) {
-        shell.openExternal(url).catch(() => {});
-        return { action: 'deny' };
-      }
-      // 未知自定义协议拒绝并记录
-      logLine(`拒绝未知协议导航: ${parsed.protocol}//${parsed.hostname}`);
-      return { action: 'deny' };
-    } catch {
-      return { action: 'deny' };
-    }
+  // 窗口尺寸变化时同步覆盖层 bounds（覆盖层存在才处理）
+  mainWindow.on('resize', () => {
+    if (!overlayView || !mainWindow || mainWindow.isDestroyed()) return;
+    const [w, h] = mainWindow.getContentSize();
+    overlayView.setBounds({ x: 0, y: 0, width: w, height: h });
   });
+
+  // 强化导航：同源 Kimi 本地服务保留，其他 http(s) 交默认浏览器，未知协议拒绝（策略与覆盖层共用）
+  mainWindow.webContents.setWindowOpenHandler(handleWindowOpen);
   // 拦截 WebView 内跨源导航
   mainWindow.webContents.on('will-navigate', (e, url) => {
     try {
@@ -2737,8 +2850,11 @@ function createWindow() {
         '#kcd-settings-fab:hover,#kcd-menu-fab:hover{opacity:1;}',
         '#kcd-settings-fab svg,#kcd-menu-fab svg{width:18px;height:18px;pointer-events:none;}',
         '@media (prefers-color-scheme:dark){#kcd-settings-fab,#kcd-menu-fab{background:#1f1f1f;color:#ffffff;border-color:#ffffff1f;box-shadow:0 5px 16px -4px #00000012;}}',
-        // 会话头部：右让 154px 避开悬浮窗控（原 16px + 3×46px 窗控），整行作拖拽区、交互控件除外
-        'header.chat-header{padding-right:154px !important;-webkit-app-region:drag;}',
+        // 会话头部：右让 154px 避开悬浮窗控（原 16px + 3×46px 窗控），整行作拖拽区、交互控件除外；
+        // 背景强制对齐窗口背景色（亮 #fbfaf9/暗 #121212，同 windowBackground()），与右上角 OS 悬浮窗控
+        // 融为一体、消除异色补丁；box-shadow 置 none 去掉头部底部分隔阴影造成的接缝
+        'header.chat-header{padding-right:154px !important;-webkit-app-region:drag;background:#fbfaf9 !important;box-shadow:none !important;}',
+        '@media (prefers-color-scheme:dark){header.chat-header{background:#121212 !important;}}',
         'header.chat-header button,header.chat-header a,header.chat-header input,header.chat-header select,header.chat-header textarea,header.chat-header [role=button],header.chat-header [contenteditable]{-webkit-app-region:no-drag;}',
       ].join('\n'));
     } catch { /* ignore */ }
@@ -2785,26 +2901,18 @@ function unregisterGlobalShortcut() {
 
 // ---------- 菜单 ----------
 function buildMenu() {
+  // 单层扁平结构：常用动作直接平铺在顶层，「视图」「帮助」保留为子菜单
   const template = [
-    {
-      label: '会话',
-      submenu: [
-        { label: '打开会话启动器', accelerator: 'CmdOrCtrl+Shift+S', click: showSessionLauncher },
-        { type: 'separator' },
-        { label: '新建对话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
-        { label: '默认模型', submenu: buildModelSubmenu() },
-        { label: '轮换访问令牌…', click: rotateToken },
-        { label: '局域网访问…', click: showLanWindow },
-        { type: 'separator' },
-        { label: '原生聊天（新会话）…', click: showAcpChatWindow },
-        { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
-        { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => showSetup('manual') },
-        { type: 'separator' },
-        { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
-        { type: 'separator' },
-        { role: 'quit', label: '退出' },
-      ],
-    },
+    { label: '打开会话启动器', accelerator: 'CmdOrCtrl+Shift+S', click: showSessionLauncher },
+    { label: '新建对话', accelerator: 'CmdOrCtrl+Shift+N', click: () => { restartServer(); } },
+    { label: '默认模型', submenu: buildModelSubmenu() },
+    { type: 'separator' },
+    { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => showSetup('manual') },
+    { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
+    { label: '轮换访问令牌…', click: rotateToken },
+    { label: '局域网访问…', click: showLanWindow },
+    { label: '原生聊天（新会话）…', click: showAcpChatWindow },
+    { type: 'separator' },
     {
       label: '视图',
       submenu: [
@@ -2875,6 +2983,9 @@ function buildMenu() {
         },
       ],
     },
+    { type: 'separator' },
+    { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => { const wc = foregroundContents(); if (wc) wc.reload(); } },
+    { role: 'quit', label: '退出' },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -3299,11 +3410,19 @@ ipcMain.handle('setup:save', async (_e, payload) => {
 });
 
 ipcMain.handle('app:showSetup', () => { showSetup('manual'); return true; });
-// 页面内 ☰ 菜单按钮：弹出完整应用菜单（不传坐标 → 弹在鼠标位置，避开缩放下的坐标换算）
-ipcMain.handle('app:popupMenu', () => {
+// 页面内 ☰ 菜单按钮：弹出完整应用菜单，锚定到按钮左上角（按钮近窗口底部，菜单会自动向上展开）。
+// 渲染进程传来的 rect 是 CSS 像素，需乘以 zoomFactor 换算为窗口 DIP 坐标；rect 缺失/非法时回退为不传坐标（弹在鼠标位置）
+ipcMain.handle('app:popupMenu', (_e, rect) => {
   const menu = Menu.getApplicationMenu();
   if (menu && mainWindow && !mainWindow.isDestroyed()) {
-    menu.popup({ window: mainWindow });
+    if (rect && Number.isFinite(rect.x) && Number.isFinite(rect.y)) {
+      const zf = mainWindow.webContents.zoomFactor || 1;
+      const x = Math.round(rect.x * zf);
+      const y = Math.round(rect.y * zf);
+      menu.popup({ window: mainWindow, x, y });
+    } else {
+      menu.popup({ window: mainWindow });
+    }
   }
   return true;
 });
@@ -3325,9 +3444,11 @@ ipcMain.handle('app:saveAppSettings', (_e, payload) => {
   return true;
 });
 
-// 返回会话页：有已加载地址则直接回去，否则重启 server 兜底
+// 返回会话页：覆盖层在前台则直接移除（零重载）；有已加载地址则整页加载，否则重启 server 兜底
 ipcMain.handle('app:backToSession', async () => {
-  if (loadedUrl) {
+  if (overlayView) {
+    closeOverlay();
+  } else if (loadedUrl) {
     loadMain(loadedUrl);
   } else {
     await restartServer();
@@ -3402,8 +3523,10 @@ ipcMain.handle('auth:login', async () => {
         logLine(`login: ${line}`);
         // 向渲染层发送脱敏后的日志行，不泄露完整 URL 或 token
         const sanitizedLine = sanitizeLog(line);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          try { mainWindow.webContents.send('auth:loginLog', sanitizedLine); } catch { /* ignore */ }
+        // setup 可能以覆盖层展示，日志发往前台页面所在 contents
+        const wc = foregroundContents();
+        if (wc) {
+          try { wc.send('auth:loginLog', sanitizedLine); } catch { /* ignore */ }
         }
         // 首次提取 http(s) URL 后打开浏览器（使用原始行中的完整 URL）
         if (!urlOpened) {
@@ -3422,8 +3545,9 @@ ipcMain.handle('auth:login', async () => {
       resolved = true;
       activeLoginProc = null;
       const loginStatus = getLoginStatus();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        try { mainWindow.webContents.send('auth:loginComplete', { ok: false, error: err.message, loginStatus }); } catch { /* ignore */ }
+      const wc = foregroundContents(); // setup 可能在覆盖层中，发往前台页面
+      if (wc) {
+        try { wc.send('auth:loginComplete', { ok: false, error: err.message, loginStatus }); } catch { /* ignore */ }
       }
       resolve({ ok: false, error: err.message });
     });
@@ -3433,8 +3557,9 @@ ipcMain.handle('auth:login', async () => {
       activeLoginProc = null;
       const loginStatus = getLoginStatus();
       const ok = code === 0;
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        try { mainWindow.webContents.send('auth:loginComplete', { ok, error: ok ? undefined : `登录进程退出码 ${code}`, loginStatus }); } catch { /* ignore */ }
+      const wc = foregroundContents(); // setup 可能在覆盖层中，发往前台页面
+      if (wc) {
+        try { wc.send('auth:loginComplete', { ok, error: ok ? undefined : `登录进程退出码 ${code}`, loginStatus }); } catch { /* ignore */ }
       }
       resolve({ ok, error: ok ? undefined : `登录进程退出码 ${code}` });
     });
@@ -3535,8 +3660,9 @@ ipcMain.handle('cli:install', (_e, installDir) => {
     'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe',
   );
   const send = (msg) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      try { mainWindow.webContents.send('install:log', msg); } catch { /* ignore */ }
+    const wc = foregroundContents(); // setup 可能在覆盖层中，发往前台页面
+    if (wc) {
+      try { wc.send('install:log', msg); } catch { /* ignore */ }
     }
     logLine(`install: ${msg}`);
   };
@@ -3613,8 +3739,9 @@ ipcMain.handle('cli:upgrade', async () => {
     'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe',
   );
   const send = (msg) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      try { mainWindow.webContents.send('install:log', msg); } catch { /* ignore */ }
+    const wc = foregroundContents(); // setup 可能在覆盖层中，发往前台页面
+    if (wc) {
+      try { wc.send('install:log', msg); } catch { /* ignore */ }
     }
     logLine(`upgrade: ${msg}`);
   };
@@ -4373,6 +4500,7 @@ ipcMain.handle('session:createSessionInDirectory', async (_e, opts) => {
   const deepLink = `${knownServerBase}/?action=create-in-dir&workDir=${encodedDir}#token=${encodeURIComponent(token)}`;
   logLine(`创建会话于目录: ${workDir}`);
   if (mainWindow && !mainWindow.isDestroyed()) {
+    closeOverlay(); // 深链接回到 Web UI 前关闭覆盖层
     mainWindow.loadURL(deepLink).catch((err) => {
       logLine(`加载深链接失败: ${err.message}`);
     });
@@ -4419,6 +4547,11 @@ function removeSessionFromIndex(sessionId) {
 
 // 通知会话启动器刷新列表
 function notifySessionChanged() {
+  // 启动器以覆盖层展示时发给覆盖层；否则维持发主窗口（兼容启动期启动器在主窗口的场景）
+  if (overlayView && overlayKind === 'sessions') {
+    try { overlayView.webContents.send('session:changed'); } catch { /* ignore */ }
+    return;
+  }
   if (sessionLauncherVisible && mainWindow && !mainWindow.isDestroyed()) {
     try { mainWindow.webContents.send('session:changed'); } catch { /* ignore */ }
   }
