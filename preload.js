@@ -145,16 +145,17 @@ function isLoopbackWebUI() {
 // 并上报 header.chat-header 实测高度（启动一次、随 1s 轮询、resize 200ms 节流），
 // 供主进程设置 titleBarOverlay 高度、与 ≡ 菜单按钮对齐
 
-// 同步计算窗控采样点的合成色：采样点与主进程 capturePage 同一几何（x 距右缘 75，
-// y 为头部高度一半）；取该点元素栈自底向顶做标准 source-over 合成。
+// 页面实际亮暗（由 detectPageDark 按页面真实渲染维护，仅主窗口 Web UI 页更新）：
+// 合成底色与 <html> 的 kcd-page-dark 类都以此为准，与 prefers-color-scheme
+//（跟随桌面应用主题）解耦——Web UI 主题由 Web UI 自己的设置独立控制
+let lastPageDark = matchMedia('(prefers-color-scheme: dark)').matches;
+
+// 取 (x, y) 点元素栈（顶→底，跳过自家注入物：拖拽条、≡ 菜单按钮与菜单面板），
+// 自底向顶做标准 source-over 合成；darkBase 决定栈内无全不透明层时的合成起点
+//（与 main.js windowBackground 两态一致）。
 // 返回 'rgb(r, g, b)'（r/g/b 为 0-255 整数），空栈或任何异常返回 null
-function computeTitlebarColor() {
+function compositeColorAt(x, y, darkBase) {
   try {
-    const header = document.querySelector('header.chat-header');
-    const H = header && header.offsetHeight > 0 ? header.offsetHeight : 32;
-    const x = window.innerWidth - 75;
-    const y = Math.max(6, Math.round(H / 2));
-    // 元素栈（顶→底），跳过自家注入物：拖拽条、≡ 菜单按钮与菜单面板
     const stack = document.elementsFromPoint(x, y).filter((el) => {
       if (!el || el.id === 'kcd-drag-strip') return false;
       const cls = el.classList;
@@ -166,11 +167,7 @@ function computeTitlebarColor() {
       const v = parseFloat(styles[i].opacity);
       return Number.isFinite(v) ? v : 1;
     };
-    // 合成起点用窗口底色（与 main.js windowBackground 一致），
-    // 防止栈里没有全不透明层时出错
-    let [r, g, b] = matchMedia('(prefers-color-scheme: dark)').matches
-      ? [24, 24, 23]
-      : [251, 250, 249];
+    let [r, g, b] = darkBase ? [24, 24, 23] : [251, 250, 249];
     // 自栈底向栈顶逐层 source-over：out = src * a + dst * (1 - a)
     for (let i = stack.length - 1; i >= 0; i--) {
       const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/
@@ -193,6 +190,31 @@ function computeTitlebarColor() {
   } catch {
     return null;
   }
+}
+
+// 同步计算窗控采样点的合成色：采样点与主进程 capturePage 同一几何（x 距右缘 75，
+// y 为头部高度一半）；合成底色随页面实际主题（lastPageDark）
+function computeTitlebarColor() {
+  const header = document.querySelector('header.chat-header');
+  const H = header && header.offsetHeight > 0 ? header.offsetHeight : 32;
+  const x = window.innerWidth - 75;
+  const y = Math.max(6, Math.round(H / 2));
+  return compositeColorAt(x, y, lastPageDark);
+}
+
+// 检测页面实际主题：取内容区代表点（正中偏下，避开顶栏与右侧滑出面板）的合成色，
+// Rec.601 亮度 ≤ 0.4 判暗（阈值与 main.js titlebarColorForWindow 的 0.4 标定一致）；
+// 算不出色（空栈/异常）时保持上次判定，避免加载态/遮罩态来回抖动
+function detectPageDark() {
+  const color = compositeColorAt(
+    Math.round(window.innerWidth / 2),
+    Math.round(window.innerHeight * 0.6),
+    lastPageDark
+  );
+  const m = color && /^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/.exec(color);
+  if (!m) return lastPageDark;
+  const luminance = (0.299 * Number(m[1]) + 0.587 * Number(m[2]) + 0.114 * Number(m[3])) / 255;
+  return luminance <= 0.4;
 }
 
 function startTitlebarColorSignals() {
@@ -232,8 +254,26 @@ function startTitlebarColorSignals() {
     };
     nextFrame(step);
   };
+  // 页面实际主题同步：维护 lastPageDark、在 <html> 置 kcd-page-dark 类（供主进程
+  // 注入的 header.chat-header 暗色规则命中），主题翻转时上报主进程统一分发
+  //（本地页主题类/窗口底色/悬浮窗控，见 main.js applyAppThemeEverywhere）；
+  // 类 toggle 幂等（状态不变不产生 DOM 变更），IPC 去重只在翻转时发
+  let lastReportedTheme;
+  const syncPageTheme = () => {
+    lastPageDark = detectPageDark();
+    // 亮/暗都显式置类：kcd-page-light 同时是 kimi-theme.css / menu-panel.js 暗色
+    // 媒体查询兜底的屏蔽标记（如 OS 暗 + Web UI 亮时，☰ 面板仍按页面实际走浅色）
+    document.documentElement.classList.toggle('kcd-page-dark', lastPageDark);
+    document.documentElement.classList.toggle('kcd-page-light', !lastPageDark);
+    const theme = lastPageDark ? 'dark' : 'light';
+    if (theme !== lastReportedTheme) {
+      lastReportedTheme = theme;
+      ipcRenderer.send('kcd:page-theme', theme);
+    }
+  };
   const signal = () => {
     scheduled = false;
+    syncPageTheme();
     sendColor(true);
   };
   const schedule = () => {

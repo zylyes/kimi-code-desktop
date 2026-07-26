@@ -5,7 +5,8 @@
  * - 黑白灰单色体系，不引入品牌彩色；
  * - 错误 / 成功状态仅使用 --color-error / --color-success 两个点缀色；
  * - 禁止外部字体与远程资源（Electron 离线打包），字体栈全部为系统字体；
- * - 亮 / 暗双主题通过 prefers-color-scheme 跟随系统，无需 JS 切换。
+ * - 亮 / 暗双主题默认经 prefers-color-scheme 跟随系统；主进程也可按应用生效主题
+ *   在 <html> 置 kcd-page-dark / kcd-page-light 类强制亮暗（见 main.js effectiveDark）。
  *
  * 使用方式：各窗口 HTML 通过 <link rel="stylesheet" href="kimi-theme.css"> 引入。
  * 本文件是后续各原生窗口翻新的唯一事实来源，令牌名与值提取自 kimi.com 官方 CSS。
@@ -55,9 +56,13 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* ================= 暗色主题（跟随系统） ================= */
+/* ================= 暗色主题 ================= */
+/* 两种命中方式，令牌值必须保持一致（改动暗色令牌时两处同步）：
+   1) 系统暗色媒体查询，且未被主进程显式置亮（kcd-page-light）——无 JS 时的兜底；
+   2) 主进程按生效主题在 <html> 置 kcd-page-dark 类（生效主题见 main.js effectiveDark：
+      桌面设置显式亮/暗优先，跟随系统时随 Web UI 页面实际主题）。 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.kcd-page-light) {
     /* 背景 */
     --bg-primary: #121212;
     --bg-ground: #181817;
@@ -94,6 +99,44 @@
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", sans-serif, Arial, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC";
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
+}
+
+:root.kcd-page-dark {
+  /* 背景 */
+  --bg-primary: #121212;
+  --bg-ground: #181817;
+  --bg-secondary: #1f1f1f;
+  --bg-secondary-hover: #2a2a2a;
+  --bg-secondary-active: #353535;
+  --bg-tertiary: #292929;
+  --bg-tertiary-hover: #343434;
+
+  /* 文字（label 层级） */
+  --label-primary: #ffffffd6;
+  --label-secondary: #ffffff8f;
+  --label-tertiary: #ffffff6b;
+  --label-quaternary: #ffffff42;
+
+  /* 分隔线 */
+  --separator: #ffffff1f;
+  --separator-hover: #ffffff2a;
+
+  /* 阴影（与亮色相同） */
+  --shadow-card: 0 5px 16px -4px #00000012;
+
+  /* 圆角（与亮色相同） */
+  --radius-input: 24px;
+  --radius-card: 20px;
+  --radius-pill: 22px;
+  --radius-sm: 8px;
+
+  /* 点缀色（暗色专用值） */
+  --color-error: #ff453a;
+  --color-success: #30d158;
+
+  /* 字体栈（与亮色相同） */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", sans-serif, Arial, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 /* ================= body 重置 ================= */

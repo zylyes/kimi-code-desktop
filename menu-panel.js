@@ -13,7 +13,8 @@
  *
  * 样式全部内联于下方 <style>，色值写成 var(--token, 兜底) 格式：本地页命中
  * kimi-theme.css 令牌，Web UI 页无令牌时用兜底色（与 kimi-theme.css 亮/暗令牌值一致，
- * 暗色经 @media (prefers-color-scheme: dark)）。
+ * 暗色经 @media (prefers-color-scheme: dark) 或主进程在 <html> 置 kcd-page-dark 类命中，
+ * 显式置亮 kcd-page-light 时媒体查询兜底也不再命中）。
  *
  * 窗控样式跟随：主窗口 Web UI 页上，主进程会把 OS 绘制的 −▢× 悬浮窗控
  * （titleBarOverlay）的符号色与高度经 preload 桥广播给页面；本模块通过
@@ -45,18 +46,29 @@
 .kcd-menu-back{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;border-radius:8px;background:transparent;color:var(--label-secondary, #00000099);font-family:inherit;font-size:13px;line-height:1.4;text-align:left;cursor:pointer;box-sizing:border-box;}
 .kcd-menu-back:hover{background:#00000008;color:var(--label-primary, #000000e6);}
 @media (prefers-color-scheme: dark){
-.kcd-menu-btn{color:var(--label-secondary, #ffffff8f);}
-.kcd-menu-btn:hover{background:#ffffff1a;color:var(--label-primary, #ffffffd6);}
-.kcd-menu-btn:focus-visible{outline-color:var(--label-quaternary, #ffffff42);}
-.kcd-menu-panel{background:var(--bg-secondary, #1f1f1f);border-color:var(--separator, #ffffff1f);color:var(--label-primary, #ffffffd6);}
-.kcd-menu-item{color:var(--label-primary, #ffffffd6);}
-.kcd-menu-item:hover:not(.is-disabled){background:#ffffff12;}
-.kcd-menu-group-title{color:var(--label-tertiary, #ffffff6b);}
-.kcd-menu-hint,.kcd-menu-arrow{color:var(--label-tertiary, #ffffff6b);}
-.kcd-menu-sep{background:var(--separator, #ffffff1f);}
-.kcd-menu-back{color:var(--label-secondary, #ffffff8f);}
-.kcd-menu-back:hover{background:#ffffff12;color:var(--label-primary, #ffffffd6);}
+html:not(.kcd-page-light) .kcd-menu-btn{color:var(--label-secondary, #ffffff8f);}
+html:not(.kcd-page-light) .kcd-menu-btn:hover{background:#ffffff1a;color:var(--label-primary, #ffffffd6);}
+html:not(.kcd-page-light) .kcd-menu-btn:focus-visible{outline-color:var(--label-quaternary, #ffffff42);}
+html:not(.kcd-page-light) .kcd-menu-panel{background:var(--bg-secondary, #1f1f1f);border-color:var(--separator, #ffffff1f);color:var(--label-primary, #ffffffd6);}
+html:not(.kcd-page-light) .kcd-menu-item{color:var(--label-primary, #ffffffd6);}
+html:not(.kcd-page-light) .kcd-menu-item:hover:not(.is-disabled){background:#ffffff12;}
+html:not(.kcd-page-light) .kcd-menu-group-title{color:var(--label-tertiary, #ffffff6b);}
+html:not(.kcd-page-light) .kcd-menu-hint,html:not(.kcd-page-light) .kcd-menu-arrow{color:var(--label-tertiary, #ffffff6b);}
+html:not(.kcd-page-light) .kcd-menu-sep{background:var(--separator, #ffffff1f);}
+html:not(.kcd-page-light) .kcd-menu-back{color:var(--label-secondary, #ffffff8f);}
+html:not(.kcd-page-light) .kcd-menu-back:hover{background:#ffffff12;color:var(--label-primary, #ffffffd6);}
 }
+html.kcd-page-dark .kcd-menu-btn{color:var(--label-secondary, #ffffff8f);}
+html.kcd-page-dark .kcd-menu-btn:hover{background:#ffffff1a;color:var(--label-primary, #ffffffd6);}
+html.kcd-page-dark .kcd-menu-btn:focus-visible{outline-color:var(--label-quaternary, #ffffff42);}
+html.kcd-page-dark .kcd-menu-panel{background:var(--bg-secondary, #1f1f1f);border-color:var(--separator, #ffffff1f);color:var(--label-primary, #ffffffd6);}
+html.kcd-page-dark .kcd-menu-item{color:var(--label-primary, #ffffffd6);}
+html.kcd-page-dark .kcd-menu-item:hover:not(.is-disabled){background:#ffffff12;}
+html.kcd-page-dark .kcd-menu-group-title{color:var(--label-tertiary, #ffffff6b);}
+html.kcd-page-dark .kcd-menu-hint,html.kcd-page-dark .kcd-menu-arrow{color:var(--label-tertiary, #ffffff6b);}
+html.kcd-page-dark .kcd-menu-sep{background:var(--separator, #ffffff1f);}
+html.kcd-page-dark .kcd-menu-back{color:var(--label-secondary, #ffffff8f);}
+html.kcd-page-dark .kcd-menu-back:hover{background:#ffffff12;color:var(--label-primary, #ffffffd6);}
 `;
 
   let btn = null;

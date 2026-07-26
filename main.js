@@ -1039,16 +1039,31 @@ function fallbackQuestionWindowFailure(sessionId, payload, gen) {
   focusMainWindow();
 }
 
-// 原生窗口背景色跟随系统亮/暗主题
-function windowBackground() {
-  return nativeTheme.shouldUseDarkColors ? '#181817' : '#fbfaf9';
+// Web UI 页面实际渲染主题（'dark'|'light'|null）：preload 在主窗口 Web UI 页内容区
+// 采样判定后随 'kcd:page-theme' 上报（仅翻转时发）；null = 尚未上报（启动期/未在 Web UI 页）
+let webUIActualTheme = null;
+
+// 应用自有界面（本地页、窗口底色、悬浮窗控）的生效主题：
+// 桌面设置显式亮/暗优先；「跟随系统」时跟随 Web UI 实际主题，未上报退回系统主题。
+// 主窗口 Web UI 页内的会话头部不走这里——永远跟随页面实际渲染（preload 置 kcd-page-dark）
+function effectiveDark() {
+  const t = loadConfig().theme;
+  if (t === 'dark') return true;
+  if (t === 'light') return false;
+  if (webUIActualTheme) return webUIActualTheme === 'dark';
+  return nativeTheme.shouldUseDarkColors;
 }
 
-// 主窗口悬浮窗控（titleBarOverlay）配色：背景对齐窗口背景，符号色随亮/暗主题
+// 窗口背景色跟随生效主题
+function windowBackground() {
+  return effectiveDark() ? '#181817' : '#fbfaf9';
+}
+
+// 主窗口悬浮窗控（titleBarOverlay）配色：背景对齐窗口背景，符号色随生效主题
 function titleBarOverlayOpts() {
   return {
     color: windowBackground(),
-    symbolColor: nativeTheme.shouldUseDarkColors ? '#ffffff' : '#111111',
+    symbolColor: effectiveDark() ? '#ffffff' : '#111111',
     height: 32,
   };
 }
@@ -1115,6 +1130,31 @@ function applyTitlebarOverlay(win) {
   }
 }
 
+// 把生效主题以 <html> 类形式下发到页面：kcd-page-dark / kcd-page-light 恒二选一，
+// kimi-theme.css 暗色令牌与 menu-panel.js 暗色规则据此命中（prefers-color-scheme 仅作兜底）。
+// 主窗口当前为 loopback Web UI 页时跳过：该类由 preload 按页面实际渲染主题持有，
+// 桌面配置不得覆盖页面自身（否则又会造出与页面不一致的异色顶栏）
+function applyAppThemeClassTo(contents) {
+  try {
+    if (!contents || contents.isDestroyed()) return;
+    if (mainWindow && !mainWindow.isDestroyed() && contents === mainWindow.webContents
+      && isLoopbackWebUIUrl(contents.getURL())) return;
+    const dark = effectiveDark();
+    contents.executeJavaScript(
+      `document.documentElement.classList.toggle('kcd-page-dark', ${dark});`
+      + `document.documentElement.classList.toggle('kcd-page-light', ${!dark});`
+    ).catch(() => { /* 页面已销毁等 */ });
+  } catch { /* ignore */ }
+}
+
+// 生效主题变化时全量刷新：所有窗口与覆盖层页面的主题类 + 各窗悬浮窗控配色
+//（逐窗 titlebarColorForWindow：主窗口 Web UI 页保留页面采样色，其余跟随 windowBackground()）
+function applyAppThemeEverywhere() {
+  for (const w of BrowserWindow.getAllWindows()) applyAppThemeClassTo(w.webContents);
+  if (overlayView && !overlayView.webContents.isDestroyed()) applyAppThemeClassTo(overlayView.webContents);
+  for (const w of BrowserWindow.getAllWindows()) applyTitlebarOverlay(w);
+}
+
 // 无边框窗口通用选项与后配置：全窗口统一无边框 + 悬浮窗控（品牌一致性），
 // 页面拖拽区由 kimi-theme.css（#kcd-drag-strip/.app-topbar）与 preload 注入提供
 function framelessOpts() {
@@ -1126,12 +1166,18 @@ function applyFrameless(win) {
   win.setMenuBarVisibility(false);
 }
 
-// 亮/暗主题变化时同步刷新所有窗口的悬浮窗控配色（applyAppSettings 切 themeSource 亦触发此事件）；
-// 逐窗用 titlebarColorForWindow：主窗口 Web UI 页保留页面采样色，其余窗口跟随 windowBackground()
+// 亮/暗主题变化时同步刷新全部界面（applyAppSettings 切 themeSource 亦触发此事件）：
+// 页面主题类 + 悬浮窗控配色一并随生效主题更新
 nativeTheme.on('updated', () => {
-  for (const w of BrowserWindow.getAllWindows()) {
-    applyTitlebarOverlay(w);
-  }
+  applyAppThemeEverywhere();
+});
+
+// 新窗口页面加载完成后下发主题类（单点覆盖所有 BrowserWindow；
+// 覆盖层是 WebContentsView 不触发此事件，在 ensureOverlayView 单独挂）
+app.on('browser-window-created', (_e, win) => {
+  try {
+    win.webContents.on('did-finish-load', () => applyAppThemeClassTo(win.webContents));
+  } catch { /* ignore */ }
 });
 
 // ---------- 问答窗口 ----------
@@ -1662,6 +1708,9 @@ function ensureOverlayView() {
   overlayView.setBounds({ x: 0, y: 0, width: w, height: h });
   // 与主窗口相同的新窗策略：外部链接交系统浏览器，拒绝弹新窗
   overlayView.webContents.setWindowOpenHandler(handleWindowOpen);
+  // 覆盖层本地页主题类下发（WebContentsView 不触发 browser-window-created，单独挂）
+  const view = overlayView;
+  view.webContents.on('did-finish-load', () => applyAppThemeClassTo(view.webContents));
 }
 
 // 打开/切换覆盖层：每次 show 重新 loadFile，保证 sessions 列表等数据新鲜
@@ -2981,10 +3030,12 @@ function createWindow() {
       if (!isLoopback) return;
       mainWindow.webContents.insertCSS([
         // 会话头部：右让 228px 避开悬浮窗控与 ☰ 菜单按钮（138px 窗控 + 38px 按钮 + 余量），
-        // 整行作拖拽区、交互控件除外；背景强制对齐窗口背景色（亮 #fbfaf9/暗 #181817，同 windowBackground()），
+        // 整行作拖拽区、交互控件除外；背景强制两态纯色（亮 #fbfaf9/暗 #181817，同 windowBackground()），
+        // 暗色经 html.kcd-page-dark 命中——该类由 preload 按 Web UI 页面实际渲染主题维护
+        //（与桌面应用主题解耦，Web UI 深色时即使桌面/系统为浅色也不会刷出白顶栏），
         // 与右上角 OS 悬浮窗控融为一体、消除异色补丁；box-shadow 置 none 去掉头部底部分隔阴影造成的接缝
         'header.chat-header{padding-right:228px !important;-webkit-app-region:drag;background:#fbfaf9 !important;box-shadow:none !important;}',
-        '@media (prefers-color-scheme:dark){header.chat-header{background:#181817 !important;}}',
+        'html.kcd-page-dark header.chat-header{background:#181817 !important;}',
         'header.chat-header button,header.chat-header a,header.chat-header input,header.chat-header select,header.chat-header textarea,header.chat-header [role=button],header.chat-header [contenteditable]{-webkit-app-region:no-drag;}',
         // 右侧面板头部行避让：改动面板（.changes-pane）与文件预览面板（.file-preview）实证均挂在
         // aside.global-preview（global-preview 为 class 而非 id）内、共用 .ui-panel-header 顶栏
@@ -3755,6 +3806,18 @@ ipcMain.on('kcd:titlebar-color', (e, color) => {
   } catch { /* ignore */ }
 });
 
+// Web UI 页面实际主题上报：preload 在内容区采样判定（去重后仅翻转时发来）；
+// 存下后全量分发——本地页主题类、窗口底色、悬浮窗控一并跟随生效主题（effectiveDark）
+ipcMain.on('kcd:page-theme', (e, theme) => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
+    if (theme !== 'dark' && theme !== 'light') return;
+    if (theme === webUIActualTheme) return;
+    webUIActualTheme = theme;
+    applyAppThemeEverywhere();
+  } catch { /* ignore */ }
+});
+
 // 窗控条高度跟随会话头部：preload 实测 header.chat-header 的 offsetHeight 上报（仅主窗口 Web UI 页），
 // 使 −▢× 与 ≡ 四键字形中心与页面图标同线；高度变化即时重设 overlay
 ipcMain.on('kcd:titlebar-height', (e, h) => {
@@ -3836,6 +3899,8 @@ ipcMain.handle('app:saveAppSettings', (_e, payload) => {
   }
   writeJSON(configFile(), cfg);
   applyAppSettings(loadConfig());
+  // 显式主题变更即时全量生效（themeSource 变化会连带触发 nativeTheme.updated，幂等）
+  applyAppThemeEverywhere();
   return true;
 });
 
