@@ -1053,7 +1053,8 @@ function titleBarOverlayOpts() {
   };
 }
 
-// 主窗口 Web UI 页右上角窗控区采样色（preload 采样上报；本地页恒为 null → 用 windowBackground()）
+// 主窗口 Web UI 页右上角窗控区采样色（主进程 capturePage 像素采样，preload 只发变色信号；
+// 本地页恒为 null → 用 windowBackground()）
 let mainTitlebarSampleColor = null;
 // menu-panel.js 文件内容缓存（did-finish-load 时 executeJavaScript 注入 Web UI 页）
 let menuPanelCodeCache = null;
@@ -1680,8 +1681,9 @@ function closeOverlay() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.focus();
   }
-  // Web UI 回到前台：恢复采样色窗控配色
+  // Web UI 回到前台：恢复采样色窗控配色，并补一次像素采样（覆盖期间页面可能已变化）
   applyTitlebarOverlay(mainWindow);
+  scheduleTitlebarCapture();
 }
 
 // 前台 webContents：覆盖层（sessions/setup）可见时页面在覆盖层里，否则是主窗口内容。
@@ -2942,6 +2944,19 @@ function createWindow() {
   // 主窗口注入：顶部拖拽条样式（无边框窗口拖动用，本地页与 Web UI 页均需要）；
   // 会话页（loopback http(s)）追加会话头部样式；☰ 菜单按钮 DOM 与样式由 menu-panel.js 自带，
   // insertCSS 在主进程侧执行，不受页面 CSP 的 style-src 限制
+  const injectMenuPanel = () => {
+    // ☰ 菜单面板：Web UI 页 CSP（default-src 'self'）拦截 <script> 文本节点注入（实测被拒绝执行），
+    // 改由主进程 executeJavaScript 在页面主世界执行（DevTools 级求值不受页面 CSP 限制）；
+    // menu-panel.js 自带 __kcdMenuPanelLoaded 幂等守卫，重复执行安全
+    try {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      if (!isLoopbackWebUIUrl(mainWindow.webContents.getURL())) return;
+      if (menuPanelCodeCache === null) {
+        menuPanelCodeCache = fs.readFileSync(path.join(__dirname, 'menu-panel.js'), 'utf8');
+      }
+      mainWindow.webContents.executeJavaScript(menuPanelCodeCache).catch(() => { /* 页面已销毁等 */ });
+    } catch { /* ignore */ }
+  };
   mainWindow.webContents.on('did-finish-load', () => {
     try {
       // 拖拽条：10px 只覆盖页面顶部 padding 区，不遮挡 Web UI 头部交互；双击 drag 区自动切换最大化
@@ -2960,17 +2975,12 @@ function createWindow() {
         '@media (prefers-color-scheme:dark){header.chat-header{background:#181817 !important;}}',
         'header.chat-header button,header.chat-header a,header.chat-header input,header.chat-header select,header.chat-header textarea,header.chat-header [role=button],header.chat-header [contenteditable]{-webkit-app-region:no-drag;}',
       ].join('\n'));
-      // ☰ 菜单面板：Web UI 页 CSP（default-src 'self'）拦截 <script> 文本节点注入（实测被拒绝执行），
-      // 改由主进程 executeJavaScript 在页面主世界执行（DevTools 级求值不受页面 CSP 限制）；
-      // menu-panel.js 自带 __kcdMenuPanelLoaded 幂等守卫，重复执行安全
-      try {
-        if (menuPanelCodeCache === null) {
-          menuPanelCodeCache = fs.readFileSync(path.join(__dirname, 'menu-panel.js'), 'utf8');
-        }
-        mainWindow.webContents.executeJavaScript(menuPanelCodeCache).catch(() => { /* 页面已销毁等 */ });
-      } catch { /* ignore */ }
+      injectMenuPanel();
     } catch { /* ignore */ }
   });
+  // SPA 路由切换（did-navigate-in-page，含 hash 变化，频率受路由变化次数限制）补注入一次：
+  // 与 menu-panel.js 自愈重挂构成双保险，防 Vue 重渲染把按钮节点移除后丢失
+  mainWindow.webContents.on('did-navigate-in-page', injectMenuPanel);
 
   // 窗控区颜色同步：导航/加载完成时刷新悬浮窗控配色（离开 Web UI 页时清掉采样色，
   // 本地页恒为 windowBackground()；Web UI 页等 preload 采样上报后再换成页面实际颜色）
@@ -3698,16 +3708,69 @@ ipcMain.handle('menu:run', (e, id) => {
   }
 });
 
-// 主窗口 Web UI 页窗控区采样色上报（preload 采样）：缓存并刷新悬浮窗控配色
-ipcMain.on('kcd:titlebar-color', (e, color) => {
+// 主窗口 Web UI 页窗控区「变色」信号（preload 上报，不带色值）：防抖 250ms 后对窗控区正下方
+// 页面做像素级采样。DOM 背景推断处理不了半透明遮罩合成（设置模态压暗）与右侧面板态；
+// capturePage 不含 OS 绘制的原生 overlay，取到的正是 overlay 之下页面的真实渲染，各状态天然无缝
+let titlebarCaptureTimer = null;
+let titlebarCaptureRunning = false;
+let titlebarCaptureAgain = false;
+
+function scheduleTitlebarCapture() {
+  if (titlebarCaptureTimer) clearTimeout(titlebarCaptureTimer);
+  titlebarCaptureTimer = setTimeout(runTitlebarCapture, 250);
+}
+
+ipcMain.on('kcd:titlebar-color', (e) => {
   try {
     if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
-    if (!parseTitlebarColor(color)) return;
-    if (color === mainTitlebarSampleColor) return;
-    mainTitlebarSampleColor = color;
-    applyTitlebarOverlay(mainWindow);
+    scheduleTitlebarCapture();
   } catch { /* ignore */ }
 });
+
+// 采样：窗控区（138×32）中心 (内容宽度-69, 16) 处 12×12 DIP 区域取像素众数色（toBitmap 为 BGRA
+// 字节序；众数剔除文字字形噪点——采样区可能压中面板控件文本，平均会被拉偏）。
+// 色值未变不重设 titleBarOverlay，避免闪烁。
+// 覆盖层打开时跳过：可视顶栏是覆盖层 .app-topbar，titlebarColorForWindow 已回退 windowBackground()，
+// 且被遮挡的 webContents 可能取到过期帧；closeOverlay 会补一次采样
+async function runTitlebarCapture() {
+  titlebarCaptureTimer = null;
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (overlayView) return;
+    if (!isLoopbackWebUIUrl(mainWindow.webContents.getURL())) return;
+    if (titlebarCaptureRunning) { titlebarCaptureAgain = true; return; }
+    titlebarCaptureRunning = true;
+    const [w] = mainWindow.getContentSize();
+    if (w >= 100) {
+      const img = await mainWindow.webContents.capturePage({ x: w - 75, y: 10, width: 12, height: 12 });
+      const buf = img.toBitmap(); // BGRA
+      // 取众数色而非平均：采样区可能压中文字字形（如改动面板的「列表/树形」分段控件），
+      // 深色字形会把平均色拉偏成异色补丁；页面背景均为纯色，众数即真实背景色
+      const counts = new Map();
+      for (let i = 0; i + 2 < buf.length; i += 4) {
+        const key = (buf[i + 2] << 16) | (buf[i + 1] << 8) | buf[i]; // R<<16|G<<8|B
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+      let bestCount = 0, bestKey = -1;
+      for (const [key, c] of counts) {
+        if (c > bestCount) { bestCount = c; bestKey = key; }
+      }
+      if (bestKey >= 0) {
+        const color = `rgb(${(bestKey >> 16) & 255}, ${(bestKey >> 8) & 255}, ${bestKey & 255})`;
+        if (color !== mainTitlebarSampleColor) {
+          mainTitlebarSampleColor = color;
+          applyTitlebarOverlay(mainWindow);
+        }
+      }
+    }
+  } catch { /* 采样失败保留上次颜色 */ } finally {
+    titlebarCaptureRunning = false;
+    if (titlebarCaptureAgain) {
+      titlebarCaptureAgain = false;
+      scheduleTitlebarCapture();
+    }
+  }
+}
 
 ipcMain.handle('app:restart', async () => { await restartServer(); return true; });
 

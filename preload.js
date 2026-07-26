@@ -115,55 +115,24 @@ function isLoopbackWebUI() {
   }
 }
 
-// 窗控区颜色采样：取右上角（悬浮窗控覆盖处）第一个 alpha >= 0.9 的背景色并上报主进程，
-// 主进程据此把 titleBarOverlay 背景对齐页面实际颜色，消除窗控「补丁」感。
-// elementsFromPoint 自顶向下遍历层叠元素（跳过本应用注入的拖拽条/菜单按钮），
-// 每个元素沿父链向上取第一个有效背景色（透明继续向上至 body/html）
-function sampleTitlebarColor() {
-  try {
-    const x = window.innerWidth - 69;
-    const stack = document.elementsFromPoint
-      ? document.elementsFromPoint(x, 6)
-      : [document.elementFromPoint(x, 6)];
-    for (const el of stack) {
-      if (!el || el.id === 'kcd-drag-strip') continue;
-      if (el.classList && (el.classList.contains('kcd-menu-btn') || el.classList.contains('kcd-menu-panel'))) continue;
-      let node = el;
-      while (node && node.nodeType === 1) {
-        const bg = getComputedStyle(node).backgroundColor;
-        const m = bg && bg.match(/rgba?\(([^)]+)\)/);
-        if (m) {
-          const parts = m[1].split(',').map((v) => parseFloat(v));
-          const alpha = parts.length === 4 ? parts[3] : 1;
-          if (alpha >= 0.9) return `rgb(${parts[0] | 0}, ${parts[1] | 0}, ${parts[2] | 0})`;
-        }
-        if (node === document.documentElement) break;
-        node = node.parentElement;
-      }
-    }
-  } catch { /* 采样失败时保留上次颜色 */ }
-  return null;
-}
-
-// MutationObserver（节流 300ms）+ 1s 轮询兜底 + visibilitychange 触发重采样
-function startTitlebarSampling() {
-  let lastSent = '';
+// 窗控区「变色」信号：DOM 背景推断处理不了半透明遮罩合成（官方设置模态压暗时窗控区成亮斑）
+// 与右侧面板态（取到的元素与窗口角落实际渲染不符），故 preload 不再推断色值，只在页面
+// DOM/可见性变化时通知主进程；主进程防抖后对窗控区正下方页面做像素级 capturePage 采样并
+// 据此刷新 titleBarOverlay（见 main.js runTitlebarCapture），各状态天然无缝。
+// MutationObserver（节流 300ms）+ 1s 轮询兜底 + visibilitychange 触发
+function startTitlebarColorSignals() {
   let scheduled = false;
-  const report = () => {
+  const signal = () => {
     scheduled = false;
-    const color = sampleTitlebarColor();
-    if (color && color !== lastSent) {
-      lastSent = color;
-      ipcRenderer.send('kcd:titlebar-color', color);
-    }
+    ipcRenderer.send('kcd:titlebar-color');
   };
   const schedule = () => {
     if (!scheduled) {
       scheduled = true;
-      setTimeout(report, 300);
+      setTimeout(signal, 300);
     }
   };
-  report();
+  signal();
   const observer = new MutationObserver(schedule);
   observer.observe(document.documentElement, {
     subtree: true,
@@ -171,11 +140,11 @@ function startTitlebarSampling() {
     attributes: true,
     attributeFilter: ['class', 'style'],
   });
-  setInterval(report, 1000); // 兜底：CSS 变量/媒体查询变化不触发 MutationObserver
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) report(); });
+  setInterval(signal, 1000); // 兜底：CSS 动画/媒体查询变化等不触发 MutationObserver 的情况
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) signal(); });
 }
 
-// 主窗口（无边框）注入顶部拖拽条；kimi web UI 会话页（loopback http(s) 页面）启动窗控区颜色采样
+// 主窗口（无边框）注入顶部拖拽条；kimi web UI 会话页（loopback http(s) 页面）启动窗控区变色信号上报
 // （☰ 菜单面板由主进程 did-finish-load 时 executeJavaScript 注入 menu-panel.js，见 main.js）
 window.addEventListener('DOMContentLoaded', () => {
   try {
@@ -188,7 +157,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!IS_MAIN_WINDOW || !isLoopbackWebUI()) return;
-    startTitlebarSampling();
+    startTitlebarColorSignals();
   } catch (err) {
     // 注入失败不影响页面本身
   }

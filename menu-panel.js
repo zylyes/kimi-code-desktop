@@ -5,6 +5,7 @@
  * 视觉对齐悬浮窗控）：优先挂到 .app-topbar-actions 内（原生页），否则 fixed
  * 定位 top:0;right:142px（Web UI 页，紧贴 138px 悬浮窗控左缘）。
  * body 带 data-kcd-no-menu 属性、页面无 body 或桥接 kimiDesktopMenu 不存在时跳过。
+ * 挂载后带自愈：MutationObserver + 1s 轮询检查按钮是否仍在 DOM，被 SPA 重渲染移除时自动重挂。
  *
  * 面板：点击 ☰ 经 IPC 拉取菜单定义（分组结构）并展开下拉；叶子项点击调用
  * kimiDesktopMenu.run(id) 并关闭；二级项原地切换子面板（顶部带返回项）；
@@ -206,9 +207,33 @@
     } catch { /* 挂载失败不影响页面本身 */ }
   }
 
+  // 自愈：SPA 路由切换/框架重渲染可能把 body 下的按钮节点移除，mount() 只跑一次就会永久丢失。
+  // 持续检查按钮是否还在 DOM，掉了就重挂；只补按钮——面板状态独立处理：面板节点若一并
+  // 被移除按关闭处理（清理监听），仍在 DOM 则原样保留，避免已打开的面板闪烁。
+  function ensureMounted() {
+    try {
+      if (panel && !panel.isConnected) closePanel();
+      if (btn && btn.isConnected) return;
+      btn = null;
+      mount();
+    } catch { /* 自愈失败不影响页面本身 */ }
+  }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mount);
   } else {
     mount();
   }
+
+  // MutationObserver（发现按钮缺失后 150ms 内补挂；面板开合也会触发 observer，但按钮在时直接返回，
+  // 成本可忽略）+ 1s 轮询兜底
+  let healScheduled = false;
+  const healObserver = new MutationObserver(() => {
+    if (btn && btn.isConnected) return;
+    if (healScheduled) return;
+    healScheduled = true;
+    setTimeout(() => { healScheduled = false; ensureMounted(); }, 150);
+  });
+  healObserver.observe(document.documentElement, { subtree: true, childList: true });
+  setInterval(ensureMounted, 1000);
 })();
