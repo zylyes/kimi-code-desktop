@@ -1,16 +1,10 @@
-### 修复
-
-- **模态蒙版下窗控符号色修正**：`titlebarColorForWindow` 亮度阈值 0.6 → 0.4（亮页/蒙版灰用黑符号、暗页用白符号），修复设置模态压暗时 −▢× 变白的问题；新增符号色广播（`kcd:titlebar-style` IPC + preload `onTitlebarStyle` 桥），☰ 按钮内联色与原生三键永远一致。
-- **右侧面板头部避让右上窗控**：`aside.global-preview .ui-panel-header` 注入 `padding-right:228px`，修复改动面板「列表/树形」切换、预览面板「适应/原始」切换与关闭按钮被 −▢× 悬浮窗控遮挡、文件大小被 ☰ 遮挡的问题。
-
 ### 改进
 
-- **窗控条高度跟随会话头部**：preload 实测 `header.chat-header` 的 `offsetHeight`（钳制 32~64）上报，主窗口 `titleBarOverlay` 高度与 ☰ 按钮高度随动，四键与会话头部图标垂直同线；颜色采样点移至窗控条垂直中心。
-- **蒙版切换变色提速**：preload MutationObserver 节流 300ms → 50ms + ~250ms 尾随信号踩蒙版淡入/淡出结束帧，main 防抖 250ms → 50ms，窗控变色端到端延迟显著降低。
+- **蒙版切换变色链路重构（渲染端同步算色，根治 600ms+ 延迟）**：设置模态开/关窗控条变色不再等主进程防抖追采——preload 在 DOM 变化瞬间用 `elementsFromPoint` 对窗控采样点元素栈做 source-over 合成、同步算出目标色随 `kcd:titlebar-color` 直发主进程（即收即应用，无防抖）；蒙版淡入/淡出动画期 rAF 逐帧跟踪（`getComputedStyle` 实时反映 opacity 过渡）；主进程 350ms 后做一次 `capturePage` 校验采样兜底。逐帧实测全程无「页面已变窗控不动」，变色收敛 <100ms（原 600ms+）。
+- `scripts/probe-panels.js` 扩展为蒙版开/关窗控变色逐帧 OS 级测量。
 
 ### 其他
 
-- 新增 `scripts/probe-panels.js`（页面元素探针 dump）
 - 无破坏性变更
 
 📦 下载：见下方 `KimiCodeDesktop-Portable.exe`

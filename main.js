@@ -1053,8 +1053,8 @@ function titleBarOverlayOpts() {
   };
 }
 
-// 主窗口 Web UI 页右上角窗控区采样色（主进程 capturePage 像素采样，preload 只发变色信号；
-// 本地页恒为 null → 用 windowBackground()）
+// 主窗口 Web UI 页右上角窗控区采样色（preload elementsFromPoint 算色即收即用，
+// 主进程 capturePage 采样降为校验兜底；本地页恒为 null → 用 windowBackground()）
 let mainTitlebarSampleColor = null;
 // 窗控条高度：preload 实测会话头部（header.chat-header）offsetHeight 上报，仅主窗口 Web UI 页生效
 let mainTitlebarHeight = 32;
@@ -3725,23 +3725,33 @@ ipcMain.handle('menu:run', (e, id) => {
   }
 });
 
-// 主窗口 Web UI 页窗控区「变色」信号（preload 上报，不带色值）：防抖 50ms 后对窗控区正下方
-// 页面做像素级采样。DOM 背景推断处理不了半透明遮罩合成（设置模态压暗）与右侧面板态；
-// capturePage 不含 OS 绘制的原生 overlay，取到的正是 overlay 之下页面的真实渲染，各状态天然无缝；
-// 50ms 短防抖为蒙版切换变色链路提速（端到端目标 ~150ms），仍能合并高频信号
+// 主窗口 Web UI 页窗控区配色链路：preload 在 DOM 变化时用 elementsFromPoint 算出采样点合成色，
+// 经 'kcd:titlebar-color' 发来（第二参 'rgb(r, g, b)' 或 null，动画期 rAF 逐帧流式发送）；
+// 有效色即收即应用（无防抖），capturePage 采样降为校验兜底。capturePage 不含 OS 绘制的原生
+// overlay，取到的正是 overlay 之下页面的真实渲染，各状态天然无缝
 let titlebarCaptureTimer = null;
 let titlebarCaptureRunning = false;
 let titlebarCaptureAgain = false;
 
-function scheduleTitlebarCapture() {
+function scheduleTitlebarCapture(delay = 50) {
   if (titlebarCaptureTimer) clearTimeout(titlebarCaptureTimer);
-  titlebarCaptureTimer = setTimeout(runTitlebarCapture, 50);
+  titlebarCaptureTimer = setTimeout(runTitlebarCapture, delay);
 }
 
-ipcMain.on('kcd:titlebar-color', (e) => {
+ipcMain.on('kcd:titlebar-color', (e, color) => {
   try {
     if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
-    scheduleTitlebarCapture();
+    if (parseTitlebarColor(color)) {
+      // 有效色：即收即应用；rAF 流式期同值帧不重设 overlay（防冗余重绘），但校验采样照常安排
+      if (color !== mainTitlebarSampleColor) {
+        mainTitlebarSampleColor = color;
+        applyTitlebarOverlay(mainWindow);
+      }
+      scheduleTitlebarCapture(350); // 高频信号防抖收敛为一次校验采样
+    } else {
+      // null/无效色：渲染端算不出色，走 capturePage 采样主路径
+      scheduleTitlebarCapture(50);
+    }
   } catch { /* ignore */ }
 });
 
@@ -3760,6 +3770,9 @@ ipcMain.on('kcd:titlebar-height', (e, h) => {
   } catch { /* ignore */ }
 });
 
+// 校验兜底采样：渲染端算色即时生效后，本函数在 350ms 后做像素级采样校正（应对渐变/阴影/图片等
+// DOM 算色覆盖不了的角区渲染）；收到 null 信号时仍是 50ms 采样主路径。
+// 采样结果与渲染端算色不一致时以采样为准——下方直接覆写 mainTitlebarSampleColor 并 apply。
 // 采样：窗控区（宽 138、高为 mainTitlebarHeight）内 x=内容宽度-75、y=窗控条垂直中心（H/2-6，钳制 ≥0）
 // 处 12×12 DIP 区域取像素众数色——y 取窗控条垂直中心以避开右侧面板圆角上缘混入的页面底色
 // （toBitmap 为 BGRA 字节序；众数剔除文字字形噪点——采样区可能压中面板控件文本，平均会被拉偏）。

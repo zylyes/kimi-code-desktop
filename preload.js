@@ -135,20 +135,106 @@ function isLoopbackWebUI() {
   }
 }
 
-// 窗控区「变色」信号：DOM 背景推断处理不了半透明遮罩合成（官方设置模态压暗时窗控区成亮斑）
-// 与右侧面板态（取到的元素与窗口角落实际渲染不符），故 preload 不再推断色值，只在页面
-// DOM/可见性变化时通知主进程；主进程防抖后对窗控区正下方页面做像素级 capturePage 采样并
-// 据此刷新 titleBarOverlay（见 main.js runTitlebarCapture），各状态天然无缝。
-// MutationObserver（节流 50ms）+ 每次调度重设 250ms 尾随补信号（专踩设置模态蒙版淡入/淡出
-// CSS 动画的结束帧，动画过程不触发 MutationObserver 完成态）+ 1s 轮询兜底 + visibilitychange
-// 触发；并上报 header.chat-header 实测高度（启动一次、随 1s 轮询、resize 200ms 节流），
+// 窗控区「变色」信号：渲染端同步算色——页面 DOM/可见性变化时 preload 立刻用
+// elementsFromPoint 对窗控采样点做 source-over 合成算出目标色（computeTitlebarColor），
+// 随信号一并发给主进程，即算即达：蒙版出现瞬间目标色已定，不再等主进程防抖 capturePage。
+// 主进程收到有效色立即应用、350ms 防抖后做一次校验性 capturePage；收到 null（算不出）
+// 走原 50ms 防抖 capturePage 路径兜底（见 main.js runTitlebarCapture）。
+// 触发源：MutationObserver（节流 50ms）+ 每次调度重设 250ms 尾随补信号 + 动画期间 ~400ms
+// rAF 逐帧跟踪（专踩蒙版淡入/淡出 CSS transition）+ 1s 轮询兜底 + visibilitychange；
+// 并上报 header.chat-header 实测高度（启动一次、随 1s 轮询、resize 200ms 节流），
 // 供主进程设置 titleBarOverlay 高度、与 ≡ 菜单按钮对齐
+
+// 同步计算窗控采样点的合成色：采样点与主进程 capturePage 同一几何（x 距右缘 75，
+// y 为头部高度一半）；取该点元素栈自底向顶做标准 source-over 合成。
+// 返回 'rgb(r, g, b)'（r/g/b 为 0-255 整数），空栈或任何异常返回 null
+function computeTitlebarColor() {
+  try {
+    const header = document.querySelector('header.chat-header');
+    const H = header && header.offsetHeight > 0 ? header.offsetHeight : 32;
+    const x = window.innerWidth - 75;
+    const y = Math.max(6, Math.round(H / 2));
+    // 元素栈（顶→底），跳过自家注入物：拖拽条、≡ 菜单按钮与菜单面板
+    const stack = document.elementsFromPoint(x, y).filter((el) => {
+      if (!el || el.id === 'kcd-drag-strip') return false;
+      const cls = el.classList;
+      return !cls || (!cls.contains('kcd-menu-btn') && !cls.contains('kcd-menu-panel'));
+    });
+    if (stack.length === 0) return null;
+    const styles = stack.map((el) => getComputedStyle(el));
+    const opacityAt = (i) => {
+      const v = parseFloat(styles[i].opacity);
+      return Number.isFinite(v) ? v : 1;
+    };
+    // 合成起点用窗口底色（与 main.js windowBackground 一致），
+    // 防止栈里没有全不透明层时出错
+    let [r, g, b] = matchMedia('(prefers-color-scheme: dark)').matches
+      ? [24, 24, 23]
+      : [251, 250, 249];
+    // 自栈底向栈顶逐层 source-over：out = src * a + dst * (1 - a)
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/
+        .exec(styles[i].backgroundColor);
+      if (!m) continue; // 非 rgb/rgba 形式：按无有效背景跳过
+      const bgAlpha = m[4] === undefined ? 1 : parseFloat(m[4]);
+      // 层有效不透明度 = 背景 alpha × 该元素自身 opacity × 栈中所有包含它的
+      // 祖先元素 opacity 之积（祖先 opacity 会整体压暗其子树渲染；栈小，直接双重循环）
+      let a = bgAlpha * opacityAt(i);
+      for (let j = 0; j < stack.length; j++) {
+        if (j !== i && stack[j].contains(stack[i])) a *= opacityAt(j);
+      }
+      if (a <= 0) continue; // 背景全透明或有效不透明度为 0 的层跳过
+      if (a > 1) a = 1;
+      r = parseFloat(m[1]) * a + r * (1 - a);
+      g = parseFloat(m[2]) * a + g * (1 - a);
+      b = parseFloat(m[3]) * a + b * (1 - a);
+    }
+    return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+  } catch {
+    return null;
+  }
+}
+
 function startTitlebarColorSignals() {
   let scheduled = false;
   let trailingTimer = null;
+  let lastColor; // 上一次随信号送出的颜色（undefined = 未发过），供 rAF 跟踪去重
+  // 每次信号都同步算色一并发送；force=false 时与上次相同则不发（rAF 逐帧跟踪专用），
+  // force=true 保持原有节奏恒发（启动/节流/尾随/轮询/visibilitychange）
+  const sendColor = (force) => {
+    const color = computeTitlebarColor();
+    if (!force && color === lastColor) return;
+    lastColor = color;
+    ipcRenderer.send('kcd:titlebar-color', color);
+  };
+  // rAF 逐帧跟踪窗（~400ms）：专踩蒙版淡入/淡出 CSS transition——动画期间 DOM 不再
+  // 变化、MutationObserver 静默，但 opacity 计算值逐帧变化且被 getComputedStyle 实时
+  // 反映；故每次 schedule 后开窗逐帧重算，仅颜色有变才发，400ms 后停止。
+  // 性能守卫：单例循环（rafRunning），连续多次 mutation 只重置截止时间续期、不叠加
+  // 多个 rAF 循环；循环体每帧只跑一次，同一帧不重复算
+  let rafRunning = false;
+  let rafDeadline = 0;
+  const nextFrame = (cb) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(cb);
+    else setTimeout(cb, 16); // 无 rAF 环境退化为 16ms 定时器
+  };
+  const kickRafTrack = () => {
+    rafDeadline = performance.now() + 400; // 新 mutation 到来则延长 400ms
+    if (rafRunning) return;
+    rafRunning = true;
+    const step = () => {
+      if (performance.now() >= rafDeadline) {
+        rafRunning = false;
+        return;
+      }
+      sendColor(false);
+      nextFrame(step);
+    };
+    nextFrame(step);
+  };
   const signal = () => {
     scheduled = false;
-    ipcRenderer.send('kcd:titlebar-color');
+    sendColor(true);
   };
   const schedule = () => {
     if (!scheduled) {
@@ -158,6 +244,7 @@ function startTitlebarColorSignals() {
     // 尾随补信号：每次调度都 clearTimeout 重设，到点无条件发一次
     clearTimeout(trailingTimer);
     trailingTimer = setTimeout(signal, 250);
+    kickRafTrack();
   };
   // 高度上报：header.chat-header 存在且有实际高度才发，找不到不发（主进程保留上次值）
   const reportHeight = () => {

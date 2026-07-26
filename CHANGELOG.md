@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.19.3] - 2026-07-24
+
+### 改进
+
+- **蒙版切换变色链路重构（渲染端同步算色，根治 600ms+ 延迟）**：设置模态开/关窗控条变色不再等主进程防抖追采——preload 在 DOM 变化瞬间用 `elementsFromPoint` 对窗控采样点元素栈做 source-over 合成、同步算出目标色随 `kcd:titlebar-color` 直发主进程（即收即应用，无防抖）；蒙版淡入/淡出动画期 rAF 逐帧跟踪（`getComputedStyle` 实时反映 opacity 过渡，有色变才发）；主进程 350ms 后做一次 `capturePage` 校验采样兜底（不一致以采样为准），渲染端算不出色（null）时仍走原 50ms 采样路径。逐帧 OS 级截屏实测（`scripts/probe-panels.js`，~100ms/帧）：开窗控条色与蒙版参考色从首帧起 Δ=0、淡入在 +261→+348ms 内完成，关 +46→+230ms 内完成，全程无「页面已变窗控不动」，变色收敛 <100ms（原 600ms+）。
+- `scripts/probe-panels.js` 扩展为蒙版开/关窗控变色逐帧 OS 级测量（331 行新增）。
+
+### 其他
+
+- 无破坏性变更。
+
 ## [0.19.2] - 2026-07-24
 
 ### 修复
@@ -10,7 +21,7 @@
 ### 改进
 
 - **窗控条高度跟随会话头部**：preload 实测 `header.chat-header` 的 `offsetHeight`（钳制 32~64）上报，主窗口 `titleBarOverlay` 高度与 ☰ 按钮高度随动，四键与会话头部图标垂直同线；颜色采样点移至窗控条垂直中心。
-- **蒙版切换变色提速**：preload MutationObserver 节流 300ms → 50ms + ~250ms 尾随信号踩蒙版淡入/淡出结束帧，main 防抖 250ms → 50ms，窗控变色端到端延迟显著降低。
+- **蒙版切换变色提速**：preload MutationObserver 节流 300ms → 50ms + ~250ms 尾随信号踩蒙版淡入/淡出结束帧，main 防抖 250ms → 50ms，窗控变色端到端延迟降低。
 
 ### 其他
 
