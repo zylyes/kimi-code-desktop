@@ -94,10 +94,30 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
 
 // 应用菜单面板 API：menu-panel.js（本地页经 <script src="menu-panel.js"> 加载、主窗口 Web UI 页由
 // 主进程 did-finish-load 时 executeJavaScript 注入——该页 CSP 为 default-src 'self'，<script> 文本
-// 节点注入会被拦截，故不在此处注入）消费；所有使用本 preload 的窗口统一暴露
+// 节点注入会被拦截，故不在此处注入）消费；所有使用本 preload 的窗口统一暴露；
+// 含窗控样式同步 API（get/onTitlebarStyle），供 menu-panel.js 让 ≡ 与 OS 窗控一致
+// 主进程广播的窗控样式（符号色/高度）缓存与订阅者：仅主窗口会收到 kcd:titlebar-style
+let titlebarStyleCache = null;
+const titlebarStyleListeners = new Set();
+ipcRenderer.on('kcd:titlebar-style', (_e, style) => {
+  titlebarStyleCache = style && typeof style === 'object' ? style : null;
+  for (const cb of titlebarStyleListeners) {
+    try {
+      cb(titlebarStyleCache);
+    } catch {
+      // 单个 listener 异常不影响其他订阅者
+    }
+  }
+});
 contextBridge.exposeInMainWorld('kimiDesktopMenu', {
   getDefinition: () => ipcRenderer.invoke('menu:getDefinition'),
   run: (id) => ipcRenderer.invoke('menu:run', id),
+  getTitlebarStyle: () => titlebarStyleCache,
+  onTitlebarStyle: (cb) => {
+    if (typeof cb !== 'function') return () => {};
+    titlebarStyleListeners.add(cb);
+    return () => titlebarStyleListeners.delete(cb);
+  },
 });
 
 // 主窗口标记：createWindow 经 additionalArguments 传入，辅助窗口复用本 preload 时不带此标记
@@ -119,9 +139,13 @@ function isLoopbackWebUI() {
 // 与右侧面板态（取到的元素与窗口角落实际渲染不符），故 preload 不再推断色值，只在页面
 // DOM/可见性变化时通知主进程；主进程防抖后对窗控区正下方页面做像素级 capturePage 采样并
 // 据此刷新 titleBarOverlay（见 main.js runTitlebarCapture），各状态天然无缝。
-// MutationObserver（节流 300ms）+ 1s 轮询兜底 + visibilitychange 触发
+// MutationObserver（节流 50ms）+ 每次调度重设 250ms 尾随补信号（专踩设置模态蒙版淡入/淡出
+// CSS 动画的结束帧，动画过程不触发 MutationObserver 完成态）+ 1s 轮询兜底 + visibilitychange
+// 触发；并上报 header.chat-header 实测高度（启动一次、随 1s 轮询、resize 200ms 节流），
+// 供主进程设置 titleBarOverlay 高度、与 ≡ 菜单按钮对齐
 function startTitlebarColorSignals() {
   let scheduled = false;
+  let trailingTimer = null;
   const signal = () => {
     scheduled = false;
     ipcRenderer.send('kcd:titlebar-color');
@@ -129,10 +153,21 @@ function startTitlebarColorSignals() {
   const schedule = () => {
     if (!scheduled) {
       scheduled = true;
-      setTimeout(signal, 300);
+      setTimeout(signal, 50);
+    }
+    // 尾随补信号：每次调度都 clearTimeout 重设，到点无条件发一次
+    clearTimeout(trailingTimer);
+    trailingTimer = setTimeout(signal, 250);
+  };
+  // 高度上报：header.chat-header 存在且有实际高度才发，找不到不发（主进程保留上次值）
+  const reportHeight = () => {
+    const h = document.querySelector('header.chat-header');
+    if (h && h.offsetHeight > 0) {
+      ipcRenderer.send('kcd:titlebar-height', h.offsetHeight);
     }
   };
   signal();
+  reportHeight();
   const observer = new MutationObserver(schedule);
   observer.observe(document.documentElement, {
     subtree: true,
@@ -140,8 +175,18 @@ function startTitlebarColorSignals() {
     attributes: true,
     attributeFilter: ['class', 'style'],
   });
-  setInterval(signal, 1000); // 兜底：CSS 动画/媒体查询变化等不触发 MutationObserver 的情况
+  setInterval(() => { signal(); reportHeight(); }, 1000); // 兜底：CSS 动画/媒体查询变化等不触发 MutationObserver 的情况
   document.addEventListener('visibilitychange', () => { if (!document.hidden) signal(); });
+  // 缩放（Ctrl±）/窗口尺寸变化会改变头部高度：单独 200ms 节流上报
+  let resizeScheduled = false;
+  window.addEventListener('resize', () => {
+    if (resizeScheduled) return;
+    resizeScheduled = true;
+    setTimeout(() => {
+      resizeScheduled = false;
+      reportHeight();
+    }, 200);
+  });
 }
 
 // 主窗口（无边框）注入顶部拖拽条；kimi web UI 会话页（loopback http(s) 页面）启动窗控区变色信号上报

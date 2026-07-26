@@ -1056,6 +1056,8 @@ function titleBarOverlayOpts() {
 // 主窗口 Web UI 页右上角窗控区采样色（主进程 capturePage 像素采样，preload 只发变色信号；
 // 本地页恒为 null → 用 windowBackground()）
 let mainTitlebarSampleColor = null;
+// 窗控条高度：preload 实测会话头部（header.chat-header）offsetHeight 上报，仅主窗口 Web UI 页生效
+let mainTitlebarHeight = 32;
 // menu-panel.js 文件内容缓存（did-finish-load 时 executeJavaScript 注入 Web UI 页）
 let menuPanelCodeCache = null;
 
@@ -1079,28 +1081,38 @@ function isLoopbackWebUIUrl(url) {
 }
 
 // 逐窗计算悬浮窗控配色：主窗口且当前 URL 是 loopback http(s) 且有采样色 → 采样色，
-// 逐窗计算悬浮窗控配色：主窗口且当前 URL 是 loopback http(s) 且有采样色 → 采样色，
-// symbolColor 按采样色 Rec.601 亮度 > 0.6 用 '#111111' 否则 '#ffffff'；否则回退 windowBackground()。
+// symbolColor 按采样色 Rec.601 亮度 > 0.4 用 '#111111' 否则 '#ffffff'
+// （0.4 阈值标定：亮页≈.97 与设置模态蒙版灰≈.5 → 黑符号，暗页≈.09 → 白符号）；否则回退 windowBackground()。
 // 覆盖层（sessions/setup 本地页）打开时主窗口 Web UI 虽仍在 loopback URL，但可视顶栏是覆盖层的
 // .app-topbar（bg 同 windowBackground()），此时须回退 windowBackground()，否则采样色会成异色补丁
 function titlebarColorForWindow(win) {
-  if (win && win === mainWindow && !win.isDestroyed() && mainTitlebarSampleColor && !overlayView) {
+  const onWebUI = win && win === mainWindow && !win.isDestroyed() && !overlayView
+    && isLoopbackWebUIUrl(win.webContents.getURL());
+  if (!onWebUI) return titleBarOverlayOpts();
+  if (mainTitlebarSampleColor) {
     const rgb = parseTitlebarColor(mainTitlebarSampleColor);
-    if (rgb && isLoopbackWebUIUrl(win.webContents.getURL())) {
+    if (rgb) {
       const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
       return {
         color: mainTitlebarSampleColor,
-        symbolColor: luminance > 0.6 ? '#111111' : '#ffffff',
-        height: 32,
+        symbolColor: luminance > 0.4 ? '#111111' : '#ffffff',
+        height: mainTitlebarHeight,
       };
     }
   }
-  return titleBarOverlayOpts();
+  return { ...titleBarOverlayOpts(), height: mainTitlebarHeight };
 }
 
 function applyTitlebarOverlay(win) {
   if (!win || win.isDestroyed()) return;
-  try { win.setTitleBarOverlay(titlebarColorForWindow(win)); } catch { /* 无 overlay 的窗口忽略 */ }
+  let opts = null;
+  try { opts = titlebarColorForWindow(win); win.setTitleBarOverlay(opts); } catch { /* 无 overlay 的窗口忽略 */ }
+  // 广播给页面内 ≡ 按钮（menu-panel.js 注入），保持四键颜色/高度一致
+  if (opts && win === mainWindow) {
+    try {
+      win.webContents.send('kcd:titlebar-style', { symbolColor: opts.symbolColor, height: opts.height });
+    } catch { /* 页面未就绪时忽略 */ }
+  }
 }
 
 // 无边框窗口通用选项与后配置：全窗口统一无边框 + 悬浮窗控（品牌一致性），
@@ -2974,6 +2986,11 @@ function createWindow() {
         'header.chat-header{padding-right:228px !important;-webkit-app-region:drag;background:#fbfaf9 !important;box-shadow:none !important;}',
         '@media (prefers-color-scheme:dark){header.chat-header{background:#181817 !important;}}',
         'header.chat-header button,header.chat-header a,header.chat-header input,header.chat-header select,header.chat-header textarea,header.chat-header [role=button],header.chat-header [contenteditable]{-webkit-app-region:no-drag;}',
+        // 右侧面板头部行避让：改动面板（.changes-pane）与文件预览面板（.file-preview）实证均挂在
+        // aside.global-preview（global-preview 为 class 而非 id）内、共用 .ui-panel-header 顶栏
+        //（flex 布局，高 48，右缘直达窗口右边界）；未避让前其 seg 切换（列表/树形、适应/原始）与
+        // 关闭按钮被 −▢× 悬浮窗控盖住、文件大小被 ☰ 盖住，同 chat-header 右让 228px（138 窗控 + 38 ☰ + 余量）
+        'aside.global-preview .ui-panel-header{padding-right:228px !important;}',
       ].join('\n'));
       injectMenuPanel();
     } catch { /* ignore */ }
@@ -3708,16 +3725,17 @@ ipcMain.handle('menu:run', (e, id) => {
   }
 });
 
-// 主窗口 Web UI 页窗控区「变色」信号（preload 上报，不带色值）：防抖 250ms 后对窗控区正下方
+// 主窗口 Web UI 页窗控区「变色」信号（preload 上报，不带色值）：防抖 50ms 后对窗控区正下方
 // 页面做像素级采样。DOM 背景推断处理不了半透明遮罩合成（设置模态压暗）与右侧面板态；
-// capturePage 不含 OS 绘制的原生 overlay，取到的正是 overlay 之下页面的真实渲染，各状态天然无缝
+// capturePage 不含 OS 绘制的原生 overlay，取到的正是 overlay 之下页面的真实渲染，各状态天然无缝；
+// 50ms 短防抖为蒙版切换变色链路提速（端到端目标 ~150ms），仍能合并高频信号
 let titlebarCaptureTimer = null;
 let titlebarCaptureRunning = false;
 let titlebarCaptureAgain = false;
 
 function scheduleTitlebarCapture() {
   if (titlebarCaptureTimer) clearTimeout(titlebarCaptureTimer);
-  titlebarCaptureTimer = setTimeout(runTitlebarCapture, 250);
+  titlebarCaptureTimer = setTimeout(runTitlebarCapture, 50);
 }
 
 ipcMain.on('kcd:titlebar-color', (e) => {
@@ -3727,8 +3745,24 @@ ipcMain.on('kcd:titlebar-color', (e) => {
   } catch { /* ignore */ }
 });
 
-// 采样：窗控区（138×32）中心 (内容宽度-69, 16) 处 12×12 DIP 区域取像素众数色（toBitmap 为 BGRA
-// 字节序；众数剔除文字字形噪点——采样区可能压中面板控件文本，平均会被拉偏）。
+// 窗控条高度跟随会话头部：preload 实测 header.chat-header 的 offsetHeight 上报（仅主窗口 Web UI 页），
+// 使 −▢× 与 ≡ 四键字形中心与页面图标同线；高度变化即时重设 overlay
+ipcMain.on('kcd:titlebar-height', (e, h) => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return;
+    const height = Math.round(Number(h));
+    if (!Number.isFinite(height)) return; // NaN/非有限值忽略
+    const clamped = Math.min(64, Math.max(32, height));
+    if (clamped !== mainTitlebarHeight) {
+      mainTitlebarHeight = clamped;
+      applyTitlebarOverlay(mainWindow);
+    }
+  } catch { /* ignore */ }
+});
+
+// 采样：窗控区（宽 138、高为 mainTitlebarHeight）内 x=内容宽度-75、y=窗控条垂直中心（H/2-6，钳制 ≥0）
+// 处 12×12 DIP 区域取像素众数色——y 取窗控条垂直中心以避开右侧面板圆角上缘混入的页面底色
+// （toBitmap 为 BGRA 字节序；众数剔除文字字形噪点——采样区可能压中面板控件文本，平均会被拉偏）。
 // 色值未变不重设 titleBarOverlay，避免闪烁。
 // 覆盖层打开时跳过：可视顶栏是覆盖层 .app-topbar，titlebarColorForWindow 已回退 windowBackground()，
 // 且被遮挡的 webContents 可能取到过期帧；closeOverlay 会补一次采样
@@ -3742,7 +3776,9 @@ async function runTitlebarCapture() {
     titlebarCaptureRunning = true;
     const [w] = mainWindow.getContentSize();
     if (w >= 100) {
-      const img = await mainWindow.webContents.capturePage({ x: w - 75, y: 10, width: 12, height: 12 });
+      const img = await mainWindow.webContents.capturePage({
+        x: w - 75, y: Math.max(0, Math.round(mainTitlebarHeight / 2) - 6), width: 12, height: 12,
+      });
       const buf = img.toBitmap(); // BGRA
       // 取众数色而非平均：采样区可能压中文字字形（如改动面板的「列表/树形」分段控件），
       // 深色字形会把平均色拉偏成异色补丁；页面背景均为纯色，众数即真实背景色

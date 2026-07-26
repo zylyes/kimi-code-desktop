@@ -14,6 +14,11 @@
  * 样式全部内联于下方 <style>，色值写成 var(--token, 兜底) 格式：本地页命中
  * kimi-theme.css 令牌，Web UI 页无令牌时用兜底色（与 kimi-theme.css 亮/暗令牌值一致，
  * 暗色经 @media (prefers-color-scheme: dark)）。
+ *
+ * 窗控样式跟随：主窗口 Web UI 页上，主进程会把 OS 绘制的 −▢× 悬浮窗控
+ * （titleBarOverlay）的符号色与高度经 preload 桥广播给页面；本模块通过
+ * kimiDesktopMenu.getTitlebarStyle / onTitlebarStyle 取到后以内联 style 写到 ≡ 上，
+ * 使 ≡ 与原生三键颜色/高度一致。未收到广播时（如本地页，桥恒返回 null）维持样式表令牌色。
  */
 (() => {
   'use strict';
@@ -204,7 +209,23 @@
         btn.classList.add('kcd-menu-btn--fixed');
         document.body.appendChild(btn);
       }
+      // 广播可能早于本次挂载/重挂到达，先用 preload 桥缓存值应用一次
+      try {
+        if (typeof window.kimiDesktopMenu.getTitlebarStyle === 'function') {
+          applyTitlebarStyle(window.kimiDesktopMenu.getTitlebarStyle());
+        }
+      } catch { /* 取窗控样式缓存失败忽略 */ }
     } catch { /* 挂载失败不影响页面本身 */ }
+  }
+
+  // 应用主进程广播的窗控样式：让 ≡ 与 OS 绘制的 −▢× 悬浮窗控（titleBarOverlay）保持
+  // 颜色/高度一致。symbolColor 写内联 style，优先于样式表令牌色（含 :hover 色——可接受，
+  // 背景 hover 仍生效）；height 取整后钳制在 32~64，与原生键同中心线。
+  function applyTitlebarStyle(style) {
+    if (!btn || !style || typeof style !== 'object') return;
+    if (typeof style.symbolColor === 'string') btn.style.color = style.symbolColor;
+    const h = Math.round(Number(style.height));
+    if (h >= 32 && h <= 64) btn.style.height = h + 'px';
   }
 
   // 自愈：SPA 路由切换/框架重渲染可能把 body 下的按钮节点移除，mount() 只跑一次就会永久丢失。
@@ -236,4 +257,12 @@
   });
   healObserver.observe(document.documentElement, { subtree: true, childList: true });
   setInterval(ensureMounted, 1000);
+
+  // 订阅主进程窗控样式广播：回调直接作用于当前模块级 btn，自愈重挂后的新节点自然生效。
+  // 广播只发到主窗口 Web UI 页；本地页桥 getTitlebarStyle 恒为 null，不会收到更新。
+  try {
+    if (window.kimiDesktopMenu && typeof window.kimiDesktopMenu.onTitlebarStyle === 'function') {
+      window.kimiDesktopMenu.onTitlebarStyle(applyTitlebarStyle);
+    }
+  } catch { /* 订阅失败不影响菜单本身 */ }
 })();
