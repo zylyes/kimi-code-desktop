@@ -515,6 +515,7 @@
 
     <div class="group divider" id="tempModelGroup">
       <label>临时模型（KIMI_MODEL_* 进程级注入，不写 config.toml）</label>
+      <div class="group" style="margin-top:8px"><label>定义通道</label></div>
       <div class="grid2">
         <div><span class="fl">模型 ID</span><input type="text" class="input" id="tempModelName" placeholder="例如 my-model" spellcheck="false" /></div>
         <div><span class="fl">API Key</span><input type="password" class="input" id="tempModelApiKey" placeholder="sk-…" spellcheck="false" /></div>
@@ -536,8 +537,18 @@
           <option value="xhigh">xhigh</option>
           <option value="max">max</option>
         </select></div>
+        <div><span class="fl">最大输出（max_output_size）</span><input type="text" class="input" id="tempModelMaxOutputSize" placeholder="例如 8192" spellcheck="false" /></div>
+        <div><span class="fl">Reasoning Key</span><input type="text" class="input" id="tempModelReasoningKey" placeholder="密钥" spellcheck="false" /></div>
+        <div><span class="fl">Adaptive Thinking</span><input type="text" class="input" id="tempModelAdaptiveThinking" placeholder="true/false" spellcheck="false" /></div>
       </div>
-      <div class="hint">模型 ID 与 API Key 均填写才会注入；优先级高于 config.toml 的 default_model，重启应用后仍由本页配置决定。</div>
+      <div class="group" style="margin-top:8px"><label>运行时开关</label></div>
+      <div class="grid2">
+        <div><span class="fl">Temperature</span><input type="text" class="input" id="tempModelTemperature" placeholder="例如 0.7" spellcheck="false" /></div>
+        <div><span class="fl">Top P</span><input type="text" class="input" id="tempModelTopP" placeholder="例如 0.9" spellcheck="false" /></div>
+        <div><span class="fl">Max Completion Tokens</span><input type="text" class="input" id="tempModelMaxCompletionTokens" placeholder="例如 4096" spellcheck="false" /></div>
+        <div><span class="fl">Thinking Keep</span><input type="text" class="input" id="tempModelThinkingKeep" placeholder="all" spellcheck="false" /></div>
+      </div>
+      <div class="hint">模型 ID 与 API Key 均填写才会注入；优先级高于 config.toml 的 default_model，重启应用后仍由本页配置决定。KIMI_MODEL_PROVIDER_TYPE 仅支持 kimi/anthropic/openai 三种；TEMPERATURE/TOP_P 全局生效、不依赖 KIMI_MODEL_NAME；MAX_COMPLETION_TOKENS 仅 kimi 供应商。</div>
     </div>
 
     <div class="group divider" id="enforceGroup">
@@ -584,8 +595,15 @@
       <div class="section-title">config.toml</div>
       <div class="form-row">
         <label>默认模型</label>
-        <input type="text" class="input" id="cfgDefaultModel" placeholder="kimi-for-coding" spellcheck="false" />
+        <input type="text" class="input" id="cfgDefaultModel" placeholder="kimi-for-coding" spellcheck="false" list="modelPresets" />
+        <datalist id="modelPresets">
+          <option value="k3" />
+          <option value="k3-256k" />
+          <option value="kimi-for-coding" />
+          <option value="kimi-for-coding-highspeed" />
+        </datalist>
       </div>
+      <div class="hint">档位门槛：k3 与 k3-256k 需 Moderato+（k3 1M 上下文需 Allegretto+）；kimi-for-coding-highspeed 需 Allegretto+；kimi-for-coding 全会员可用。模型目录动态变化，重新登录可刷新，预设可能滞后。</div>
       <div class="form-row">
         <label>默认权限模式</label>
         <select class="input" id="cfgPermissionMode">
@@ -779,12 +797,47 @@
       <button class="btn btn-primary btn-block" id="saveConfig">保存 config.toml</button>
       <div class="ok" id="cfgOk"></div>
       <div class="err" id="cfgErr"></div>
+
+      <div class="section-title">TUI（tui.toml）</div>
+      <div class="form-row">
+        <label>主题（theme）</label>
+        <input type="text" class="input" id="tuiTheme" placeholder="auto" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">禁用粘贴爆发（disable_paste_burst）</div>
+            <div class="switch-desc">粘贴大量内容时抑制逐行回显</div>
+          </div>
+          <input type="checkbox" id="tuiDisablePasteBurst" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label>编辑器命令（editor.command）</label>
+        <input type="text" class="input" id="tuiEditorCommand" placeholder="如 notepad.exe" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">通知（notifications.enabled）</div>
+            <div class="switch-desc">启用桌面通知</div>
+          </div>
+          <input type="checkbox" id="tuiNotificationsEnabled" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label>通知触发条件（notifications.notification_condition）</label>
+        <input type="text" class="input" id="tuiNotificationCondition" placeholder="unfocused" spellcheck="false" />
+      </div>
+      <div class="hint">保存后自动经 kimi doctor tui 校验，失败回滚。</div>
+      <div class="ok" id="tuiOk"></div>
+      <div class="err" id="tuiErr"></div>
     </div>
 
     <!-- 权限规则面板 -->
     <div class="tab-panel" id="panel-rules">
       <div class="section-title">权限规则</div>
-      <div class="hint">规则按顺序匹配，decision 支持 allow / deny / ask。</div>
+      <div class="hint">规则按顺序匹配，第一条命中即生效；AgentSwarm / MCP 工具 / 自定义工具只按工具名匹配，不支持参数模式。</div>
       <div class="rule-list" id="ruleList"></div>
       <button class="btn btn-secondary btn-add" id="addRule">+ 添加规则</button>
       <div class="btn-row" style="margin-top:12px">
@@ -800,6 +853,27 @@
     <div class="tab-panel" id="panel-providers">
       <div class="section-title">供应商与模型</div>
       <div class="card-list" id="providerList"></div>
+      <div class="hint">OAuth/托管端点：KIMI_CODE_OAUTH_HOST（默认 https://auth.kimi.com）/ KIMI_CODE_BASE_URL（默认 https://api.kimi.com/coding/v1，注意 ≠ KIMI_BASE_URL）</div>
+      <div class="provider-add-form" id="providerAddForm" style="margin-top:12px;border:1px solid var(--separator);border-radius:var(--radius-card);padding:12px;display:none">
+        <div class="grid2">
+          <div><span class="fl">类型</span><select class="input" id="providerFormType">
+            <option value="kimi">kimi</option>
+            <option value="anthropic">anthropic</option>
+            <option value="openai">openai</option>
+            <option value="openai_responses">openai_responses</option>
+            <option value="google-genai">google-genai</option>
+            <option value="vertexai">vertexai</option>
+          </select></div>
+          <div><span class="fl">API Key</span><input type="password" class="input" id="providerFormApiKey" placeholder="sk-…" spellcheck="false" /></div>
+          <div><span class="fl">Base URL</span><input type="text" class="input" id="providerFormBaseUrl" placeholder="https://…" spellcheck="false" /></div>
+          <div><span class="fl">模型列表（逗号分隔）</span><input type="text" class="input" id="providerFormModels" placeholder="model1,model2" spellcheck="false" /></div>
+        </div>
+        <div class="hint" id="providerFormHint" style="margin-top:8px"></div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-primary" id="providerFormConfirm" type="button">确认添加</button>
+          <button class="btn btn-secondary" id="providerFormCancel" type="button">取消</button>
+        </div>
+      </div>
       <button class="btn btn-secondary btn-add" id="addProvider">+ 添加供应商</button>
       <div class="ok" id="providersOk"></div>
       <div class="err" id="providersErr"></div>
@@ -1009,7 +1083,7 @@
       if (key === 'skills') loadSkills();
       if (key === 'hooks') loadHooks();
       if (key === 'ide') loadIdePanel();
-      if (key === 'maint') { checkUpgrade(false); loadDataDirStats(); loadAutoInstall(); }
+      if (key === 'maint') { checkUpgrade(false); loadDataDirStats(); loadAutoInstall(); loadTuiFields(); }
       if (key === 'plugins') loadPlugins();
     }
     tabs.forEach((tab) => {
@@ -1052,6 +1126,13 @@
     const tempModelMaxContextSizeEl = $('tempModelMaxContextSize');
     const tempModelCapabilitiesEl = $('tempModelCapabilities');
     const tempModelThinkingEffortEl = $('tempModelThinkingEffort');
+    const tempModelMaxOutputSizeEl = $('tempModelMaxOutputSize');
+    const tempModelReasoningKeyEl = $('tempModelReasoningKey');
+    const tempModelAdaptiveThinkingEl = $('tempModelAdaptiveThinking');
+    const tempModelTemperatureEl = $('tempModelTemperature');
+    const tempModelTopPEl = $('tempModelTopP');
+    const tempModelMaxCompletionTokensEl = $('tempModelMaxCompletionTokens');
+    const tempModelThinkingKeepEl = $('tempModelThinkingKeep');
     const errEl = $('err');
     const appThemeEl = $('appTheme');
     const appZoomEl = $('appZoom');
@@ -1162,6 +1243,13 @@
         if (tm.maxContextSize != null && tm.maxContextSize !== '') tempModelMaxContextSizeEl.value = tm.maxContextSize;
         if (tm.capabilities) tempModelCapabilitiesEl.value = tm.capabilities;
         if (tm.thinkingEffort) tempModelThinkingEffortEl.value = tm.thinkingEffort;
+        if (tm.maxOutputSize != null && tm.maxOutputSize !== '') tempModelMaxOutputSizeEl.value = tm.maxOutputSize;
+        if (tm.reasoningKey) tempModelReasoningKeyEl.value = tm.reasoningKey;
+        if (tm.adaptiveThinking) tempModelAdaptiveThinkingEl.value = tm.adaptiveThinking;
+        if (tm.temperature != null && tm.temperature !== '') tempModelTemperatureEl.value = tm.temperature;
+        if (tm.topP != null && tm.topP !== '') tempModelTopPEl.value = tm.topP;
+        if (tm.maxCompletionTokens != null && tm.maxCompletionTokens !== '') tempModelMaxCompletionTokensEl.value = tm.maxCompletionTokens;
+        if (tm.thinkingKeep) tempModelThinkingKeepEl.value = tm.thinkingKeep;
         // 应用设置（缺省值与 config.json 默认键一致）
         appThemeEl.value = c.theme || 'system';
         appZoomEl.value = String(c.zoomFactor || 1);
@@ -1346,6 +1434,13 @@
           maxContextSize: tempModelMaxContextSizeEl.value.trim(),
           capabilities: tempModelCapabilitiesEl.value.trim(),
           thinkingEffort: tempModelThinkingEffortEl.value,
+          maxOutputSize: tempModelMaxOutputSizeEl.value.trim(),
+          reasoningKey: tempModelReasoningKeyEl.value.trim(),
+          adaptiveThinking: tempModelAdaptiveThinkingEl.value.trim(),
+          temperature: tempModelTemperatureEl.value.trim(),
+          topP: tempModelTopPEl.value.trim(),
+          maxCompletionTokens: tempModelMaxCompletionTokensEl.value.trim(),
+          thinkingKeep: tempModelThinkingKeepEl.value.trim(),
         },
       };
     }
@@ -1757,6 +1852,8 @@
       currentRules.forEach((rule, idx) => {
         const row = document.createElement('div');
         row.className = 'rule-item';
+        const isFirst = idx === 0;
+        const isLast = idx === currentRules.length - 1;
         row.innerHTML = `<select class="input" data-idx="${idx}" data-field="decision">
           <option value="allow" ${rule.decision === 'allow' ? 'selected' : ''}>allow</option>
           <option value="deny" ${rule.decision === 'deny' ? 'selected' : ''}>deny</option>
@@ -1764,6 +1861,9 @@
         </select>
         <input type="text" class="input" data-idx="${idx}" data-field="pattern" value="${escapeHtml(rule.pattern || '')}" placeholder="Bash(rm -rf*)" spellcheck="false" />
         <input type="text" class="input" data-idx="${idx}" data-field="scope" value="${escapeHtml(rule.scope || '')}" placeholder="scope" spellcheck="false" />
+        <input type="text" class="input" data-idx="${idx}" data-field="reason" value="${escapeHtml(rule.reason || '')}" placeholder="reason（可选，审计说明）" spellcheck="false" />
+        <button type="button" data-idx="${idx}" class="btn btn-secondary up-rule" ${isFirst ? 'disabled' : ''}>↑</button>
+        <button type="button" data-idx="${idx}" class="btn btn-secondary down-rule" ${isLast ? 'disabled' : ''}>↓</button>
         <button type="button" data-idx="${idx}" class="btn btn-danger del-rule">×</button>`;
         ruleList.appendChild(row);
       });
@@ -1778,6 +1878,24 @@
         el.addEventListener('click', () => {
           currentRules.splice(Number(el.dataset.idx), 1);
           renderRules();
+        });
+      });
+      ruleList.querySelectorAll('.up-rule').forEach((el) => {
+        el.addEventListener('click', () => {
+          const idx = Number(el.dataset.idx);
+          if (idx > 0) {
+            [currentRules[idx - 1], currentRules[idx]] = [currentRules[idx], currentRules[idx - 1]];
+            renderRules();
+          }
+        });
+      });
+      ruleList.querySelectorAll('.down-rule').forEach((el) => {
+        el.addEventListener('click', () => {
+          const idx = Number(el.dataset.idx);
+          if (idx < currentRules.length - 1) {
+            [currentRules[idx], currentRules[idx + 1]] = [currentRules[idx + 1], currentRules[idx]];
+            renderRules();
+          }
         });
       });
     }
@@ -1819,7 +1937,11 @@
         const r = await window.kimiDesktop.loadConfigToml();
         const data = (r.ok && r.data) ? r.data : {};
         const cleanedRules = currentRules
-          .map((r) => ({ decision: r.decision, pattern: r.pattern || '', scope: r.scope || '' }))
+          .map((r) => {
+            const rule = { decision: r.decision, pattern: r.pattern || '', scope: r.scope || '' };
+            if (r.reason) rule.reason = r.reason;
+            return rule;
+          })
           .filter((r) => r.pattern || r.scope);
         data.permission = { ...(data.permission || {}), rules: cleanedRules };
         const save = await window.kimiDesktop.saveConfigToml(data);
@@ -1874,22 +1996,50 @@
     }
 
     let addingProvider = false;
-    $('addProvider').addEventListener('click', async () => {
+    const providerFormTypeEl = $('providerFormType');
+    const providerFormApiKeyEl = $('providerFormApiKey');
+    const providerFormBaseUrlEl = $('providerFormBaseUrl');
+    const providerFormModelsEl = $('providerFormModels');
+    const providerFormHint = $('providerFormHint');
+    const providerAddForm = $('providerAddForm');
+
+    providerFormTypeEl.addEventListener('change', () => {
+      if (providerFormTypeEl.value === 'vertexai') {
+        providerFormHint.textContent = 'vertexai 需在 config.toml 的 providers.<name>.env 子表手写 GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION；凭证键：VERTEXAI_API_KEY / GOOGLE_API_KEY / GOOGLE_APPLICATION_CREDENTIALS（唯一走系统环境的例外）/ GOOGLE_GEMINI_BASE_URL / GOOGLE_VERTEX_BASE_URL';
+      } else {
+        providerFormHint.textContent = '';
+      }
+    });
+
+    $('addProvider').addEventListener('click', () => {
       if (addingProvider) return;
-      const type = prompt('供应商类型（kimi / anthropic / openai / openai_responses / google-genai / vertexai）：');
-      if (!type) return;
-      const apiKey = prompt('API Key（可为空）：') || '';
-      const baseUrl = prompt('Base URL（可为空）：') || '';
-      const models = prompt('模型列表，逗号分隔（可为空）：') || '';
+      providerAddForm.style.display = 'block';
+      providerFormTypeEl.value = 'kimi';
+      providerFormApiKeyEl.value = '';
+      providerFormBaseUrlEl.value = '';
+      providerFormModelsEl.value = '';
+      providerFormHint.textContent = '';
+    });
+
+    $('providerFormCancel').addEventListener('click', () => {
+      providerAddForm.style.display = 'none';
+    });
+
+    $('providerFormConfirm').addEventListener('click', async () => {
+      if (addingProvider) return;
+      const type = providerFormTypeEl.value;
+      const apiKey = providerFormApiKeyEl.value.trim();
+      const baseUrl = providerFormBaseUrlEl.value.trim();
+      const models = providerFormModelsEl.value.trim();
       addingProvider = true;
-      $('addProvider').textContent = '添加中…';
+      $('providerFormConfirm').textContent = '添加中…';
       try {
         const r = await window.kimiDesktop.addProviderCatalog({ type, apiKey, baseUrl, models });
-        if (r.ok) { setFeedback(providersOk, providersErr, 'ok', '供应商添加成功'); loadProviders(); }
+        if (r.ok) { setFeedback(providersOk, providersErr, 'ok', '供应商添加成功'); loadProviders(); providerAddForm.style.display = 'none'; }
         else setFeedback(providersOk, providersErr, 'err', '添加失败：' + (r.error || '未知错误'));
       } catch (e) { setFeedback(providersOk, providersErr, 'err', '添加异常：' + e.message); }
       addingProvider = false;
-      $('addProvider').textContent = '+ 添加供应商';
+      $('providerFormConfirm').textContent = '确认添加';
     });
 
     // ==================== MCP 面板 ====================
@@ -2331,6 +2481,96 @@
         setFeedback(upgradeOk, upgradeErr, 'err', '保存异常：' + e.message);
       }
     });
+
+    // ==================== TUI（tui.toml）单字段即时保存 ====================
+    const tuiThemeEl = $('tuiTheme');
+    const tuiDisablePasteBurstEl = $('tuiDisablePasteBurst');
+    const tuiEditorCommandEl = $('tuiEditorCommand');
+    const tuiNotificationsEnabledEl = $('tuiNotificationsEnabled');
+    const tuiNotificationConditionEl = $('tuiNotificationCondition');
+    const tuiOk = $('tuiOk');
+    const tuiErr = $('tuiErr');
+
+    function setTuiFeedback(type, text) {
+      tuiOk.textContent = '';
+      tuiErr.textContent = '';
+      if (type === 'ok') tuiOk.textContent = text;
+      if (type === 'err') tuiErr.textContent = text;
+    }
+
+    async function saveTuiField(fieldSetter) {
+      setTuiFeedback('', '');
+      try {
+        if (currentTuiData === null && typeof window.kimiDesktop.loadTuiToml === 'function') {
+          const lr = await window.kimiDesktop.loadTuiToml();
+          currentTuiData = (lr && lr.ok && lr.data) ? lr.data : {};
+        }
+        const payload = { ...currentTuiData };
+        fieldSetter(payload);
+        // 空字符串删键
+        for (const key of Object.keys(payload)) {
+          if (payload[key] === '') delete payload[key];
+        }
+        const r = await window.kimiDesktop.saveTuiToml(payload);
+        if (r && r.ok) {
+          currentTuiData = payload;
+          setTuiFeedback('ok', 'tui.toml 已保存');
+        } else {
+          // 回滚：重新加载恢复原始值
+          setTuiFeedback('err', '保存失败：' + ((r && r.error) || '未知错误'));
+          if (typeof window.kimiDesktop.loadTuiToml === 'function') {
+            const rr = await window.kimiDesktop.loadTuiToml();
+            if (rr.ok) {
+              currentTuiData = rr.data || {};
+              loadTuiFields();
+            }
+          }
+        }
+      } catch (e) {
+        setTuiFeedback('err', '保存异常：' + e.message);
+      }
+    }
+
+    function loadTuiFields() {
+      if (!currentTuiData) return;
+      const d = currentTuiData;
+      tuiThemeEl.value = d.theme || '';
+      tuiDisablePasteBurstEl.checked = d.disable_paste_burst === true;
+      tuiEditorCommandEl.value = (d.editor && d.editor.command) || '';
+      tuiNotificationsEnabledEl.checked = d.notifications ? d.notifications.enabled !== false : true;
+      tuiNotificationConditionEl.value = (d.notifications && d.notifications.notification_condition) || '';
+    }
+
+    tuiThemeEl.addEventListener('change', () => {
+      saveTuiField((p) => { p.theme = tuiThemeEl.value.trim(); });
+    });
+    tuiDisablePasteBurstEl.addEventListener('change', () => {
+      saveTuiField((p) => { p.disable_paste_burst = tuiDisablePasteBurstEl.checked || undefined; });
+    });
+    tuiEditorCommandEl.addEventListener('change', () => {
+      saveTuiField((p) => {
+        p.editor = { ...((p.editor) || {}), command: tuiEditorCommandEl.value.trim() };
+        if (!p.editor.command) delete p.editor.command;
+        if (Object.keys(p.editor).length === 0) delete p.editor;
+      });
+    });
+    tuiNotificationsEnabledEl.addEventListener('change', () => {
+      saveTuiField((p) => {
+        p.notifications = { ...((p.notifications) || {}), enabled: tuiNotificationsEnabledEl.checked };
+      });
+    });
+    tuiNotificationConditionEl.addEventListener('change', () => {
+      saveTuiField((p) => {
+        const val = tuiNotificationConditionEl.value.trim();
+        p.notifications = { ...((p.notifications) || {}) };
+        if (val) p.notifications.notification_condition = val;
+        else delete p.notifications.notification_condition;
+        if (Object.keys(p.notifications).length === 0) delete p.notifications;
+      });
+    });
+
+    // 加载 tui 字段（复用 loadAutoInstall 的 currentTuiData）
+    // 在 loadAutoInstall 之后调用
 
     function renderDataDirEntries(entries) {
       dataDirList.innerHTML = '';

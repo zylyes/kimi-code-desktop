@@ -220,6 +220,13 @@ function buildKimiEnv(cfg) {
     if (tm.maxContextSize) env.KIMI_MODEL_MAX_CONTEXT_SIZE = tm.maxContextSize;
     if (tm.capabilities) env.KIMI_MODEL_CAPABILITIES = tm.capabilities;
     if (tm.thinkingEffort) env.KIMI_MODEL_THINKING_EFFORT = tm.thinkingEffort;
+    if (tm.maxOutputSize) env.KIMI_MODEL_MAX_OUTPUT_SIZE = tm.maxOutputSize;
+    if (tm.reasoningKey) env.KIMI_MODEL_REASONING_KEY = tm.reasoningKey;
+    if (tm.adaptiveThinking) env.KIMI_MODEL_ADAPTIVE_THINKING = tm.adaptiveThinking;
+    if (tm.temperature) env.KIMI_MODEL_TEMPERATURE = tm.temperature;
+    if (tm.topP) env.KIMI_MODEL_TOP_P = tm.topP;
+    if (tm.maxCompletionTokens) env.KIMI_MODEL_MAX_COMPLETION_TOKENS = tm.maxCompletionTokens;
+    if (tm.thinkingKeep) env.KIMI_MODEL_THINKING_KEEP = tm.thinkingKeep;
   }
   return env;
 }
@@ -3618,6 +3625,13 @@ ipcMain.handle('setup:save', async (_e, payload) => {
         maxContextSize: ensureString(t.maxContextSize),
         capabilities: ensureString(t.capabilities),
         thinkingEffort: ensureString(t.thinkingEffort),
+        maxOutputSize: ensureString(t.maxOutputSize),
+        reasoningKey: ensureString(t.reasoningKey),
+        adaptiveThinking: ensureString(t.adaptiveThinking),
+        temperature: ensureString(t.temperature),
+        topP: ensureString(t.topP),
+        maxCompletionTokens: ensureString(t.maxCompletionTokens),
+        thinkingKeep: ensureString(t.thinkingKeep),
       };
     })(),
     // 非表单字段随白名单重建保留，避免保存设置后迁移提示复现
