@@ -36,6 +36,7 @@
         { "target": "portable", "arch": ["x64"] },
         { "target": "7z", "arch": ["x64"] }
       ],
+      "artifactName": "KimiCodeDesktop-${version}-${arch}.${ext}",
       "icon": "assets/icon.ico"
     },
     "nsis": {
@@ -48,9 +49,6 @@
     },
     "portable": {
       "artifactName": "KimiCodeDesktop-Portable-${version}.${ext}"
-    },
-    "7z": {
-      "artifactName": "KimiCodeDesktop-${version}.${ext}"
     },
     "directories": {
       "output": "release"
