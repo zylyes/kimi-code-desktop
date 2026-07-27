@@ -16,14 +16,23 @@
 // 图片输入（第四次探测实测，详见 docs/acp-probe4-output.txt）：prompt(text, images) 的
 // images 可选，元素 { mimeType, data(base64) }，mimeType 白名单 / 解码后 ≤10MB / ≤4 张；
 // 有图时 session/prompt 的 prompt 字段为 [{ type:'image', data, mimeType }…, { type:'text', text }]。
+// 第五次探测补齐（CLI 0.29.0 实测，详见 docs/acp-research.md 与 docs/acp-probe5*-output.txt）：
+// session/list 枚举磁盘会话（字段 sessionId/cwd/title/updatedAt，当前单页全量、cursor 透传预留）；
+// session/resume 轻量恢复（result 仅 configOptions，不回放历史，与 load 二选一）；
+// session/set_model / session/set_mode（参数名 modelId/modeId，0.29.0 报错文案不可信——
+// "Already in plan mode" 系状态错乱误报，调用方应以 config_option_update 推送为准）；
+// authenticate({ methodId })（camelCase，官方文档 method_id 系笔误；token 缺失返回 -32000）；
+// 任何请求收到 -32000（Authentication required）时除 reject 外另发 'authRequired' 事件，
+// 供主进程引导登录（authMethods 的 _meta['terminal-auth'] 给出 kimi login 完整命令行）。
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 
 // ---------- 常量 ----------
 const FRAMING_PROBE_MS = 20_000; // ndjson 首发 initialize 的响应窗口，超时改试 LSP 分帧
 const FRAMING_RETRY_DELAY_MS = 500; // kill 旧进程后等它退出的间隔
-const SESSION_NEW_TIMEOUT_MS = 30_000; // session/new 与 session/load 超时（prompt 不设固定超时，LLM 耗时长）
+const SESSION_NEW_TIMEOUT_MS = 30_000; // session/new / load / resume 超时（prompt 不设固定超时，LLM 耗时长）
 const SET_CONFIG_TIMEOUT_MS = 15_000; // session/set_config_option 超时
+const GENERIC_REQ_TIMEOUT_MS = 20_000; // session/list / set_model / set_mode / authenticate 等通用请求超时
 const PERMISSION_DECISION_TIMEOUT_MS = 600_000; // 权限决策的防御性超时（10 分钟），超时按 cancelled 收尾
 const LOG_DUMP_LIMIT = 300; // 日志里消息摘要的截断长度
 const MAX_PROMPT_IMAGES = 4; // 单次 prompt 最多附带的图片张数
@@ -111,6 +120,8 @@ class FrameParser {
 //   'update'      (update)              session/update 通知里的 update 对象
 //   'notification'(method, params)      其它 server→client 通知
 //   'permission'  (params)              session/request_permission（日志/通知用；决策见 setPermissionHandler）
+//   'authRequired'({ method, error })   任意请求收到 -32000 Authentication required（第五次探测实测形态；
+//                                       reject 照常发生，本事件供主进程引导登录，同一次失败只补发一次）
 //   'stderr'      (text)                子进程 stderr 数据
 //   'raw'         (text)                stdout 中无法按 JSON 解析的段
 //   'exit'        (code, signal)        子进程退出或 spawn 失败（分帧切换重启时不发）
@@ -303,6 +314,11 @@ class AcpClient extends EventEmitter {
     if (msg.error) {
       const err = new Error(`${entry.method} 返回错误: ${msg.error.message || JSON.stringify(msg.error)}`);
       err.code = msg.error.code;
+      // -32000 Authentication required（第五次探测实测）：reject 之外补发 authRequired 事件，
+      // 主进程据此引导登录（terminal 型 authMethods，需跑 kimi login 设备码流程）
+      if (msg.error.code === -32000) {
+        this._safeEmit('authRequired', { method: entry.method, error: msg.error });
+      }
       entry.reject(err);
     } else {
       entry.resolve(msg.result);
@@ -428,6 +444,28 @@ class AcpClient extends EventEmitter {
     return result;
   }
 
+  // 轻量恢复既有会话（第五次探测实测：与 load 的 result 结构相同、仅 configOptions，
+  // 不回放历史，仅推 available_commands_update）；适合历史已由本地渲染的恢复场景。
+  // 成功后把入参 sessionId 记为当前会话；错误上抛
+  async resumeSession(sessionId) {
+    if (typeof sessionId !== 'string' || !sessionId) throw new Error('resumeSession: sessionId 必须是非空字符串');
+    const result = await this._request('session/resume', { sessionId, cwd: this.cwd, mcpServers: [] }, SESSION_NEW_TIMEOUT_MS);
+    this.sessionId = sessionId;
+    return result;
+  }
+
+  // 枚举磁盘会话（第五次探测实测：字段 sessionId/cwd/title/updatedAt，0.29.0 单页全量、
+  // 未触发 nextCursor；cursor 透传预留分页）。resolve { sessions, nextCursor }，
+  // sessions 恒为数组（异常响应上抛）；cursor 为非空字符串时才随参数下发
+  async listSessions(cursor) {
+    const params = {};
+    if (typeof cursor === 'string' && cursor && cursor.length <= 500) params.cursor = cursor;
+    const result = await this._request('session/list', params, GENERIC_REQ_TIMEOUT_MS);
+    const sessions = result && Array.isArray(result.sessions) ? result.sessions : [];
+    const nextCursor = result && typeof result.nextCursor === 'string' && result.nextCursor ? result.nextCursor : null;
+    return { sessions, nextCursor };
+  }
+
   // 发送用户输入；不设固定超时（LLM 耗时长），resolve result（{ stopReason }）。
   // images 可选：元素 { mimeType, data(base64) }；防御性校验白名单 mimeType、
   // data 非空且可 base64 解码、解码后 ≤10MB、单次 ≤4 张，任一非法直接 throw（中文报错）。
@@ -461,13 +499,39 @@ class AcpClient extends EventEmitter {
     });
   }
 
-  // 切换会话配置项（model / mode 等，value 为纯字符串）；resolve result
+  // 切换会话配置项（model / mode / thinking 等，value 为纯字符串）；resolve result
   // （configOptions 为更新后的完整数组）；agent 拒绝时上抛 JSON-RPC 错误
   async setConfigOption(configId, value) {
     if (!this.sessionId) throw new Error('尚未建立会话（先调用 newSession 或 loadSession）');
     if (typeof configId !== 'string' || !configId || configId.length > 200) throw new Error('setConfigOption: configId 必须是长度不超过 200 的非空字符串');
     if (typeof value !== 'string' || !value || value.length > 200) throw new Error('setConfigOption: value 必须是长度不超过 200 的非空字符串');
     return await this._request('session/set_config_option', { sessionId: this.sessionId, configId, value }, SET_CONFIG_TIMEOUT_MS);
+  }
+
+  // 切换模型（第五次探测实测：参数名 modelId，取 configOptions.model 的 options[].value
+  // 目录全名，如 'kimi-code/k3'；成功后 agent 推 config_option_update 全量刷新）。
+  // 不稳定面方法但 0.29.0 实测可用；等价于 setConfigOption('model', modelId)
+  async setModel(modelId) {
+    if (!this.sessionId) throw new Error('尚未建立会话（先调用 newSession 或 loadSession）');
+    if (typeof modelId !== 'string' || !modelId || modelId.length > 200) throw new Error('setModel: modelId 必须是长度不超过 200 的非空字符串');
+    return await this._request('session/set_model', { sessionId: this.sessionId, modelId }, GENERIC_REQ_TIMEOUT_MS);
+  }
+
+  // 切换模式（第五次探测实测：与 setConfigOption('mode', modeId) 走同一 dispatcher。
+  // 注意 0.29.0 已知缺陷：切 plan 可能误报 "Already in plan mode"（-32603）——
+  // 报错文案不可信，调用方应以 config_option_update 推送的 currentValue 判定实际状态）
+  async setMode(modeId) {
+    if (!this.sessionId) throw new Error('尚未建立会话（先调用 newSession 或 loadSession）');
+    if (typeof modeId !== 'string' || !modeId || modeId.length > 200) throw new Error('setMode: modeId 必须是长度不超过 200 的非空字符串');
+    return await this._request('session/set_mode', { sessionId: this.sessionId, modeId }, GENERIC_REQ_TIMEOUT_MS);
+  }
+
+  // 校验认证方式（第五次探测实测：参数名 camelCase methodId，官方文档 method_id 系笔误；
+  // token 缺失返回 -32000，未知 methodId 返回 -32602）。认证本身是 terminal 型流程
+  // （authMethods 的 _meta['terminal-auth'] 给出 kimi login 命令行），本方法仅做校验
+  async authenticate(methodId) {
+    if (typeof methodId !== 'string' || !methodId || methodId.length > 200) throw new Error('authenticate: methodId 必须是长度不超过 200 的非空字符串');
+    return await this._request('authenticate', { methodId }, GENERIC_REQ_TIMEOUT_MS);
   }
 
   // 取消当前会话进行中的 prompt：session/cancel 是 JSON-RPC 通知（无 id、不进 pending、

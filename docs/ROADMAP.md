@@ -240,25 +240,28 @@
 
 > 标注 "📄" = 文档有线索但需实测确认；"🔍" = 只能实测。
 
-1. 🔍 Goal 模式经 ACP 的暴露形式：是否有 goal 相关 session/update 推送、预算进度通道？（探测5 项⑨；文档仅描述 TUI/Web 行为）
-2. 🔍 新版 CLI `session/load` 对**非活跃**历史会话是否真实回放历史（0.27 实测当前活跃会话不回放；文档写"回放"）；`session/resume` 与 load 的确切差异。
-3. 🔍 AskUserQuestion elicitation 经 `session/request_permission` 的字段级形态（options 如何承载多题/multi_select/allow_other；schema 数字官方快照无出处，项目 v0.5.0 实现与 ACP 规范为准）。
-4. 📄 `available_commands_update` 实际下发范围：ACP 文档确认为主动推送通知，但下发是否含 /goal、skill 动态命令（`/skill:<name>`）、插件命令（`<plugin>:<cmd>`）及 `/btw`、`/web`、`/reload`、`/undo`、`/title`、`/add-dir`、`/init`、`/experiments`、`/mcp`、`/custom-theme`、`/import-from-cc-codex`、`/update-config`、`/check-kimi-code-docs`——需实测验证（探测5 项⑭）。
-5. 🔍 thinking 在 ACP configOptions 的形态：effort 多档（K3 映射 low/high/max）还是 on/off；与 `[thinking]` 配置的关系；session/set_model 切换模型时 effort 是否跟随（背景：v0.28.0 起模型切换后 effort 仅保留低于新模型最高档的档位）。
-6. 🔍 图片输入在新 CLI 是否已修复（0.27.0 图文 prompt 崩溃 0xC0000409，probe4 结论；ACP 能力声明 image=true，文档模型页确认支持图片/视频）——决定 P1-8 走向。
-7. 🔍 Steer：turn 进行中发 session/prompt 是否被接受（文档无 ACP steer 通道描述）。
+1. ✅ **已确认**（探测5 项⑨，0.29.0 实测）：ACP **无** goal 专属 session/update 推送、**无**预算进度通道——`/goal` 文本命令可用（agent 执行至完成或 turn 持续运行，期间新 prompt 被拒 `turn.agent_busy`）；goal 能力经 `write-goal` skill 命令暴露。P1-4 按降级路径（命令入口 + upcoming-goals.json 轮询）实现。详见 docs/acp-research.md ⑨
+2. ✅ **已确认**（探测5 项①②）：load 在 agent 端**首次从磁盘加载**时回放历史（user/thought/message chunk 序列），同进程已加载会话不回放；resume 已实现——result 仅 configOptions、仅推 available_commands_update、不回放（轻量版确认）。详见 docs/acp-research.md ①②
+3. ✅ **部分确认**（探测5 项⑥）：elicitation 经 request_permission 到达，`toolCall.title='AskUserQuestion'` 可识别；options 编码 `q{题号}_opt_{序号}`(allow_once)/`q{题号}_skip`(reject_once)，问题文本在 toolCall.content。单题形态实测捕获；多题/multi_select/allow_other 未触发（agent 有裁量权，多次诱导均只问单题）——P1-3 按前缀分组解析 + 未知形态降级普通审批窗实现。详见 docs/acp-research.md ⑥
+4. ✅ **已确认**（探测5 项⑭）：下发清单 15 条——compact/status/usage/mcp/tasks/help/check-kimi-code-docs/custom-theme/import-from-cc-codex/mcp-config/sub-skill/sub-skill.consolidate/sub-skill.review/update-config/write-goal。**不含** /goal（经 write-goal 暴露）、/btw、/web、/reload、/undo、/title、/add-dir、/init、/experiments；skill 命令（sub-skill.* 族）证实动态下发；清单随会话状态全量替换式更新。详见 docs/acp-research.md ⑭
+5. ✅ **已确认**（探测5 项⑤）：thinking 为 select 多档（low/high/max，currentValue 跟随模型，K3 默认 high）——0.27 单值 on 形态已废弃；session/set_model 参数名 `modelId`（目录全名如 `kimi-code/k3`），成功后推 config_option_update 全量刷新。详见 docs/acp-research.md ⑤
+6. ✅ **已确认**（探测5 项⑧ + 补测）：0.29.0 图文 prompt 正常（end_turn + 口令回显），0.27 崩溃 0xC0000409 **已修复**——P1-8 走"已修复"路径（解除兜底、补验收用例）。详见 docs/acp-research.md ⑧
+7. 🔍 Steer：turn 进行中发 session/prompt 是否被接受（文档无 ACP steer 通道描述）。**旁证**（探测5）：turn 运行期间发 prompt 被拒 `-32600 turn.agent_busy`——同会话 steer 大概率被拒，待专项实测。
 8. 📄 数据路径页目录树缺项：`~/.kimi-code/server/` 与 `server.token`（kimi 命令页有述）之外，还缺 `themes/`、用户级 `agents/`、`updates/`（自动更新状态）、`credentials/mcp/`（MCP OAuth 凭据）——多处文档不一致，以实测为准。
 9. 📄 Web UI 深链参数（旧版 `?action=create-in-dir&workDir=`）在新版是否保留（快照全文零命中已确认，只能实测）；新版 Web UI 的预算进度条数据源。
 10. 🔍 审批 always 语义四个 scope（turn-override/session-runtime/project/user）各自的具体落盘位置与生命周期。
 11. 🔍 是否存在 REST 用量查询接口（文档仅有 TUI `/usage` 与控制台，v0.23.4 `/usage` 开始显示加油包余额；openapi.json 实抓可证）。
 12. 📄→**持续监控项**：VS Code 扩展面向 TS CLI 用户开放的时间表——2026-07-27 线上复核仍未开放（线上构建 hash 与本地快照一致，同一次部署），窗口期判断成立；转为每次发布前复查的监控项，不再阻塞规划。
 13. ✅ **已确认**：`k3-256k` 确实进入 CLI 模型目录（模型配置页列出，含"模型上新推荐"块；仅 256K 上下文 + 仅图片多模态）。
-14. 🔍 Skills/Hooks/插件在 ACP 会话中是否生效（文档仅确认 MCP 转发与 available_commands_update 推送）——探测5 可附带验证 hooks 触发。
+14. ✅ **部分确认**（探测5 项⑩⑭）：hooks 在 ACP 会话**触发**（UserPromptSubmit 实测落盘，payload 的 prompt 字段为 ACP 内容块数组——hook 脚本作者需注意形态差异）；skills 经 available_commands_update 动态下发（sub-skill.* 族在列）；插件命令（`<plugin>:<cmd>`）未在清单观察到（本机无插件，未覆盖）。详见 docs/acp-research.md ⑩⑭
 15. 📄 `kimi web` 无客户端连接时的存活行为：`--keep-alive` 未继承到新命令树（旧版空闲超时随 v0.28.0 消失）；`--dangerous-bypass-auth` **已确认新版 `kimi web` 仍支持**（选项表在列，附彻底关闭鉴权的风险警告）；新文档对存活策略仅写明"一直挂在终端，直到收到 SIGINT/SIGTERM 时干净退出"——是否仍有空闲超时需实测。
-16. 🔍 `session/list` 字段形态（title/updatedAt/cursor）：官方文档页未展开，出处为 ACP 规范——探测5 项③ 实测为准。
-17. 🔍 新版 agent 是否另发 ACP 规范 `current_mode_update` 通知（官方文档 session/update 行仅列 `config_option_update`）——探测5 项⑫。
+16. ✅ **已确认**（探测5 项③）：字段 sessionId/cwd/title/updatedAt；单页全量返回（51→60 条未触发 nextCursor，分页阈值未知）。详见 docs/acp-research.md ③
+17. ✅ **已确认**（探测5 项⑫）：**不发** current_mode_update——mode 切换仅推 config_option_update（含更新后完整 configOptions 数组，客户端应整体替换）。详见 docs/acp-research.md ⑫
 18. 🔍 rotate-token 行为实测（`kimi web rotate-token` 后旧 token 立即失效、运行中实例自动换用、令牌 7 天保留）——2026-07-27 M1 回归时因桌面/CLI 实例活跃使用中经用户决定跳过；`#token=` 片段注入链路已实证可用（见 docs/regression-0.29.md ⑩）。
 19. 📄 REST 建会话配置落位缺陷（0.29.0 实测）：`POST /api/v1/sessions` 的 `agent_config`（model/permission_mode/plan_mode）不落位；`POST /profile` 仅落 permission/plan；model 须随 `POST /prompts` 顶层字段提交，否则 turn 报 `model.not_configured`；全局 `default_model` 不被 REST 会话继承——P0-4 启动器走 REST 建/恢复会话时必须按此实测结论实现（详见 docs/regression-0.29.md 附带发现）。
+20. 🔍 **0.29.0 mode 切换状态错乱 bug**（探测5 项⑪ 新发现）：新会话 configOptions 明示 `mode=default`，`session/set_mode(plan)` 与 `set_config_option(mode=plan)` 均报 -32603 "Already in plan mode"，但随后 plan prompt 的思考链证实 plan 模式实际已激活——**报错文案不可信**。疑似上游 bug，建议反馈官方；客户端策略：以 config_option_update 推送的 currentValue 为唯一事实源。后续版本复测。
+21. 📄 **authenticate 参数名文档笔误**（探测5 项④ 新发现）：官方 ACP 文档写 `method_id='login'`，实测必须 camelCase `methodId`（snake_case 报 -32602 "expected string, received undefined"）；'login' 为 terminal 型认证（authMethods 的 `_meta.terminal-auth` 给出 `kimi login` 完整命令行与 env），authenticate 仅做校验（token 缺失 -32000、未知 methodId -32602）。
+22. 🔍 **plan sessionUpdate 推送形态未捕获**（探测5 项⑦）：0.29.0 mode 切换 bug 阻断干净进入 plan 流程；ExitPlanMode 审批三次到达（三选项 plan_approve/plan_revise/plan_reject_and_exit，计划全文经 toolCall.content 下发——**与官方交互文档四选项不符，以实测为准**）佐证 plan 流程存在，plan 推送形态待上游修复 mode bug 后补测。
 
 ---
 

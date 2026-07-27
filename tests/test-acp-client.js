@@ -83,7 +83,12 @@ function testEncodeRoundtrip() {
 
 // ---------- 3. 回环假 ACP 服务端端到端 ----------
 // 假服务端：按行读 stdin 的 JSON-RPC，initialize/session/new 直接回结果；
-// session/load 校验参数形态后回 configOptions（sessionId 为 'missing-session' 回 -32603）；
+// session/load 校验参数形态后回 configOptions（'missing-session' 回 -32603，'need-auth' 回 -32000）；
+// session/resume 推 available_commands_update 后回 configOptions（第五次探测实测形态）；
+// session/list 无 cursor 回 2 条+nextCursor='p2'，cursor='p2' 回 1 条无 nextCursor；
+// session/set_model 校验 modelId 参数名后回 {} 并推 config_option_update；
+// session/set_mode 校验 modeId 参数名（'plan' 回 -32603 'Already in plan mode'，复刻 0.29.0 误报）；
+// authenticate 校验 camelCase methodId（snake_case method_id 直接 fail；'bogus' 回 -32602）；
 // session/set_config_option 校验参数形态后回更新后 configOptions（mode->plan 回 -32603）；
 // session/cancel（无 id 通知）回推一条 cancel_seen 的 session/update。
 // session/prompt 先推 3 条 session/update，再按 prompt 文本分发权限场景：
@@ -123,10 +128,55 @@ process.stdin.on('data', (chunk) => {
     } else if (msg.method === 'session/load') {
       const p = msg.params || {};
       if (typeof p.sessionId !== 'string' || typeof p.cwd !== 'string' || !Array.isArray(p.mcpServers)) fail('session/load 参数形态不对: ' + JSON.stringify(msg));
-      if (p.sessionId === 'missing-session') {
+      if (p.sessionId === 'need-auth') {
+        // 第五次探测实测：未登录会话操作回 -32000 Authentication required
+        send({ jsonrpc: '2.0', id: msg.id, error: { code: -32000, message: 'Authentication required' } });
+      } else if (p.sessionId === 'missing-session') {
         send({ jsonrpc: '2.0', id: msg.id, error: { code: -32603, message: 'Internal error', data: { details: 'Session not found' } } });
       } else {
         send({ jsonrpc: '2.0', id: msg.id, result: { configOptions: [{ type: 'select', id: 'model', name: 'Model', category: 'model', currentValue: 'kimi-code/k3', options: [{ value: 'kimi-code/k3', name: 'K3' }] }] } });
+      }
+    } else if (msg.method === 'session/resume') {
+      const p = msg.params || {};
+      if (typeof p.sessionId !== 'string' || typeof p.cwd !== 'string' || !Array.isArray(p.mcpServers)) fail('session/resume 参数形态不对: ' + JSON.stringify(msg));
+      // 第五次探测实测：resume 仅推 available_commands_update，响应仅含 configOptions
+      send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: p.sessionId, update: { sessionUpdate: 'available_commands_update', availableCommands: [{ name: 'compact', description: 'Compact context' }] } } });
+      send({ jsonrpc: '2.0', id: msg.id, result: { configOptions: [{ type: 'select', id: 'mode', name: 'Mode', category: 'mode', currentValue: 'default', options: [] }] } });
+    } else if (msg.method === 'session/list') {
+      const p = msg.params || {};
+      if (p.cursor !== undefined && typeof p.cursor !== 'string') fail('session/list cursor 形态不对: ' + JSON.stringify(msg));
+      if (p.cursor === 'p2') {
+        send({ jsonrpc: '2.0', id: msg.id, result: { sessions: [{ sessionId: 's3', cwd: '/c', title: '第三页会话', updatedAt: '2026-07-27T03:00:00Z' }] } });
+      } else {
+        send({ jsonrpc: '2.0', id: msg.id, result: { sessions: [
+          { sessionId: 's1', cwd: '/a', title: '会话一', updatedAt: '2026-07-27T01:00:00Z' },
+          { sessionId: 's2', cwd: '/b', title: '会话二', updatedAt: '2026-07-27T02:00:00Z' },
+        ], nextCursor: 'p2' } });
+      }
+    } else if (msg.method === 'session/set_model') {
+      const p = msg.params || {};
+      // 第五次探测实测：参数名 modelId（camelCase）；result {} + config_option_update 推送
+      if (typeof p.sessionId !== 'string' || typeof p.modelId !== 'string') fail('session/set_model 参数形态不对（参数名必须是 modelId）: ' + JSON.stringify(msg));
+      send({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: p.sessionId, update: { sessionUpdate: 'config_option_update', configOptions: [{ type: 'select', id: 'model', currentValue: p.modelId, options: [] }] } } });
+      send({ jsonrpc: '2.0', id: msg.id, result: {} });
+    } else if (msg.method === 'session/set_mode') {
+      const p = msg.params || {};
+      // 第五次探测实测：参数名 modeId；0.29.0 切 plan 误报 "Already in plan mode"（-32603）
+      if (typeof p.sessionId !== 'string' || typeof p.modeId !== 'string') fail('session/set_mode 参数形态不对（参数名必须是 modeId）: ' + JSON.stringify(msg));
+      if (p.modeId === 'plan') {
+        send({ jsonrpc: '2.0', id: msg.id, error: { code: -32603, message: 'Internal error', data: { details: 'Already in plan mode' } } });
+      } else {
+        send({ jsonrpc: '2.0', id: msg.id, result: {} });
+      }
+    } else if (msg.method === 'authenticate') {
+      const p = msg.params || {};
+      // 第五次探测实测：参数名 camelCase methodId（snake_case method_id 系文档笔误，收到即 fail）
+      if (p.method_id !== undefined) fail('authenticate 收到 snake_case method_id（必须 camelCase methodId）: ' + JSON.stringify(msg));
+      if (typeof p.methodId !== 'string') fail('authenticate 参数形态不对: ' + JSON.stringify(msg));
+      if (p.methodId === 'bogus') {
+        send({ jsonrpc: '2.0', id: msg.id, error: { code: -32602, message: 'Invalid params: Unknown auth method: bogus', data: { methodId: 'bogus' } } });
+      } else {
+        send({ jsonrpc: '2.0', id: msg.id, result: {} });
       }
     } else if (msg.method === 'session/set_config_option') {
       const p = msg.params || {};
@@ -391,6 +441,99 @@ async function testCancel() {
   console.log('✅ cancel() 回环：通知送达假服务端并收到 cancel_seen 回推');
 }
 
+// ---------- 6.6 第五次探测补齐：listSessions / resumeSession / setModel / setMode / authenticate+authRequired ----------
+async function testListSessions() {
+  const client = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  await client.start();
+  // 首页：2 条 + nextCursor='p2'（字段形态按第五次探测实测：sessionId/cwd/title/updatedAt）
+  const page1 = await client.listSessions();
+  assert.strictEqual(page1.sessions.length, 2);
+  assert.deepStrictEqual(page1.sessions.map((s) => s.sessionId), ['s1', 's2']);
+  assert.strictEqual(page1.sessions[0].title, '会话一');
+  assert.strictEqual(page1.nextCursor, 'p2');
+  // 翻页：cursor 透传，1 条且无 nextCursor（末页归一化为 null）
+  const page2 = await client.listSessions('p2');
+  assert.strictEqual(page2.sessions.length, 1);
+  assert.strictEqual(page2.sessions[0].sessionId, 's3');
+  assert.strictEqual(page2.nextCursor, null);
+  client.dispose('listSessions 测试结束');
+  console.log('✅ listSessions() 首页字段/分页游标透传/末页 nextCursor 归一化 null');
+}
+
+async function testResumeSession() {
+  const client = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  const updates = [];
+  client.on('update', (u) => updates.push(u));
+  await client.start();
+  // 非法入参拒绝（不发请求）
+  await assert.rejects(client.resumeSession(''), /sessionId/);
+  await assert.rejects(client.resumeSession(123), /sessionId/);
+  // 成功：resolve result（仅含 configOptions），sessionId 用入参设置
+  const result = await client.resumeSession('old-session');
+  assert.ok(Array.isArray(result.configOptions));
+  assert.strictEqual(client.sessionId, 'old-session');
+  // 实测形态：resume 推 available_commands_update（等它到达）
+  for (let i = 0; i < 100 && !updates.some((u) => u && u.sessionUpdate === 'available_commands_update'); i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.ok(updates.some((u) => u && u.sessionUpdate === 'available_commands_update'));
+  client.dispose('resumeSession 测试结束');
+  console.log('✅ resumeSession() 参数形态 / 成功置 sessionId / 推 available_commands_update / 非法入参拒绝');
+}
+
+async function testSetModelSetMode() {
+  const client = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  const updates = [];
+  client.on('update', (u) => updates.push(u));
+  await client.start();
+  // 无会话时拒绝
+  await assert.rejects(client.setModel('kimi-code/k3'), /尚未建立会话/);
+  await assert.rejects(client.setMode('default'), /尚未建立会话/);
+  await client.newSession();
+  // 非法入参拒绝
+  await assert.rejects(client.setModel(''), /modelId/);
+  await assert.rejects(client.setModel(1), /modelId/);
+  await assert.rejects(client.setMode(''), /modeId/);
+  await assert.rejects(client.setMode('x'.repeat(201)), /modeId/);
+  // setModel 成功：result {}，随后收到 config_option_update 推送（参数名 modelId 由假服务端 fail() 断言）
+  const r1 = await client.setModel('kimi-code/k3');
+  assert.deepStrictEqual(r1, {});
+  for (let i = 0; i < 100 && !updates.some((u) => u && u.sessionUpdate === 'config_option_update'); i++) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.ok(updates.some((u) => u && u.sessionUpdate === 'config_option_update'));
+  // setMode('plan')：复刻 0.29.0 误报形态（-32603 Internal error，details 含 'Already in plan mode'）上抛，err.code 透传
+  await assert.rejects(client.setMode('plan'), (e) => e.code === -32603 && /Internal error/.test(e.message));
+  // setMode('default') 成功（参数名 modeId 由假服务端 fail() 断言）
+  const r2 = await client.setMode('default');
+  assert.deepStrictEqual(r2, {});
+  client.dispose('setModel/setMode 测试结束');
+  console.log('✅ setModel()/setMode() 参数形态 / modelId/modeId 参数名 / -32603 误报上抛 / 无会话与非法入参拒绝');
+}
+
+async function testAuthenticateAuthRequired() {
+  const client = new AcpClient({ cliPath: process.execPath, cwd: tmpDir, logFn: () => {} });
+  const authEvents = [];
+  client.on('authRequired', (info) => authEvents.push(info));
+  await client.start();
+  // -32000：loadSession('need-auth') reject 且补发 authRequired 事件（含触发方法与原始错误）
+  await assert.rejects(client.loadSession('need-auth'), (e) => e.code === -32000 && /Authentication required/.test(e.message));
+  assert.strictEqual(authEvents.length, 1);
+  assert.strictEqual(authEvents[0].method, 'session/load');
+  assert.strictEqual(authEvents[0].error.code, -32000);
+  // authenticate('login') 成功（camelCase methodId 由假服务端 fail() 断言）
+  const r = await client.authenticate('login');
+  assert.deepStrictEqual(r, {});
+  // authenticate('bogus') → -32602（不触发 authRequired）
+  await assert.rejects(client.authenticate('bogus'), (e) => e.code === -32602 && /Unknown auth method/.test(e.message));
+  assert.strictEqual(authEvents.length, 1);
+  // 非法入参拒绝
+  await assert.rejects(client.authenticate(''), /methodId/);
+  await assert.rejects(client.authenticate(1), /methodId/);
+  client.dispose('authenticate/authRequired 测试结束');
+  console.log('✅ authenticate() methodId 参数名 / bogus -32602 / -32000 补发 authRequired 事件且不重复触发');
+}
+
 // ---------- 7. 可选真实 CLI 冒烟（KIMI_ACP_SMOKE=1 才跑） ----------
 async function testSmoke() {
   if (process.env.KIMI_ACP_SMOKE !== '1') {
@@ -423,6 +566,26 @@ async function testSmoke() {
     assert.strictEqual(result.stopReason, 'end_turn');
     assert.ok(agentText.includes('ACP-CLIENT-OK'), `agent 文本未含口令: ${agentText.slice(0, 200)}`);
     console.log('✅ 真实 CLI 冒烟（start → newSession → prompt，口令回显）');
+    // 第五次探测补齐方法的真实冒烟：listSessions/resumeSession/setModel/setMode
+    const list = await client.listSessions();
+    assert.ok(Array.isArray(list.sessions), 'listSessions.sessions 必须是数组');
+    assert.ok(list.sessions.length >= 1, '真实环境至少存在刚创建的会话');
+    assert.ok(list.sessions.every((s) => typeof s.sessionId === 'string' && typeof s.cwd === 'string'), '会话条目缺 sessionId/cwd 字段');
+    console.log(`✅ 真实 CLI 冒烟：listSessions 返回 ${list.sessions.length} 条（nextCursor=${list.nextCursor}）`);
+    const newSid = client.sessionId;
+    const resumeResult = await client.resumeSession(newSid);
+    assert.ok(resumeResult && Array.isArray(resumeResult.configOptions), 'resumeSession 应返回 configOptions 数组');
+    assert.strictEqual(client.sessionId, newSid);
+    console.log('✅ 真实 CLI 冒烟：resumeSession 恢复当前会话（configOptions 回显）');
+    await client.setModel('kimi-code/k3');
+    console.log('✅ 真实 CLI 冒烟：setModel(kimi-code/k3) 成功');
+    try {
+      await client.setMode('default');
+      console.log('✅ 真实 CLI 冒烟：setMode(default) 成功');
+    } catch (e) {
+      // 0.29.0 mode 切换状态错乱误报（第五次探测实测）：不视为失败，记录即可
+      console.log(`⚠️ 真实 CLI 冒烟：setMode(default) 返回错误（0.29.0 已知误报，容忍）: ${e.message}`);
+    }
   } finally {
     client.dispose('冒烟结束');
     try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* ignore */ }
@@ -451,6 +614,10 @@ async function run() {
     await testLoadSession();
     await testSetConfigOption();
     await testCancel();
+    await testListSessions();
+    await testResumeSession();
+    await testSetModelSetMode();
+    await testAuthenticateAuthRequired();
   } finally {
     process.chdir(oldCwd);
   }
