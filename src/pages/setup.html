@@ -105,6 +105,19 @@
     padding: 1px 5px;
     font-size: 11px;
   }
+  .hint.warn { color: var(--color-error); }
+  .cfg-migrated {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
+    background: color-mix(in srgb, var(--color-error) 8%, transparent);
+    color: var(--color-error);
+    border-radius: var(--radius-card);
+    font-size: 12px;
+    line-height: 1.6;
+    display: none;
+  }
+  .cfg-migrated.show { display: block; }
   .hidden { display: none; }
   /* 按钮统一走官方 .btn 体系，这里只保留布局与适度 hover */
   .btn-block {
@@ -597,11 +610,47 @@
           <input type="checkbox" id="cfgTelemetry" />
         </div>
       </div>
-      <div class="section-title">思考与循环控制</div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">合并全部可用 skills</div>
+            <div class="switch-desc">merge_all_available_skills</div>
+          </div>
+          <input type="checkbox" id="cfgMergeAllSkills" />
+        </div>
+      </div>
+      <!-- 迁移提示条 -->
+      <div class="cfg-migrated" id="cfgMigratedHint"></div>
+      <div class="section-title">思考</div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">思考（thinking.enabled）</div>
+            <div class="switch-desc">新会话是否默认开启 Thinking</div>
+          </div>
+          <input type="checkbox" id="cfgThinkingEnabled" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label>思考档位（thinking.effort）</label>
+        <select class="input" id="cfgThinkingEffort">
+          <option value="">（不设置）</option>
+          <option value="low">low</option>
+          <option value="high">high</option>
+          <option value="max">max</option>
+        </select>
+        <div class="hint">K3 专属映射档位；非法值将导致 HTTP 400。切换档位会使上下文缓存失效。</div>
+      </div>
+      <div class="form-row">
+        <label>保留思考透传（thinking.keep）</label>
+        <input type="text" class="input" id="cfgThinkingKeep" placeholder="all" spellcheck="false" />
+      </div>
       <div class="form-row">
         <label>思考预算（thinking.budget）</label>
         <input type="text" class="input" id="cfgThinkingBudget" placeholder="例如 1024" spellcheck="false" />
+        <div class="hint">官方文档无此键，仅兼容保留。</div>
       </div>
+      <div class="section-title">循环控制</div>
       <div class="form-row">
         <label>单次最大迭代数（loop_control.max_iterations）</label>
         <input type="text" class="input" id="cfgMaxIterations" placeholder="例如 50" spellcheck="false" />
@@ -610,6 +659,123 @@
         <label>最大工具调用深度（loop_control.max_tool_depth）</label>
         <input type="text" class="input" id="cfgMaxToolDepth" placeholder="例如 10" spellcheck="false" />
       </div>
+      <div class="form-row">
+        <label>单步最大重试次数（loop_control.max_retries_per_step）</label>
+        <input type="text" class="input" id="cfgMaxRetriesPerStep" placeholder="10" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>预留上下文（loop_control.reserved_context_size）</label>
+        <input type="text" class="input" id="cfgReservedContextSize" placeholder="例如 50000" spellcheck="false" />
+      </div>
+      <div class="hint">可被环境变量 <code>KIMI_LOOP_MAX_STEPS_PER_TURN</code> / <code>KIMI_LOOP_MAX_RETRIES_PER_STEP</code> 覆盖。</div>
+      <div class="section-title">工具开关</div>
+      <div class="form-row">
+        <label>允许列表（tools.enabled）</label>
+        <textarea class="input" id="cfgToolsEnabled" placeholder="Bash&#10;Read&#10;Grep" spellcheck="false" rows="3"></textarea>
+      </div>
+      <div class="form-row">
+        <label>禁止列表（tools.disabled）</label>
+        <textarea class="input" id="cfgToolsDisabled" placeholder="EnterPlanMode&#10;mcp__github__*" spellcheck="false" rows="3"></textarea>
+      </div>
+      <div class="hint" id="cfgToolsHint">工具名区分大小写；按顺序匹配。</div>
+      <div class="section-title">图片</div>
+      <div class="form-row">
+        <label>最长边上限（image.max_edge_px）</label>
+        <input type="text" class="input" id="cfgImageMaxEdgePx" placeholder="2000" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>单图字节预算（image.read_byte_budget）</label>
+        <input type="text" class="input" id="cfgImageReadByteBudget" placeholder="262144" spellcheck="false" />
+      </div>
+      <div class="hint">可被 <code>KIMI_IMAGE_MAX_EDGE_PX</code> / <code>KIMI_IMAGE_READ_BYTE_BUDGET</code> 覆盖。</div>
+      <div class="section-title">子代理</div>
+      <div class="form-row">
+        <label>超时（subagent.timeout_ms，毫秒）</label>
+        <input type="text" class="input" id="cfgSubagentTimeoutMs" placeholder="7200000" spellcheck="false" />
+      </div>
+      <div class="hint">可被 <code>KIMI_SUBAGENT_TIMEOUT_MS</code> 覆盖。</div>
+      <div class="section-title">后台任务</div>
+      <div class="form-row">
+        <label>最大并发数（background.max_running_tasks）</label>
+        <input type="text" class="input" id="cfgBgMaxRunningTasks" placeholder="例如 4" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">会话关闭后保持运行（background.keep_alive_on_exit）</div>
+            <div class="switch-desc">默认 false，会话关闭时停止后台任务</div>
+          </div>
+          <input type="checkbox" id="cfgBgKeepAliveOnExit" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label>强制停止宽限期（background.kill_grace_period_ms，毫秒）</label>
+        <input type="text" class="input" id="cfgBgKillGracePeriodMs" placeholder="5000" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <div class="switch">
+          <div>
+            <div class="switch-label">超时转后台（background.bash_auto_background_on_timeout）</div>
+            <div class="switch-desc">默认 true，Bash 超时自动转为后台任务</div>
+          </div>
+          <input type="checkbox" id="cfgBgBashAutoBgOnTimeout" />
+        </div>
+      </div>
+      <div class="form-row">
+        <label>后台 Bash 默认超时（background.bash_task_timeout_s，秒）</label>
+        <input type="text" class="input" id="cfgBgBashTaskTimeoutS" placeholder="600" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>Print 后台模式（background.print_background_mode）</label>
+        <select class="input" id="cfgBgPrintBgMode">
+          <option value="">（不设置）</option>
+          <option value="exit">exit</option>
+          <option value="drain">drain</option>
+          <option value="steer">steer</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Print 等待上限（background.print_wait_ceiling_s，秒）</label>
+        <input type="text" class="input" id="cfgBgPrintWaitCeilingS" placeholder="315360000" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>Print 最大转向数（background.print_max_turns）</label>
+        <input type="text" class="input" id="cfgBgPrintMaxTurns" placeholder="100000" spellcheck="false" />
+      </div>
+      <div class="hint">可被 <code>KIMI_CODE_BACKGROUND_KEEP_ALIVE_ON_EXIT</code> / <code>KIMI_CODE_BACKGROUND_MAX_RUNNING_TASKS</code> 覆盖。</div>
+      <div class="section-title">服务</div>
+      <div class="form-row">
+        <label>网页搜索 Base URL（services.moonshot_search.base_url）</label>
+        <input type="text" class="input" id="cfgServicesSearchBaseUrl" placeholder="https://api.moonshot.cn/v1/search" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>网页搜索 API Key（services.moonshot_search.api_key）</label>
+        <input type="password" class="input" id="cfgServicesSearchApiKey" placeholder="sk-…" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>网页抓取 Base URL（services.moonshot_fetch.base_url）</label>
+        <input type="text" class="input" id="cfgServicesFetchBaseUrl" placeholder="https://api.moonshot.cn/v1/fetch" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>网页抓取 API Key（services.moonshot_fetch.api_key）</label>
+        <input type="password" class="input" id="cfgServicesFetchApiKey" placeholder="sk-…" spellcheck="false" />
+      </div>
+      <div class="hint">oauth / custom_headers 子表请手写 TOML；可被 <code>KIMI_WEB_SEARCH_*</code> / <code>KIMI_WEB_FETCH_*</code> 环境变量覆盖（env 端点不发送文件内凭据）。</div>
+      <div class="section-title">次主力模型（实验）</div>
+      <div class="form-row">
+        <label>模型 ID（secondary_model.model）</label>
+        <input type="text" class="input" id="cfgSecondaryModel" placeholder="kimi-code/k3" spellcheck="false" />
+      </div>
+      <div class="form-row">
+        <label>默认档位（secondary_model.default_effort）</label>
+        <select class="input" id="cfgSecondaryEffort">
+          <option value="">（不设置）</option>
+          <option value="low">low</option>
+          <option value="high">high</option>
+          <option value="max">max</option>
+        </select>
+      </div>
+      <div class="hint warn">实验性：需环境变量 <code>KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL=1</code>（桌面 kimi web 场景必须注入）；可被 <code>KIMI_SECONDARY_MODEL</code> / <code>KIMI_SECONDARY_EFFORT</code> 覆盖。</div>
       <button class="btn btn-primary btn-block" id="saveConfig">保存 config.toml</button>
       <div class="ok" id="cfgOk"></div>
       <div class="err" id="cfgErr"></div>
@@ -1273,9 +1439,36 @@
     const cfgPermissionMode = $('cfgPermissionMode');
     const cfgPlanMode = $('cfgPlanMode');
     const cfgTelemetry = $('cfgTelemetry');
+    const cfgMergeAllSkills = $('cfgMergeAllSkills');
+    const cfgThinkingEnabled = $('cfgThinkingEnabled');
+    const cfgThinkingEffort = $('cfgThinkingEffort');
+    const cfgThinkingKeep = $('cfgThinkingKeep');
     const cfgThinkingBudget = $('cfgThinkingBudget');
     const cfgMaxIterations = $('cfgMaxIterations');
     const cfgMaxToolDepth = $('cfgMaxToolDepth');
+    const cfgMaxRetriesPerStep = $('cfgMaxRetriesPerStep');
+    const cfgReservedContextSize = $('cfgReservedContextSize');
+    const cfgToolsEnabled = $('cfgToolsEnabled');
+    const cfgToolsDisabled = $('cfgToolsDisabled');
+    const cfgToolsHint = $('cfgToolsHint');
+    const cfgImageMaxEdgePx = $('cfgImageMaxEdgePx');
+    const cfgImageReadByteBudget = $('cfgImageReadByteBudget');
+    const cfgSubagentTimeoutMs = $('cfgSubagentTimeoutMs');
+    const cfgBgMaxRunningTasks = $('cfgBgMaxRunningTasks');
+    const cfgBgKeepAliveOnExit = $('cfgBgKeepAliveOnExit');
+    const cfgBgKillGracePeriodMs = $('cfgBgKillGracePeriodMs');
+    const cfgBgBashAutoBgOnTimeout = $('cfgBgBashAutoBgOnTimeout');
+    const cfgBgBashTaskTimeoutS = $('cfgBgBashTaskTimeoutS');
+    const cfgBgPrintBgMode = $('cfgBgPrintBgMode');
+    const cfgBgPrintWaitCeilingS = $('cfgBgPrintWaitCeilingS');
+    const cfgBgPrintMaxTurns = $('cfgBgPrintMaxTurns');
+    const cfgServicesSearchBaseUrl = $('cfgServicesSearchBaseUrl');
+    const cfgServicesSearchApiKey = $('cfgServicesSearchApiKey');
+    const cfgServicesFetchBaseUrl = $('cfgServicesFetchBaseUrl');
+    const cfgServicesFetchApiKey = $('cfgServicesFetchApiKey');
+    const cfgSecondaryModel = $('cfgSecondaryModel');
+    const cfgSecondaryEffort = $('cfgSecondaryEffort');
+    const cfgMigratedHint = $('cfgMigratedHint');
     const cfgOk = $('cfgOk');
     const cfgErr = $('cfgErr');
     let currentConfigData = {};
@@ -1292,6 +1485,37 @@
       return v !== '' && !isNaN(n) && isFinite(n) ? n : null;
     }
 
+    function validateTools() {
+      const warns = [];
+      const lines = [...new Set([
+        ...cfgToolsEnabled.value.split('\n'),
+        ...cfgToolsDisabled.value.split('\n'),
+      ])];
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t) continue;
+        if (!t.startsWith('mcp__') && /[*?[\]{}]/.test(t)) {
+          warns.push('通配符仅 mcp__ 前缀工具可用：' + t);
+        }
+        if (t.startsWith('mcp__')) {
+          const parts = t.split('__');
+          if (parts.length < 3 || !parts[2]) {
+            warns.push('mcp 工具需完整三段式 mcp__服务__工具：' + t);
+          }
+        }
+      }
+      if (warns.length > 0) {
+        cfgToolsHint.textContent = '⚠ ' + warns.join('；');
+        cfgToolsHint.style.color = 'var(--color-error)';
+      } else {
+        cfgToolsHint.textContent = '工具名区分大小写；按顺序匹配。';
+        cfgToolsHint.style.color = '';
+      }
+    }
+
+    cfgToolsEnabled.addEventListener('input', validateTools);
+    cfgToolsDisabled.addEventListener('input', validateTools);
+
     async function loadConfigToml() {
       if (typeof window.kimiDesktop.loadConfigToml !== 'function') return;
       try {
@@ -1300,15 +1524,47 @@
           setFeedback(cfgOk, cfgErr, 'err', '读取配置失败：' + (r.error || '未知错误'));
           return;
         }
+        // 迁移提示条
+        if (r.migrated && r.migrated.length > 0) {
+          cfgMigratedHint.textContent = '旧配置键已自动迁移：' + r.migrated.join('、');
+          cfgMigratedHint.classList.add('show');
+        } else {
+          cfgMigratedHint.classList.remove('show');
+        }
         currentConfigData = r.data || {};
         const d = currentConfigData;
         cfgDefaultModel.value = d.default_model || '';
         cfgPermissionMode.value = d.default_permission_mode || 'manual';
         cfgPlanMode.value = String(d.default_plan_mode === false ? 'false' : 'true');
         cfgTelemetry.checked = !!d.telemetry;
+        cfgMergeAllSkills.checked = d.merge_all_available_skills !== false;
+        cfgThinkingEnabled.checked = !!(d.thinking && d.thinking.enabled !== false);
+        cfgThinkingEffort.value = (d.thinking && d.thinking.effort) || '';
+        cfgThinkingKeep.value = (d.thinking && d.thinking.keep != null) ? String(d.thinking.keep) : '';
         cfgThinkingBudget.value = (d.thinking && d.thinking.budget != null) ? String(d.thinking.budget) : '';
         cfgMaxIterations.value = (d.loop_control && d.loop_control.max_iterations != null) ? String(d.loop_control.max_iterations) : '';
         cfgMaxToolDepth.value = (d.loop_control && d.loop_control.max_tool_depth != null) ? String(d.loop_control.max_tool_depth) : '';
+        cfgMaxRetriesPerStep.value = (d.loop_control && d.loop_control.max_retries_per_step != null) ? String(d.loop_control.max_retries_per_step) : '';
+        cfgReservedContextSize.value = (d.loop_control && d.loop_control.reserved_context_size != null) ? String(d.loop_control.reserved_context_size) : '';
+        cfgToolsEnabled.value = (d.tools && d.tools.enabled && d.tools.enabled.length > 0) ? d.tools.enabled.join('\n') : '';
+        cfgToolsDisabled.value = (d.tools && d.tools.disabled && d.tools.disabled.length > 0) ? d.tools.disabled.join('\n') : '';
+        cfgImageMaxEdgePx.value = (d.image && d.image.max_edge_px != null) ? String(d.image.max_edge_px) : '';
+        cfgImageReadByteBudget.value = (d.image && d.image.read_byte_budget != null) ? String(d.image.read_byte_budget) : '';
+        cfgSubagentTimeoutMs.value = (d.subagent && d.subagent.timeout_ms != null) ? String(d.subagent.timeout_ms) : '';
+        cfgBgMaxRunningTasks.value = (d.background && d.background.max_running_tasks != null) ? String(d.background.max_running_tasks) : '';
+        cfgBgKeepAliveOnExit.checked = !!(d.background && d.background.keep_alive_on_exit);
+        cfgBgKillGracePeriodMs.value = (d.background && d.background.kill_grace_period_ms != null) ? String(d.background.kill_grace_period_ms) : '';
+        cfgBgBashAutoBgOnTimeout.checked = d.background && d.background.bash_auto_background_on_timeout !== false;
+        cfgBgBashTaskTimeoutS.value = (d.background && d.background.bash_task_timeout_s != null) ? String(d.background.bash_task_timeout_s) : '';
+        cfgBgPrintBgMode.value = (d.background && d.background.print_background_mode) || '';
+        cfgBgPrintWaitCeilingS.value = (d.background && d.background.print_wait_ceiling_s != null) ? String(d.background.print_wait_ceiling_s) : '';
+        cfgBgPrintMaxTurns.value = (d.background && d.background.print_max_turns != null) ? String(d.background.print_max_turns) : '';
+        cfgServicesSearchBaseUrl.value = (d.services && d.services.moonshot_search && d.services.moonshot_search.base_url) || '';
+        cfgServicesSearchApiKey.value = (d.services && d.services.moonshot_search && d.services.moonshot_search.api_key) || '';
+        cfgServicesFetchBaseUrl.value = (d.services && d.services.moonshot_fetch && d.services.moonshot_fetch.base_url) || '';
+        cfgServicesFetchApiKey.value = (d.services && d.services.moonshot_fetch && d.services.moonshot_fetch.api_key) || '';
+        cfgSecondaryModel.value = (d.secondary_model && d.secondary_model.model) || '';
+        cfgSecondaryEffort.value = (d.secondary_model && d.secondary_model.default_effort) || '';
       } catch (e) {
         setFeedback(cfgOk, cfgErr, 'err', '读取配置异常：' + e.message);
       }
@@ -1317,28 +1573,167 @@
     $('saveConfig').addEventListener('click', async () => {
       setFeedback(cfgOk, cfgErr, '', '');
       const payload = { ...currentConfigData };
+
+      // 顶层字段
       payload.default_model = cfgDefaultModel.value.trim() || undefined;
       payload.default_permission_mode = cfgPermissionMode.value;
       payload.default_plan_mode = cfgPlanMode.value === 'true';
       payload.telemetry = cfgTelemetry.checked;
+      payload.merge_all_available_skills = cfgMergeAllSkills.checked;
+
+      // thinking 表
+      const thinkingEnabled = cfgThinkingEnabled.checked;
+      const thinkingEffort = cfgThinkingEffort.value;
+      const thinkingKeep = cfgThinkingKeep.value.trim();
       const thinkingBudget = numOrNull(cfgThinkingBudget.value);
-      if (thinkingBudget != null) {
-        payload.thinking = { ...(payload.thinking || {}), budget: thinkingBudget };
-      } else if (payload.thinking) {
-        delete payload.thinking.budget;
+
+      const hasThinking = (thinkingEnabled !== true) || thinkingEffort || thinkingKeep || thinkingBudget != null;
+      if (hasThinking) {
+        payload.thinking = { ...(payload.thinking || {}) };
+        payload.thinking.enabled = thinkingEnabled;
+        if (thinkingEffort) payload.thinking.effort = thinkingEffort;
+        else delete payload.thinking.effort;
+        if (thinkingKeep) payload.thinking.keep = thinkingKeep;
+        else delete payload.thinking.keep;
+        if (thinkingBudget != null) payload.thinking.budget = thinkingBudget;
+        else delete payload.thinking.budget;
         if (Object.keys(payload.thinking).length === 0) delete payload.thinking;
+      } else if (payload.thinking) {
+        delete payload.thinking;
       }
+
+      // loop_control 表
       const maxIter = numOrNull(cfgMaxIterations.value);
       const maxDepth = numOrNull(cfgMaxToolDepth.value);
-      if (maxIter != null || maxDepth != null) {
+      const maxRetries = numOrNull(cfgMaxRetriesPerStep.value);
+      const reservedCtx = numOrNull(cfgReservedContextSize.value);
+      const hasLoop = maxIter != null || maxDepth != null || maxRetries != null || reservedCtx != null;
+      if (hasLoop) {
         payload.loop_control = { ...(payload.loop_control || {}) };
         if (maxIter != null) payload.loop_control.max_iterations = maxIter;
         else delete payload.loop_control.max_iterations;
         if (maxDepth != null) payload.loop_control.max_tool_depth = maxDepth;
         else delete payload.loop_control.max_tool_depth;
+        if (maxRetries != null) payload.loop_control.max_retries_per_step = maxRetries;
+        else delete payload.loop_control.max_retries_per_step;
+        if (reservedCtx != null) payload.loop_control.reserved_context_size = reservedCtx;
+        else delete payload.loop_control.reserved_context_size;
+        if (Object.keys(payload.loop_control).length === 0) delete payload.loop_control;
       } else if (payload.loop_control) {
         delete payload.loop_control;
       }
+
+      // tools 表
+      const toolsEnabled = cfgToolsEnabled.value.split('\n').map(s => s.trim()).filter(Boolean);
+      const toolsDisabled = cfgToolsDisabled.value.split('\n').map(s => s.trim()).filter(Boolean);
+      const hasTools = toolsEnabled.length > 0 || toolsDisabled.length > 0;
+      if (hasTools) {
+        payload.tools = {};
+        if (toolsEnabled.length > 0) payload.tools.enabled = toolsEnabled;
+        if (toolsDisabled.length > 0) payload.tools.disabled = toolsDisabled;
+      } else if (payload.tools) {
+        delete payload.tools;
+      }
+
+      // image 表
+      const imgMaxEdge = numOrNull(cfgImageMaxEdgePx.value);
+      const imgReadBudget = numOrNull(cfgImageReadByteBudget.value);
+      const hasImage = imgMaxEdge != null || imgReadBudget != null;
+      if (hasImage) {
+        payload.image = { ...(payload.image || {}) };
+        if (imgMaxEdge != null) payload.image.max_edge_px = imgMaxEdge;
+        else delete payload.image.max_edge_px;
+        if (imgReadBudget != null) payload.image.read_byte_budget = imgReadBudget;
+        else delete payload.image.read_byte_budget;
+        if (Object.keys(payload.image).length === 0) delete payload.image;
+      } else if (payload.image) {
+        delete payload.image;
+      }
+
+      // subagent 表
+      const subagentTimeout = numOrNull(cfgSubagentTimeoutMs.value);
+      if (subagentTimeout != null) {
+        payload.subagent = { ...(payload.subagent || {}), timeout_ms: subagentTimeout };
+      } else if (payload.subagent) {
+        delete payload.subagent.timeout_ms;
+        if (Object.keys(payload.subagent).length === 0) delete payload.subagent;
+      }
+
+      // background 表
+      const bgMaxTasks = numOrNull(cfgBgMaxRunningTasks.value);
+      const bgKeepAlive = cfgBgKeepAliveOnExit.checked;
+      const bgKillGrace = numOrNull(cfgBgKillGracePeriodMs.value);
+      const bgBashAutoBg = cfgBgBashAutoBgOnTimeout.checked;
+      const bgBashTimeout = numOrNull(cfgBgBashTaskTimeoutS.value);
+      const bgPrintMode = cfgBgPrintBgMode.value;
+      const bgPrintWait = numOrNull(cfgBgPrintWaitCeilingS.value);
+      const bgPrintTurns = numOrNull(cfgBgPrintMaxTurns.value);
+      const hasBg = bgMaxTasks != null || bgKeepAlive || bgKillGrace != null || bgBashAutoBg !== true || bgBashTimeout != null || bgPrintMode || bgPrintWait != null || bgPrintTurns != null;
+      if (hasBg) {
+        payload.background = { ...(payload.background || {}) };
+        if (bgMaxTasks != null) payload.background.max_running_tasks = bgMaxTasks;
+        else delete payload.background.max_running_tasks;
+        payload.background.keep_alive_on_exit = bgKeepAlive;
+        if (bgKillGrace != null) payload.background.kill_grace_period_ms = bgKillGrace;
+        else delete payload.background.kill_grace_period_ms;
+        if (bgBashAutoBg !== true) payload.background.bash_auto_background_on_timeout = bgBashAutoBg;
+        else delete payload.background.bash_auto_background_on_timeout;
+        if (bgBashTimeout != null) payload.background.bash_task_timeout_s = bgBashTimeout;
+        else delete payload.background.bash_task_timeout_s;
+        if (bgPrintMode) payload.background.print_background_mode = bgPrintMode;
+        else delete payload.background.print_background_mode;
+        if (bgPrintWait != null) payload.background.print_wait_ceiling_s = bgPrintWait;
+        else delete payload.background.print_wait_ceiling_s;
+        if (bgPrintTurns != null) payload.background.print_max_turns = bgPrintTurns;
+        else delete payload.background.print_max_turns;
+        if (Object.keys(payload.background).length === 0) delete payload.background;
+      } else if (payload.background) {
+        delete payload.background;
+      }
+
+      // services 表
+      const svcSearchBase = cfgServicesSearchBaseUrl.value.trim();
+      const svcSearchKey = cfgServicesSearchApiKey.value.trim();
+      const svcFetchBase = cfgServicesFetchBaseUrl.value.trim();
+      const svcFetchKey = cfgServicesFetchApiKey.value.trim();
+      const hasSvcs = svcSearchBase || svcSearchKey || svcFetchBase || svcFetchKey;
+      if (hasSvcs) {
+        if (svcSearchBase || svcSearchKey) {
+          payload.services = { ...(payload.services || {}), moonshot_search: { ...((payload.services && payload.services.moonshot_search) || {}) } };
+          if (svcSearchBase) payload.services.moonshot_search.base_url = svcSearchBase;
+          else delete payload.services.moonshot_search.base_url;
+          if (svcSearchKey) payload.services.moonshot_search.api_key = svcSearchKey;
+          else delete payload.services.moonshot_search.api_key;
+          if (Object.keys(payload.services.moonshot_search).length === 0) delete payload.services.moonshot_search;
+        }
+        if (svcFetchBase || svcFetchKey) {
+          payload.services = { ...(payload.services || {}), moonshot_fetch: { ...((payload.services && payload.services.moonshot_fetch) || {}) } };
+          if (svcFetchBase) payload.services.moonshot_fetch.base_url = svcFetchBase;
+          else delete payload.services.moonshot_fetch.base_url;
+          if (svcFetchKey) payload.services.moonshot_fetch.api_key = svcFetchKey;
+          else delete payload.services.moonshot_fetch.api_key;
+          if (Object.keys(payload.services.moonshot_fetch).length === 0) delete payload.services.moonshot_fetch;
+        }
+        if (payload.services && Object.keys(payload.services).length === 0) delete payload.services;
+      } else if (payload.services) {
+        delete payload.services;
+      }
+
+      // secondary_model 表
+      const secModel = cfgSecondaryModel.value.trim();
+      const secEffort = cfgSecondaryEffort.value;
+      const hasSec = secModel || secEffort;
+      if (hasSec) {
+        payload.secondary_model = { ...(payload.secondary_model || {}) };
+        if (secModel) payload.secondary_model.model = secModel;
+        else delete payload.secondary_model.model;
+        if (secEffort) payload.secondary_model.default_effort = secEffort;
+        else delete payload.secondary_model.default_effort;
+        if (Object.keys(payload.secondary_model).length === 0) delete payload.secondary_model;
+      } else if (payload.secondary_model) {
+        delete payload.secondary_model;
+      }
+
       try {
         const r = await window.kimiDesktop.saveConfigToml(payload);
         if (r.ok) {
