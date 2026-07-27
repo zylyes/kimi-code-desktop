@@ -1,4 +1,4 @@
-# Kimi Code Desktop 下一步规划（v1.1.0 → v1.3.0）
+﻿# Kimi Code Desktop 下一步规划（v1.1.0 → v1.3.0）
 
 > 本文档为纯规划文档（2026-07-27 制定，同日基于六路文档核对结果全量修订）。
 > 依据：Kimi Code 官方文档（https://www.kimi.com/code/docs/ ，全量 39 篇中文文档，CLI 文档基线 0.29.1 / 2026-07-24）、ACP 探测记录（scripts/acp-probe3.js、probe4.js，CLI 0.27.0 四次探测）、.qoder/repowiki 与代码现状（模块地图已逐文件核实）。
@@ -83,35 +83,37 @@
 
 ## 3. P0 任务清单（基线切换，全部进 v1.1.0）
 
-### P0-1 CLI 0.29.x 升级与全量真实回归
+> **进度标注（2026-07-27）**：P0 全部完成。P0-1 → M1（`1deb50d`）；P0-2/P0-3 → M2（`f616d36`）；P0-4 → M3（`6490d08`）；P0-5 → M3（`b54e300`/`90e897c`/`aa45dc0`）。
+
+### P0-1 CLI 0.29.x 升级与全量真实回归 ✅ 已完成（M1）
 - **用户价值**：所有已发布功能在新版 CLI 上确认可用；消除"文档说新版行为不同但没人实测过"的累积风险（0.25.0 安全修复 0.27.0 已包含，升级目的是追平 0.28+ 行为变更与后续修复）。
 - **实现要点**：开发机升级 CLI 到最新（install.ps1 重跑）；编写回归脚本核对表共 **14 组**：①启动、②登录、③WebView 加载、④WS 通知、⑤审批通道、⑥问答通道、⑦会话管理、⑧配置读写（原 8 组）；⑨`kimi login` 设备码非交互登录（RFC 8628、Ctrl-C 可取消、退出码 0/1、token 与 TUI `/login` 同一本地位置）；⑩令牌机制（`#token=` 片段注入、`kimi web rotate-token` 轮换后旧 token 立即失效且运行中实例自动换用、令牌 7 天保留）；⑪双 schema 端点（`/openapi.json` 与 `/asyncapi.json`）可用性；⑫Windows 前置检测（Git for Windows/`KIMI_SHELL_PATH`、Node.js ≥ 22.19.0、**Windows native 安装无法自动升级、仅打印手动更新命令**——升级管家行为边界）；⑬`kimi doctor tui [path]` 与 `kimi server kill`（清理 0.28 之前遗留后台服务）；⑭启动参数与代理（flag 冲突规则：`-p` 与 `--yolo/--auto/--plan` 互斥且固定 auto 权限、`-r`/`--resume`=`--session`；HTTP(S)_PROXY/ALL_PROXY/NO_PROXY 含 SOCKS、回环地址始终绕过）。版本适配层（`src/main/main.js:273` 版本检测）把 0.28+ 设为支持基线，0.27 及以下弹"CLI 过旧且不再维护"引导卡；清理 `--foreground` / `kimi server` 相关死路径（v0.28.0 破坏性变更；`kimi server kill` 清理旧版遗留的用途保留）；确认启动参数使用 `kimi web --no-open`（桌面端不需要 CLI 代开浏览器）。
 - **涉及文件**：`src/main/main.js`（版本检测 L273、子进程 L531、就绪探测 L708）、`src/main/cli-adapter.js`、`scripts/dev-verify.js`。
 - **验收标准**：14 组核对清单在 0.29.x 上全过或有明确结论（失败项转成 bug 或 §7 待核实项）；`npm start` 全流程（启动→就绪→加载→WS→审批/问答通知）通过。
 - **风险与依赖**：升级可能暴露行为差异（如 WS 事件字段变化）——这正是本任务的目的；依赖用户本机完成 OAuth 登录。无代码依赖，最先做。
 
-### P0-2 ACP 第五次探测（对新 CLI）
+### P0-2 ACP 第五次探测（对新 CLI） ✅ 已完成（M2，f616d36）
 - **用户价值**：后续所有 ACP 功能设计的实测依据，避免按 0.27 探测结论（已过时）做错误设计——例如 0.27 上 session/load 不回放历史，官方文档写新版会回放；0.29.0 ACP 新增思考强度选择。
 - **实现要点**：仿照 `scripts/acp-probe3.js`/`probe4.js` 写 `acp-probe5.js`，对新 CLI 实测 **14 项**：①session/load 加载**非活跃**历史会话是否回放（建 B 后 load A，并跨进程复测）；②session/resume 行为与 load 的确切差异；③session/list 字段与分页（title/updatedAt/cursor——字段出处为 ACP 规范，官方文档页未展开）；④未登录时 initialize/prompt 的 authRequired(-32000) 形态与 authenticate 的 method_id 参数；⑤thinking 在 ACP configOptions 的形态（effort 多档 vs 0.27 的单值 on）及 session/set_model 的 model 参数格式；⑥AskUserQuestion elicitation 经 request_permission 的字段形态（options 如何承载多题/multi_select/allow_other）；⑦plan/config_option_update/available_commands_update 推送形态（含下发范围——是否含 /goal、skill 命令、插件命令）；⑧图片输入是否修复（0.27 崩溃 0xC0000409，ACP 能力声明 image=true）；⑨发 `/goal` 文本观察 goal 相关 session/update 推送与预算进度通道；⑩hooks 在 ACP 会话中是否触发（附带验证）；⑪`session/set_mode` 与 `set_config_option({configId:'mode'})` 等价性实测（文档称走同一 dispatcher）；⑫新版是否另发 ACP 规范 `current_mode_update`（对照文档的 `config_option_update`）；⑬`embeddedContext`/resource 块与 `mcpServers` 转发的实测形态（http/stdio/sse 转换、`acp` 传输是否丢弃写 warn）；⑭`available_commands_update` 下发清单是否含 `/btw`、`/web`、`/reload`、`/undo`、`/title`、`/add-dir`、`/init`、`/experiments`、`/mcp`、`/custom-theme`、`/import-from-cc-codex`、`/update-config`、`/check-kimi-code-docs`。产出：重建 `docs/acp-research.md`（旧文件已在工作区删除）+ `docs/acp-probe5-output.txt`。
 - **涉及文件**：`scripts/acp-probe5.js`（新）、`docs/acp-research.md`（重建）、`docs/acp-probe5-output.txt`。
 - **验收标准**：探测退出码 0、stdout 0 段脏输出；上述 14 项每项都有实测结论（含"不存在/未实现"结论）；研究文档创建。
 - **风险与依赖**：依赖 P0-1 的 CLI 升级；goal/elicitation 触发不保证成功（需设计诱导 prompt），失败则列入 §7。
 
-### P0-3 acp-client 协议补齐（list / resume / authenticate / set_model / set_mode / 推送转发）
+### P0-3 acp-client 协议补齐（list / resume / authenticate / set_model / set_mode / 推送转发） ✅ 已完成（M2，f616d36）
 - **用户价值**：原生聊天获得官方完整会话语义——启动器列表更准（session/list）、恢复更快（resume 跳过回放）、未登录有明确引导（authenticate -32000 → 登录窗）、plan 模式可见（plan/config_option_update 推送）、模式切换走官方入口（set_mode）。
 - **实现要点**：按 P0-2 结论在 `AcpClient` 增加 `listSessions(cursor)`（返回 session 数组 + nextCursor）、`resumeSession(id, cwd)`、`setModel(modelId)`、`setMode(modeId)`（稳定面"是"，plan 模式/权限模式切换官方入口，与 `set_config_option({configId:'mode'})` 同一 dispatcher）；initialize 失败或 prompt 遇 -32000 时上抛 `authRequired` 事件 → main.js 引导登录窗；`main.js` 的 update 转发补 `plan`、`config_option_update`、`available_commands_update`；评估 `embeddedContext`（桌面 `@` 文件注入）与 `mcpServers` 转发（GUI 的 MCP 配置随会话下发）的接入点，结论记入本任务验收；保持 `fs=false`/`terminal=false` 安全基线不变。
 - **涉及文件**：`src/main/acp-client.js`、`src/main/main.js`（1858–2457 ACP 区）、`src/preload/chat-preload.js`、`tests/test-acp-client.js`（回环假服务端补新用例）。
 - **验收标准**：单元测试覆盖新方法（含分页游标、authRequired、resume 语义、setMode）；真实 CLI 冒烟（`KIMI_ACP_SMOKE=1`）通过；embeddedContext/mcpServers 接入评估结论落文档。
 - **风险与依赖**：依赖 P0-2 结论（字段形态）；resume 语义以实测为准，与官方文档"load 回放/resume 轻量恢复"不符时以实测为准并记入 §7。
 
-### P0-4 会话启动器升级（ACP session/list + 会话删除）
+### P0-4 会话启动器升级（ACP session/list + 会话删除） ✅ 已完成（M3，6490d08）
 - **用户价值**：列表标题/更新时间直接来自 CLI（比解析本地索引更准更全）；提供官方 CLI 没有的会话删除能力（GitHub issue #1926 确认的空白），桌面管家价值 +1。
 - **实现要点**：启动器数据源增加 ACP `session/list` 通道（与现有 REST/本地索引三路归一，按 cwd 路径分隔符归一化匹配，倒序合并）；「原生聊天」恢复改用 `session/resume`（历史渲染暂保留本地 wire.jsonl 自绘，待 P0-2 结论①若回放可靠再切换为 load 回放渲染）；删除会话 = 停实例后删 `sessions/<key>/<id>/` 目录 + 剔除 session_index.jsonl 行（二次确认 + 回收站式 .trash 移动而非硬删）。定位依据：`workDirKey` 格式 `wd_<slug>_<sha256前12位>`、`session_index.jsonl` 行含 `sessionId`/`sessionDir`/`workDir`（数据路径页）；官方警告"sessions/ 目录下的文件请勿手动编辑"（会话与上下文页）——删除/.trash 设计以此为最高风险依据，操作必须可恢复。
 - **涉及文件**：`src/main/main.js`（4513/4591 会话管理区）、`src/pages/sessions.html`（内嵌 JS）、`src/main/acp-client.js`。
 - **验收标准**：列表与 `kimi` TUI `/sessions` 一致；删除后 TUI/Web UI/启动器三方不再出现该会话；误删可从 .trash 恢复。
 - **风险与依赖**：依赖 P0-3；删目录属破坏性操作——必须二次确认 + 可恢复；REST 能力探测（archive/delete caps）逻辑保留作 Web 路线兜底。
 
-### P0-5 设置中心 schema 对齐 0.29.x（第一波）
+### P0-5 设置中心 schema 对齐 0.29.x（第一波） ✅ 已完成（M3，b54e300/90e897c/aa45dc0）
 - **用户价值**：配置面板不再误导——新版字段可见可编，废弃字段有迁移提示；避免用户手改 TOML 出 doctor 错误。
 - **实现要点**：
   - **新增区块**：`[tools]` enabled/disabled、`[thinking]` `enabled`（boolean 默认 true，旧键迁移目标）+ `effort`（注意：K3 映射 ≠ 通用枚举，UI 应展示可选值 `low`/`high`/`max` 并标注"K3 专属映射"提示；**非枚举值将导致 HTTP 400 而非回退，输入校验必须拦截**）+ `keep`（默认 `"all"`）、`[loop_control]` `reserved_context_size`、`[image]` `max_edge_px`（默认 2000）/`read_byte_budget`（默认 262144）、`[subagent]` `timeout_ms`（默认 7200000）、`[background]` 8 字段（`max_running_tasks`、`keep_alive_on_exit`、`kill_grace_period_ms`（默认 5000）、`bash_auto_background_on_timeout`（默认 true）、`bash_task_timeout_s`（默认 600，与 auto_background 成对展示）、`print_background_mode`（默认 `"steer"`）、`print_wait_ceiling_s`、`print_max_turns`）、`[services]` `moonshot_search`/`moonshot_fetch` 子表（各含 `base_url`/`api_key`/`oauth`/`custom_headers` 四字段；`KIMI_WEB_SEARCH_*`/`KIMI_WEB_FETCH_*` 环境变量覆盖，env 端点不发送文件内凭据）、`[secondary_model]`（标注实验性 + 需 `KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL=1`——桌面走 `kimi web` 必须注入此变量；`KIMI_CODE_EXPERIMENTAL_FLAG=1` 为 `kimi -p` 总开关，TUI 忽略）、`merge_all_available_skills`（默认 true）、`default_plan_mode`、`default_permission_mode`（默认 manual）、顶层 `telemetry`（默认 true，`KIMI_DISABLE_TELEMETRY` 关闭）；
@@ -226,9 +228,9 @@
 
 | 里程碑 | 粒度 | 内容 | 出口标准 |
 | --- | --- | --- | --- |
-| **M1 基线升级** | S（1–2 天） | P0-1：CLI 升 0.29.x，14 组回归核对清单执行，适配层基线切换 + 旧版引导 + 死代码清理 | 回归清单全绿或项项有结论；v1.0.x 补丁版可发 |
-| **M2 协议冲刺** | S（1–2 天） | P0-2 探测5（14 项）+ P0-3 acp-client 补齐（含单测） | 探测报告入库（重建 `docs/acp-research.md`）；acp-client 新 API 测试全过 |
-| **M3 启动器与设置对齐** | M（3–5 天） | P0-4 启动器 session/list+删除；P0-5 设置中心 schema 第一波（约 25+ 新字段/区块，含 tui.toml） | 启动器三方一致；`kimi doctor config` 与 `kimi doctor tui` 校验全过 → **发布 v1.1.0** |
+| **M1 基线升级** ✅（2026-07-27 完成，`1deb50d`） | S（1–2 天） | P0-1：CLI 升 0.29.x，14 组回归核对清单执行，适配层基线切换 + 旧版引导 + 死代码清理 | 回归清单全绿或项项有结论；v1.0.x 补丁版可发 |
+| **M2 协议冲刺** ✅（2026-07-27 完成，`f616d36`） | S（1–2 天） | P0-2 探测5（14 项）+ P0-3 acp-client 补齐（含单测） | 探测报告入库（重建 `docs/acp-research.md`）；acp-client 新 API 测试全过 |
+| **M3 启动器与设置对齐** ✅（2026-07-27 完成，`6490d08`/`b54e300`/`90e897c`/`aa45dc0`） | M（3–5 天） | P0-4 启动器 session/list+删除；P0-5 设置中心 schema 第一波（约 25+ 新字段/区块，含 tui.toml） | 启动器三方一致；`kimi doctor config` 与 `kimi doctor tui` 校验全过 → **发布 v1.1.0**（发布动作待排期） |
 | **M4 聊天渲染与审批** | M（3–5 天） | P1-1 Markdown/高亮、P1-2 plan UI、P1-3 ACP 问答接入 | 渲染安全用例过；plan/问答全形态手测过 |
 | **M5 Goal 与扩展面板** | M（3–5 天） | P1-4 Goal 面板、P1-5 Skills 补齐 + Agents 面板、P1-6 错误引导库（31 种错误映射、33 条匹配关键词）、P1-7 管家登录/令牌/诊断、P1-8 图片输入复测收尾 | Goal 全生命周期手测过；面板与 CLI 行为对账；`kimi export` 诊断包可用 → **发布 v1.2.0** |
 | **M6 差异化精选** | M（3–5 天） | P2-1 Themes、P2-2 插件详情、P2-3 MCP 增强、P2-4 IDE 向导、P2-11 命令面板、P2-12 第三方工具卡（按窗口期优先级可调序） | 各面板与 CLI 对账 → **发布 v1.3.0** |
