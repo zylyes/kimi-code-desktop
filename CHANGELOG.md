@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0] - 2026-07-27
+
+### 新功能
+
+- **Markdown / 代码高亮渲染**：新增 `chat-markdown.js`（UMD 双兼容，Node + 浏览器），为 ACP 原生聊天窗提供 Markdown 渲染与代码语法高亮；经 `chat.js` 集成，助手消息自动渲染为富文本（标题/列表/代码块/行内代码/链接/加粗/斜体）。
+
+### 改进
+
+- **ACP Elicitation 原生问答桥接**：新增 `acp-elicitation.js` 解析层——将 `session/request_permission` 中 `AskUserQuestion` 形态解析为原生问答窗可用的题目结构（多题分组、选项映射、skip 处理）；主进程 `question:submit` 直接回执 ACP settle（不走 HTTP），回答后 1.5s 自动关窗；`question:fallback` 按取消处理。
+- **ACP 审批窗 Plan Approval UI**：新增 `plan-approval.js`（Plan 审批卡片渲染——工具列表/说明文字/确认取消按钮组），`permission.html`/`permission.js` 集成 Plan 审批展示。
+- **打包清单**：新增 `src/pages/vendor/**`（第三方渲染库），`chat-markdown.js`、`plan-approval.js`、`acp-elicitation.js` 自动纳入。
+
+### 其他
+
+- 新增 `tests/test-acp-elicitation.js`、`tests/test-chat-markdown.js`、`tests/test-plan-approval.js` 三套单元测试。
+- 无破坏性变更。
+
 ## [1.1.0] - 2026-07-27
 
 ### 改进

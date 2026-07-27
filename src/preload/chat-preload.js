@@ -76,6 +76,11 @@ contextBridge.exposeInMainWorld('kimiChat', {
     }
     return ipcRenderer.invoke('acp-chat:set-config', configId.trim().slice(0, 200), value.trim().slice(0, 200));
   },
+  // 渲染层 → 主进程：在系统浏览器中打开外部链接
+  openExternal: (url) => {
+    if (!isStr(url) || !/^https?:\/\//i.test(url)) return Promise.resolve({ ok: false, error: '非法链接' });
+    return ipcRenderer.invoke('shell:open-external', url.slice(0, 2000));
+  },
   // 渲染层 → 主进程：取消当前在途 prompt
   // 返回 Promise<{ ok }>
   cancel: () => ipcRenderer.invoke('acp-chat:cancel'),

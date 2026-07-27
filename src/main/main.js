@@ -14,6 +14,7 @@ const ideIntegration = require('./ide-integration');
 const sessionExport = require('./session-export');
 const pluginsManager = require('./plugins-manager');
 const { AcpClient } = require('./acp-client');
+const { parseElicitation } = require('./acp-elicitation');
 const { moveToTrash, listTrash, restoreFromTrash, purgeTrash } = require('./trash-manager');
 
 const APP_NAME = 'Kimi Code Desktop';
@@ -1368,6 +1369,30 @@ ipcMain.handle('question:submit', async (_e, payload) => {
       Array.isArray(answers) || Object.keys(answers).length === 0) {
     return { ok: false, message: '提交数据不完整' };
   }
+  // ACP Elicitation 桥接：问答窗回答直接回执 settle，不走 HTTP
+  if (acpPermissionPending && acpPermissionPending.kind === 'elicitation') {
+    const firstKey = Object.keys(answers)[0];
+    const ans = firstKey ? answers[firstKey] : null;
+    if (ans && ans.kind === 'single' && typeof ans.option_id === 'string') {
+      logLine(`[acp] ACP elicitation 回答: optionId=${ans.option_id}`);
+      acpPermissionPending.settle({ outcome: 'selected', optionId: ans.option_id });
+    } else {
+      logLine('[acp] ACP elicitation 回答异常（非 single 或无 option_id），按取消处理');
+      acpPermissionPending.settle({ outcome: 'cancelled' });
+    }
+    // 窗口已展示完成态，不再接收 dismiss 通知
+    if (questionWindowQuestionId === ACP_ELICITATION_QID) questionWindowQuestionId = null;
+    // 延时关窗，让渲染层显示提交成功提示
+    if (questionWindow && !questionWindow.isDestroyed()) {
+      const win = questionWindow;
+      setTimeout(() => {
+        if (win && !win.isDestroyed()) win.close();
+      }, 1500);
+    }
+    return { ok: true };
+  }
+
+  // ---- WS 问答路径（原逻辑，保留不变） ----
   if (!knownServerBase || !knownServerToken) {
     return { ok: false, message: '服务未连接' };
   }
@@ -1404,6 +1429,15 @@ ipcMain.handle('question:fallback', (_e, payload) => {
   const p = payload && typeof payload === 'object' ? payload : {};
   const questionId = typeof p.question_id === 'string' ? p.question_id : '';
   logLine(`问答回退 Web UI: question_id=${questionId}`);
+
+  // ACP elicitation 无 Web UI 可回退 → 按取消处理
+  if (acpPermissionPending && acpPermissionPending.kind === 'elicitation') {
+    logLine('[acp] ACP elicitation 回退，按取消处理');
+    acpPermissionPending.settle({ outcome: 'cancelled' });
+    if (questionWindow && !questionWindow.isDestroyed()) questionWindow.close();
+    return { ok: true };
+  }
+
   // 回退到 Web UI 回答：释放本地状态、聚焦主窗口、关窗
   if (questionId) {
     const qs = wsActiveQuestions.get(questionId);
@@ -1419,6 +1453,15 @@ ipcMain.handle('question:cancel', (_e, payload) => {
   const p = payload && typeof payload === 'object' ? payload : {};
   const questionId = typeof p.question_id === 'string' ? p.question_id : '';
   logLine(`问答取消: question_id=${questionId}`);
+
+  // ACP elicitation 取消：桥接 settle cancelled
+  if (acpPermissionPending && acpPermissionPending.kind === 'elicitation') {
+    logLine('[acp] ACP elicitation 取消');
+    acpPermissionPending.settle({ outcome: 'cancelled' });
+    if (questionWindow && !questionWindow.isDestroyed()) questionWindow.close();
+    return { ok: true };
+  }
+
   // 取消：关窗并释放缓存，服务器重放可再次触发
   if (questionId && wsActiveQuestions.delete(questionId)) bumpPendingQuestions(-1);
   if (questionWindow && !questionWindow.isDestroyed()) questionWindow.close();
@@ -1883,6 +1926,7 @@ function sendAcpEvent(payload) {
 let acpPermissionWindow = null;
 let acpPermissionPending = null; // 当前在途 { settle, params }
 let acpPermissionQueue = [];     // 防御性 FIFO 队列
+const ACP_ELICITATION_QID = 'acp-elicitation'; // ACP 问答窗 question_id
 
 // 从 toolCall 防御性提取可读详情：execute 优先命令行，edit/write 优先文件路径，
 // 否则取 rawInput 的美化 JSON；统一截断 2000 字符
@@ -1957,7 +2001,18 @@ function buildAcpPermissionPayload(params) {
       name: ensureString(o.name).slice(0, 80) || o.optionId.slice(0, 100),
       kind: ensureString(o.kind).slice(0, 40),
     }));
-  return { title, kind, detail: extractAcpToolDetail(tc), locations, options };
+  // toolTitle 透传：供 ExitPlanMode 识别（title 本身已是 tc.title，但保留字段名供渲染层双路判定）
+  const toolTitle = ensureString(tc.title).slice(0, 200);
+  // ExitPlanMode 时计划全文可能很长，detail 截断从 2000 放宽到 20000
+  // 注意：不修改 extractAcpToolDetail 共享函数，仅在 build 层对 ExitPlanMode 单独放宽
+  let detail;
+  if (toolTitle === 'ExitPlanMode') {
+    const raw = extractAcpToolDetail(tc);
+    detail = raw.length > 20000 ? `${raw.slice(0, 19997)}...` : raw;
+  } else {
+    detail = extractAcpToolDetail(tc);
+  }
+  return { title, toolTitle, kind, detail, locations, options };
 }
 
 function closeAcpPermissionWindow() {
@@ -2009,8 +2064,13 @@ function pumpAcpPermissionQueue() {
   };
   acpPermissionPending = { settle, params };
   const payload = buildAcpPermissionPayload(params);
-  logLine(`[acp] 权限审批请求: ${payload.title} (${payload.kind || 'unknown'})`);
-  sendAcpEvent({ type: 'permission-pending', title: payload.title, kind: payload.kind });
+  // 提前检测 elicitation 以决定 pending 通知的 title（问答型用问题文本摘要）
+  const elicitation = parseElicitation(params);
+  const pendingTitle = (elicitation && elicitation.questions && elicitation.questions[0])
+    ? elicitation.questions[0].text.slice(0, 200) || payload.title
+    : payload.title;
+  logLine(`[acp] 权限审批请求: ${pendingTitle} (${payload.kind || 'unknown'})`);
+  sendAcpEvent({ type: 'permission-pending', title: pendingTitle, kind: payload.kind });
   // 聊天窗失焦时任务栏闪烁 + 桌面通知
   if (!acpChatWindow || acpChatWindow.isDestroyed() || !acpChatWindow.isFocused()) {
     if (acpChatWindow && !acpChatWindow.isDestroyed()) {
@@ -2018,15 +2078,36 @@ function pumpAcpPermissionQueue() {
     }
     showDesktopNotification('操作审批', payload.title);
   }
+
+  // ACP Elicitation 分流：AskUserQuestion 走问答窗，未命中/降级维持审批窗
+  if (elicitation && elicitation.questions) {
+    // 问答窗已在途（WS 问答），避免窗体抢占 → 降级审批窗
+    if (questionWindow && !questionWindow.isDestroyed()) {
+      logLine('[acp] 问答窗口已在途（WS 问答），ACP elicitation 降级为审批窗');
+      openAcpPermissionWindow(payload, settle);
+      return;
+    }
+    // 走 ACP 问答路径
+    acpPermissionPending.kind = 'elicitation';
+    acpPermissionPending.parsed = elicitation;
+    openAcpElicitationWindow(elicitation, params, settle, payload);
+    return;
+  }
+  if (elicitation && elicitation.reason) {
+    logLine(`[acp] ACP elicitation 降级（${elicitation.reason}），走普通审批窗`);
+  }
   openAcpPermissionWindow(payload, settle);
 }
 
 function openAcpPermissionWindow(payload, settle) {
+  // ExitPlanMode 时窗高 680（计划全文需更多空间），普通审批保持 480
+  const isExitPlanMode = payload && typeof payload === 'object' && payload.toolTitle === 'ExitPlanMode';
+  const windowHeight = isExitPlanMode ? 680 : 480;
   let win = null;
   try {
     win = new BrowserWindow({
       width: 520,
-      height: 480,
+      height: windowHeight,
       minWidth: 420,
       minHeight: 360,
       resizable: true,
@@ -2074,6 +2155,38 @@ function openAcpPermissionWindow(payload, settle) {
   });
 }
 
+// ACP Elicitation 问答窗（复用 question.html，适配其 normalize 字段）
+function openAcpElicitationWindow(parsed, params, settle, permPayload) {
+  const questionPayload = {
+    question_id: ACP_ELICITATION_QID,
+    session_id: params.sessionId || '',
+    questions: parsed.questions.map(function (q) {
+      return {
+        id: q.key,
+        question: q.text,
+        options: q.options.map(function (o) {
+          return { id: o.optionId, label: o.name, description: '' };
+        }),
+      };
+    }),
+  };
+
+  // 复用 createQuestionWindow，传 wsGeneration 以通过 gen 守卫
+  createQuestionWindow(params.sessionId || '', questionPayload, wsGeneration);
+
+  // 问答窗关闭时若 ACP 尚未结算，按取消收尾（防御关窗/加载失败场景）
+  if (questionWindow && !questionWindow.isDestroyed()) {
+    const win = questionWindow;
+    // 注意：createQuestionWindow 已挂载一个 closed 事件清空 questionWindow，
+    // 此处的 on('closed') 在其之后执行，仍能访问 settle 的幂等 guard
+    win.on('closed', function acpCloseGuard() {
+      if (acpPermissionPending && acpPermissionPending.kind === 'elicitation' && acpPermissionPending.settle === settle) {
+        settle({ outcome: 'cancelled' });
+      }
+    });
+  }
+}
+
 // 权限窗不可用时的回退：原生对话框（按钮 = 各 option.name + 拒绝），再失败按取消
 function fallbackAcpPermissionDialog(payload, settle) {
   const buttons = payload.options.map((o) => (o.name.length > 60 ? `${o.name.slice(0, 57)}...` : o.name));
@@ -2104,10 +2217,19 @@ function fallbackAcpPermissionDialog(payload, settle) {
   });
 }
 
-ipcMain.handle('acp-permission:respond', (_e, optionId) => {
+ipcMain.handle('acp-permission:respond', (_e, raw) => {
   if (!acpPermissionPending) {
     logLine('[acp] 收到陈旧的权限审批响应，已忽略');
     return { ok: false, error: '无在途审批' };
+  }
+  // 向后兼容：旧形态为裸字符串 optionId，新形态为 { optionId, feedback? }
+  let optionId, feedback;
+  if (raw !== null && typeof raw === 'object') {
+    optionId = typeof raw.optionId === 'string' ? raw.optionId : null;
+    feedback = typeof raw.feedback === 'string' ? raw.feedback.slice(0, 2000) : '';
+  } else {
+    optionId = raw;
+    feedback = '';
   }
   if (optionId === null) {
     acpPermissionPending.settle({ outcome: 'cancelled' });
@@ -2123,7 +2245,17 @@ ipcMain.handle('acp-permission:respond', (_e, optionId) => {
     acpPermissionPending.settle({ outcome: 'cancelled' });
     return { ok: true };
   }
-  acpPermissionPending.settle({ outcome: 'selected', optionId });
+  const theSettle = acpPermissionPending.settle;
+  theSettle({ outcome: 'selected', optionId });
+  // 反馈回传：ACP request_permission 响应无文本通道，反馈经 session/prompt 等效送达
+  // （客户端侧实现，与 TUI 反馈语义对应）
+  if (feedback && acpClient) {
+    const fb = feedback.slice(0, 2000);
+    acpClient.prompt(fb, []).catch((promptErr) => {
+      logLine(`[acp] 反馈 prompt 发送失败: ${promptErr && promptErr.message ? promptErr.message : String(promptErr)}`);
+    });
+    // 异步不阻塞 settle 返回，失败仅记日志不二次 settle
+  }
   return { ok: true };
 });
 
@@ -2481,6 +2613,17 @@ ipcMain.handle('acp-chat:open-webui', () => {
     const msg = err && err.message ? err.message : String(err);
     logLine(`[acp] 打开 Web UI 失败: ${msg}`);
     return { ok: false, error: msg };
+  }
+});
+
+// ---------- 外部链接打开 ----------
+ipcMain.handle('shell:open-external', (_e, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { ok: false, error: '非法链接' };
+  try {
+    shell.openExternal(url);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
   }
 });
 

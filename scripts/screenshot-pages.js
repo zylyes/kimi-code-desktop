@@ -36,7 +36,7 @@ app.whenReady().then(async () => {
         webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: false },
       });
       try {
-        await win.loadFile(path.join(__dirname, '..', file));
+        await win.loadFile(path.join(__dirname, '..', 'src', 'pages', file));
         await new Promise((r) => setTimeout(r, 700));
         const img = await win.webContents.capturePage();
         fs.writeFileSync(path.join(outDir, `${name}-${theme}.png`), img.toPNG());

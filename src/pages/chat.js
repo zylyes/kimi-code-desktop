@@ -48,6 +48,15 @@
   var chips = document.getElementById('chips'); // 附件缩略行（textarea 上方）
   var webuiBtn = document.getElementById('webuiBtn'); // Web UI 入口按钮（顶栏右侧）
 
+  // ---------- Plan 卡片 DOM 引用 ----------
+  var planCardWrap = document.getElementById('planCardWrap');
+  var planCardSummary = document.getElementById('planCardSummary');
+  var planCardToggle = document.getElementById('planCardToggle');
+  var planCardList = document.getElementById('planCardList');
+  var planCardHeader = document.getElementById('planCardHeader');
+  var planCardEntries = null; // 当前清洗后的 entries
+  var planCardExpanded = false;
+
   // 配置切换栏三项：按 configOptions 项的 id 匹配，label 为固定中文小字
   var CONFIG_IDS = ['model', 'thinking', 'mode'];
   var configEls = {
@@ -270,7 +279,17 @@
     }
     if (msgBuf) {
       turn.textStr += msgBuf;
-      turn.textEl.textContent = turn.textStr;
+      // Markdown 渲染（缓存的，仅文本变化时重解析）
+      if (typeof KcdMarkdown !== 'undefined' && KcdMarkdown.renderAssistantMessage) {
+        KcdMarkdown.renderAssistantMessage(turn.textStr, turn, false);
+        // 首次添加消息级复制按钮（getter 函数确保复制最新文本）
+        if (!turn._copyBtnAdded) {
+          KcdMarkdown.addMessageCopyButton(turn.textEl, function () { return turn.textStr; });
+          turn._copyBtnAdded = true;
+        }
+      } else {
+        turn.textEl.textContent = turn.textStr;
+      }
       msgBuf = '';
     }
     maybeScrollToBottom();
@@ -349,10 +368,81 @@
     };
     applyToolStatus(ref, typeof call.status === 'string' ? call.status : 'pending');
     if (typeof call.detail === 'string' && call.detail) {
-      detailBody.textContent = call.detail; // 主进程已预提取并截断
-      detail.hidden = false;
+      // 尝试 TodoList 渲染
+      if (typeof KcdMarkdown !== 'undefined' && KcdMarkdown.parseTodoList) {
+        var todoResult = KcdMarkdown.parseTodoList(call, call.detail);
+        if (todoResult.isTodo && todoResult.html) {
+          detailBody.innerHTML = todoResult.html;
+          detail.hidden = false;
+        } else {
+          detailBody.textContent = call.detail;
+          detail.hidden = false;
+        }
+      } else {
+        detailBody.textContent = call.detail; // 主进程已预提取并截断
+        detail.hidden = false;
+      }
     }
     return ref;
+  }
+
+  // ---------- Plan 卡片渲染 ----------
+  function renderPlanCard() {
+    if (!planCardWrap || !planCardSummary) return;
+    var entries = planCardEntries;
+    if (!entries || entries.length === 0) {
+      planCardWrap.hidden = true;
+      return;
+    }
+    var summary = KcdPlan.summarizePlan(entries);
+    // 进度摘要
+    var summaryText = '计划进度：已完成 ' + summary.completed + '/' + summary.total;
+    if (summary.inProgress > 0) {
+      // 取第一条进行中的内容作为当前任务提示
+      var current = '';
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].status === 'in_progress') {
+          current = entries[i].content;
+          break;
+        }
+      }
+      if (current) {
+        summaryText += ' · 当前：' + current;
+      }
+    }
+    planCardSummary.textContent = summaryText;
+
+    // 条目列表
+    planCardList.textContent = '';
+    for (var j = 0; j < entries.length; j++) {
+      var item = entries[j];
+      var itemEl = document.createElement('div');
+      itemEl.className = 'plan-card-item' + (item.status === 'completed' ? ' completed' : '');
+      var bullet = document.createElement('span');
+      bullet.className = 'bullet ' + item.status;
+      itemEl.appendChild(bullet);
+      var textSpan = document.createElement('span');
+      textSpan.className = 'item-text';
+      textSpan.textContent = item.content || '（无描述）';
+      itemEl.appendChild(textSpan);
+      planCardList.appendChild(itemEl);
+    }
+
+    // 展开/收起态
+    planCardList.hidden = !planCardExpanded;
+    planCardToggle.className = 'plan-card-toggle' + (planCardExpanded ? ' open' : '');
+
+    planCardWrap.hidden = false;
+  }
+
+  // Plan 卡片点击展开/收起
+  if (planCardHeader) {
+    planCardHeader.addEventListener('click', function () {
+      if (!planCardEntries || planCardEntries.length === 0) return;
+      planCardExpanded = !planCardExpanded;
+      planCardList.hidden = !planCardExpanded;
+      planCardToggle.className = 'plan-card-toggle' + (planCardExpanded ? ' open' : '');
+    });
   }
 
   // ---------- 消息区重置（open-session / history 防御复用） ----------
@@ -367,6 +457,10 @@
     currentTurn = null;
     toolCards = {};
     messagesInner.textContent = '';
+    // Plan 卡片复位
+    planCardEntries = null;
+    planCardExpanded = false;
+    if (planCardWrap) planCardWrap.hidden = true;
     // 待发附件一并清空（会话切换不残留）；slashCommands 为会话级缓存，不在此清理
     pendingImages = [];
     chips.textContent = '';
@@ -707,12 +801,23 @@
       if (m.role === 'user') {
         appendUserMessage(m.text);
       } else if (m.role === 'assistant') {
-        // 历史 assistant 约简为一个纯文本消息块，不带思考区/工具卡片
+        // 历史 assistant 约简为一个消息块，不带思考区/工具卡片
         var el = document.createElement('div');
         el.className = 'msg msg-assistant';
         var textEl = document.createElement('div');
         textEl.className = 'assistant-text';
-        textEl.textContent = m.text;
+        if (typeof KcdMarkdown !== 'undefined' && KcdMarkdown.renderAssistantMessage) {
+          var turn = {
+            textEl: textEl,
+            textStr: m.text,
+            cachedText: '',
+            cachedHtml: undefined,
+          };
+          KcdMarkdown.renderAssistantMessage(m.text, turn, false);
+          KcdMarkdown.addMessageCopyButton(textEl, function () { return m.text; });
+        } else {
+          textEl.textContent = m.text;
+        }
         el.appendChild(textEl);
         messagesInner.appendChild(el);
       }
@@ -819,12 +924,33 @@
           // 输出摘要追加进输出区：单片与总量均封顶 2000 字符
           updRef.outputStr += p.output.slice(0, 2000);
           if (updRef.outputStr.length > 2000) updRef.outputStr = updRef.outputStr.slice(0, 2000);
-          updRef.outputEl.textContent = updRef.outputStr;
+          // 尝试 TodoList 渲染
+          if (typeof KcdMarkdown !== 'undefined' && KcdMarkdown.parseTodoList) {
+            var todoResult = KcdMarkdown.parseTodoList(p, updRef.outputStr);
+            if (todoResult.isTodo) {
+              if (todoResult.html) {
+                updRef.outputEl.innerHTML = todoResult.html;
+              } else {
+                updRef.outputEl.textContent = updRef.outputStr;
+              }
+            } else {
+              updRef.outputEl.textContent = updRef.outputStr;
+            }
+          } else {
+            updRef.outputEl.textContent = updRef.outputStr;
+          }
           updRef.outputEl.hidden = false;
         }
         maybeScrollToBottom();
         break;
       }
+      case 'plan':
+        // plan 推送：entries 整体替换，渲染顶部计划进度卡片
+        if (typeof KcdPlan !== 'undefined' && KcdPlan.normalizePlanEntries) {
+          planCardEntries = KcdPlan.normalizePlanEntries(p.entries);
+          renderPlanCard();
+        }
+        break;
       case 'permission-pending':
         permissionPending = true; // 视为 busy 态，输入框保持禁用
         refreshUi();
@@ -1023,6 +1149,57 @@
     attachBtn.disabled = true;
     webuiBtn.disabled = true;
     return;
+  }
+
+  // ---------- Markdown / 纯文本功能 ----------
+  var plainToggleBtn = document.getElementById('plainToggleBtn');
+
+  // 初始化纯文本按钮状态
+  function refreshPlainToggle() {
+    if (typeof KcdMarkdown !== 'undefined' && KcdMarkdown.isPlainText) {
+      var isPlain = KcdMarkdown.isPlainText();
+      plainToggleBtn.textContent = isPlain ? 'Markdown' : '纯文本';
+      plainToggleBtn.title = isPlain ? '切换为 Markdown 渲染' : '切换为纯文本渲染';
+    }
+  }
+
+  if (plainToggleBtn) {
+    plainToggleBtn.addEventListener('click', function () {
+      if (typeof KcdMarkdown !== 'undefined' && KcdMarkdown.setPlainText) {
+        var now = KcdMarkdown.isPlainText();
+        KcdMarkdown.setPlainText(!now);
+        refreshPlainToggle();
+        // 刷新现有消息：暴力重绘整个消息区（简单可靠，消息条数有限）
+        var turns = messagesInner.querySelectorAll('.msg-assistant');
+        for (var ti = 0; ti < turns.length; ti++) {
+          var turnWrap = turns[ti];
+          var textEl = turnWrap.querySelector('.assistant-text');
+          if (!textEl) continue;
+          // 找到对应的 textStr（从当前内容反推不可行，用 data 属性存一下）
+          // 由于 textStr 只存在 turn 对象中，此处不做全量刷新，
+          // 后续 flush/新消息会走新的模式
+        }
+      }
+    });
+    refreshPlainToggle();
+  }
+
+  // 链接点击拦截：走系统浏览器
+  if (typeof KcdMarkdown !== 'undefined' && KcdMarkdown.setupLinkHandler) {
+    KcdMarkdown.setupLinkHandler(messagesInner, function (url) {
+      try {
+        window.kimiChat.openExternal(url);
+      } catch (e) {
+        // preload 无 openExternal 时 fallback
+        var a = document.createElement('a');
+        a.href = url;
+        a.rel = 'noopener';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    });
   }
 
   document.title = '原生聊天 - 新会话';

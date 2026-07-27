@@ -23,5 +23,13 @@ contextBridge.exposeInMainWorld('kimiPermission', {
     return () => ipcRenderer.removeListener('acp-permission:init', listener);
   },
   // 渲染层 → 主进程：用户选择某个选项；传 null 表示取消（Esc / 取消按钮）
-  respond: (optionId) => ipcRenderer.invoke('acp-permission:respond', sanitizeOptionId(optionId)),
+  // 支持 (optionId) 或 (optionId, feedback) 两种签名；feedback 字符串化截断 2000、空→省略
+  respond: (optionId, feedback) => {
+    const opt = sanitizeOptionId(optionId);
+    if (feedback != null && isStr(feedback) && feedback.trim()) {
+      const fb = feedback.slice(0, 2000);
+      return ipcRenderer.invoke('acp-permission:respond', { optionId: opt, feedback: fb });
+    }
+    return ipcRenderer.invoke('acp-permission:respond', opt);
+  },
 });

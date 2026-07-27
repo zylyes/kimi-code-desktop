@@ -443,6 +443,259 @@
   .send.stop-mode { width: auto; height: 32px; padding: 0 12px; border-radius: var(--radius-pill); font-size: 13px; }
   .send-stop { white-space: nowrap; }
 
+  /* ================= Markdown 排版 ================= */
+  .assistant-text { white-space: normal; } /* 覆盖 pre-wrap，让 Markdown 块级元素换行 */
+  .assistant-text p { margin: 0.5em 0; }
+  .assistant-text p:first-child { margin-top: 0; }
+  .assistant-text h1, .assistant-text h2, .assistant-text h3,
+  .assistant-text h4, .assistant-text h5, .assistant-text h6 {
+    margin: 0.8em 0 0.4em;
+    line-height: 1.3;
+    color: var(--label-primary);
+  }
+  .assistant-text h1 { font-size: 1.6em; }
+  .assistant-text h2 { font-size: 1.35em; }
+  .assistant-text h3 { font-size: 1.2em; }
+  .assistant-text h4 { font-size: 1.1em; }
+  .assistant-text h5, .assistant-text h6 { font-size: 1em; }
+  .assistant-text ul, .assistant-text ol { padding-left: 1.8em; margin: 0.4em 0; }
+  .assistant-text li { margin: 0.2em 0; }
+  .assistant-text li > ul, .assistant-text li > ol { margin: 0; }
+  .assistant-text blockquote {
+    margin: 0.5em 0;
+    padding: 0.3em 1em;
+    border-left: 3px solid var(--separator);
+    color: var(--label-secondary);
+  }
+  .assistant-text hr { margin: 1em 0; border: none; height: 1px; background: var(--separator); }
+  .assistant-text table {
+    border-collapse: collapse;
+    margin: 0.6em 0;
+    width: 100%;
+    font-size: 14px;
+  }
+  .assistant-text th, .assistant-text td {
+    border: 1px solid var(--separator);
+    padding: 6px 10px;
+    text-align: left;
+  }
+  .assistant-text th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+    color: var(--label-primary);
+  }
+  .assistant-text td { color: var(--label-secondary); }
+  .assistant-text tr:nth-child(even) td { background: var(--bg-secondary); }
+  .assistant-text code {
+    padding: 2px 6px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--label-primary);
+  }
+  .assistant-text pre {
+    position: relative;
+    margin: 0.6em 0;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+  }
+  .assistant-text pre code {
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--label-primary);
+  }
+  .assistant-text a { color: var(--label-primary); text-decoration: underline; }
+  .assistant-text a:hover { opacity: 0.8; }
+  .assistant-text img { max-width: 100%; border-radius: var(--radius-sm); }
+  .assistant-text del { color: var(--label-tertiary); }
+  .assistant-text input[type=checkbox] { margin-right: 6px; pointer-events: none; }
+
+  /* 代码块复制按钮 */
+  .kcd-copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 8px;
+    border: 1px solid var(--separator);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--label-tertiary);
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 1;
+  }
+  .assistant-text pre:hover .kcd-copy-btn { opacity: 1; }
+  .kcd-copy-btn:hover { background: var(--bg-secondary-hover); color: var(--label-primary); }
+
+  /* 消息级操作栏 */
+  .kcd-msg-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    justify-content: flex-end;
+  }
+  .kcd-msg-copy-btn {
+    padding: 2px 10px;
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--label-tertiary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+  .kcd-msg-copy-btn:hover { color: var(--label-primary); background: var(--bg-secondary-hover); }
+
+  /* ================= hljs 高亮色 — 映射到 CSS 变量，自动适配双主题 ================= */
+  .hljs { color: var(--label-primary); background: transparent; }
+  .hljs-comment, .hljs-quote { color: var(--label-tertiary); font-style: italic; }
+  .hljs-keyword, .hljs-selector-tag, .hljs-subst { color: var(--label-primary); }
+  .hljs-number, .hljs-literal, .hljs-variable, .hljs-template-variable, .hljs-tag .hljs-attr { color: var(--label-secondary); }
+  .hljs-string, .hljs-doctag { color: var(--label-secondary); }
+  .hljs-title, .hljs-section, .hljs-selector-id { color: var(--label-primary); font-weight: 600; }
+  .hljs-type, .hljs-class .hljs-title { color: var(--label-primary); }
+  .hljs-tag, .hljs-name, .hljs-attribute { color: var(--label-secondary); }
+  .hljs-regexp, .hljs-link { color: var(--label-secondary); }
+  .hljs-symbol, .hljs-bullet { color: var(--label-primary); }
+  .hljs-built_in, .hljs-builtin-name { color: var(--label-primary); }
+  .hljs-meta { color: var(--label-tertiary); }
+  .hljs-deletion { background: rgba(255, 60, 50, 0.08); }
+  .hljs-addition { background: rgba(50, 200, 80, 0.08); }
+  .hljs-emphasis { font-style: italic; }
+  .hljs-strong { font-weight: 600; }
+
+  /* ================= Plan 卡片（消息区顶部 sticky） ================= */
+  .plan-card-wrap {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: 8px 0;
+    background: var(--bg-ground);
+  }
+  .plan-card-wrap[hidden] { display: none; }
+  .plan-card {
+    padding: 10px 14px;
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    background: var(--bg-secondary);
+    font-size: 13px;
+    color: var(--label-primary);
+  }
+  .plan-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .plan-card-header:hover { opacity: 0.8; }
+  .plan-card-summary {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--label-primary);
+  }
+  .plan-card-summary .count { color: var(--label-tertiary); font-size: 12px; }
+  .plan-card-toggle {
+    flex: none;
+    font-size: 12px;
+    color: var(--label-tertiary);
+    transition: transform 0.2s ease;
+  }
+  .plan-card-toggle.open { transform: rotate(180deg); }
+  .plan-card-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .plan-card-list[hidden] { display: none; }
+  .plan-card-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--label-primary);
+  }
+  .plan-card-item:hover { background: var(--bg-tertiary); }
+  .plan-card-item .bullet {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .plan-card-item .bullet.completed { background: var(--color-success); }
+  .plan-card-item .bullet.in_progress { background: var(--color-warning); animation: breathe 1.4s ease-in-out infinite; }
+  .plan-card-item .bullet.pending { background: var(--label-quaternary); }
+  .plan-card-item .item-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .plan-card-item.completed .item-text {
+    color: var(--label-tertiary);
+    text-decoration: line-through;
+    opacity: 0.6;
+  }
+
+  /* ================= TodoList 待办卡片 ================= */
+  .kcd-todo-list {
+    margin: 6px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .kcd-todo-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--label-primary);
+    cursor: default;
+  }
+  .kcd-todo-item:hover { background: var(--bg-secondary); }
+  .kcd-todo-done {
+    color: var(--label-tertiary);
+    text-decoration: line-through;
+    opacity: 0.6;
+  }
+  .kcd-todo-done:hover { opacity: 0.8; }
+  .kcd-todo-collapsed {
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--label-tertiary);
+    cursor: pointer;
+  }
+  .kcd-todo-collapsed:hover { color: var(--label-secondary); }
+  .kcd-todo-empty {
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--label-tertiary);
+    font-style: italic;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .dot.connecting, .dot.busy { animation: none; }
     .msg, .tool-card { animation: none; }
@@ -463,6 +716,7 @@
       <span class="dot connecting" id="statusDot" aria-hidden="true"></span>
       <span class="app-topbar-sub" id="statusText">正在连接…</span>
       <div class="app-topbar-actions">
+        <button class="icon-btn" id="plainToggleBtn" type="button" title="切换纯文本/Markdown 渲染">纯文本</button>
         <button class="icon-btn" id="webuiBtn" type="button" title="在 Web UI 高级面板中打开">Web UI</button>
       </div>
     </header>
@@ -490,6 +744,16 @@
 
     <!-- 消息列表 -->
     <main class="messages" id="messages">
+      <!-- Plan 卡片：由 chat.js 动态控制显隐与内容，位于消息区顶部 sticky -->
+      <div class="col plan-card-wrap" id="planCardWrap" hidden>
+        <div class="plan-card">
+          <div class="plan-card-header" id="planCardHeader">
+            <span class="plan-card-summary" id="planCardSummary"></span>
+            <span class="plan-card-toggle" id="planCardToggle">▼</span>
+          </div>
+          <div class="plan-card-list" id="planCardList" hidden></div>
+        </div>
+      </div>
       <div class="col messages-inner" id="messagesInner"></div>
       <!-- 空态：仅消息列表为空时经 .messages-inner:empty ~ .chat-empty 纯 CSS 显示（共享 .notice/.mark 组件），首条内容一到即隐去 -->
       <div class="col notice chat-empty">
@@ -532,6 +796,12 @@
     </div>
   </div>
 
+  <!-- 第三方 vendor 库：Markdown 解析、XSS 过滤、代码高亮 -->
+  <script src="vendor/marked.umd.js"></script>
+  <script src="vendor/dompurify.min.js"></script>
+  <script src="vendor/highlight.bundle.js"></script>
+  <!-- Markdown / 代码高亮渲染模块 -->
+  <script src="chat-markdown.js"></script>
   <script src="chat.js"></script>
 </body>
 </html>
