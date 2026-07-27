@@ -3233,8 +3233,10 @@ function buildMenu() {
 // 配置中心 IPC
 ipcMain.handle('config:loadConfigToml', () => {
   try {
-    const result = configManager.loadConfigToml();
-    return { ok: true, data: result.data, path: result.path };
+    const cfg = loadConfig();
+    const cli = resolveCliPath(cfg);
+    const result = configManager.loadConfigToml(cli, cli ? buildKimiEnv(cfg) : undefined);
+    return { ok: true, data: result.data, path: result.path, ...(result.migrated ? { migrated: result.migrated } : {}) };
   } catch (err) {
     return { ok: false, error: err.message };
   }
