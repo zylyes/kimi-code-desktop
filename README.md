@@ -208,12 +208,15 @@ src/
 scripts/                   工具脚本
   mock-kimi-server.js      Mock Kimi 服务端
   pack-versioned.ps1       版本化打包脚本
-  acp-probe.js/3.js/4.js  ACP 协议探测
+  acp-probe.js/3.js/4.js  ACP 协议探测（内部）
+  regression-0.29.js      CLI 0.29 回归测试
+  ws-event-probe.js       WebSocket 事件探测
   probe-panels.js          页面元素探针 dump + 窗控变色逐帧测量
 tests/                     单元测试（7 个文件，全部通过）
-docs/                      调研文档
+docs/                      文档
+  ROADMAP.md                路线图
+  kimi-docs/                Kimi Code 参考文档（API/CLI/配置/ACP）
 CHANGELOG.md               版本变更历史
-FEATURE-IDEAS.md           功能建议报告
 RELEASE_NOTES.md           发行版说明
 
 ## 项目文档

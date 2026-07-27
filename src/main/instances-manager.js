@@ -1,7 +1,6 @@
 // Kimi Code Desktop — kimi web 多实例扫描后端
-// 双来源适配：
-//   新版 CLI（0.28+）：~/.kimi-code/server/instances/*.json，每实例一个文件（格式未验证，防御性解析）
-//   旧版 CLI（0.27-）：~/.kimi-code/server/lock，单行 JSON
+// 单来源适配：仅新版 CLI（0.28+）~/.kimi-code/server/instances/*.json，每实例一个文件
+// （格式未验证，防御性解析保留）
 // 纯 Node 模块，不依赖 electron，供 main.js require 使用。
 const fs = require('fs');
 const path = require('path');
@@ -58,7 +57,7 @@ function normalizeInstance(raw, source) {
     version: version != null ? String(version) : null,
     startedAt: startedAt != null ? String(startedAt) : null,
     alive: checkPidAlive(pid),
-    source, // 'instances-dir' | 'lock'
+    source, // 'instances-dir'
   };
 }
 
@@ -72,7 +71,7 @@ function sortInstances(list) {
   return list.slice().sort((a, b) => ts(b.startedAt) - ts(a.startedAt));
 }
 
-// 同步扫描 kimi web 实例：先 server/instances/*.json，无有效条目回退 server/lock，都没有返回 []
+// 同步扫描 kimi web 实例：读取 server/instances/*.json，无有效条目返回 []
 function scanInstances(kimiHomeDir) {
   const home = kimiHomeDir || defaultKimiHome();
   const instancesDir = path.join(home, 'server', 'instances');
@@ -90,10 +89,7 @@ function scanInstances(kimiHomeDir) {
     const inst = normalizeInstance(readJSON(path.join(instancesDir, f)), 'instances-dir');
     if (inst) list.push(inst);
   }
-  if (list.length > 0) return sortInstances(list);
-
-  const lockInst = normalizeInstance(readJSON(path.join(home, 'server', 'lock')), 'lock');
-  return lockInst ? [lockInst] : [];
+  return sortInstances(list);
 }
 
 // 异步探测实例：GET http://<host>:<port>/openapi.json，2xx 为 true；超时/拒连/非 2xx 为 false

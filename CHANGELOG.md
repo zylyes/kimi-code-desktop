@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0] - 2026-07-27
+
+### 改进
+
+- **移除旧版 CLI（< 0.28）兼容代码**：不再向后兼容 0.27 及更早版本，启动检测到过旧 CLI 时提示升级（setup.html 新增 `cli-outdated` 引导）；实例管理移除 `server/lock` 旧格式回退，仅使用 `server/instances/*.json` 新版格式。
+
+### 其他
+
+- **文档重整**：删除内部开发文档（`FEATURE-IDEAS.md`、`docs/acp-probe*.txt`、`docs/acp-research.md`），新增公开文档（`docs/ROADMAP.md`、`docs/kimi-docs/`）。
+- **测试工具**：新增 `scripts/regression-0.29.js`（CLI 0.29 回归测试）、`scripts/ws-event-probe.js`（WS 事件探测）；更新 `tests/test-instances-manager.js`（仅测试新版格式）。
+- 无破坏性变更。
+
 ## [1.0.0] - 2026-07-26 🎉
 
 首个公开发行版。经过 20 个版本的迭代（v0.1.0 → v0.20.0），Kimi Code Desktop 已从基础 Electron 套壳演进为功能完整的原生桌面体验。

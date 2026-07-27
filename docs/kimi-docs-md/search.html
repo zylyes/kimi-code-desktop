@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kimi Code 离线文档搜索</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f5f5f5; color: #333; }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    h1 { font-size: 24px; margin-bottom: 8px; color: #1a1a1a; }
+    .header { margin-bottom: 24px; border-bottom: 1px solid #e0e0e0; padding-bottom: 16px; }
+    .header p { color: #666; font-size: 14px; }
+    #searchInput { width: 100%; padding: 14px 20px; font-size: 16px; border: 2px solid #ddd; border-radius: 10px; outline: none; transition: border-color .2s; background: #fff; }
+    #searchInput:focus { border-color: #6C63FF; }
+    #results { margin-top: 16px; }
+    .result-item { background: #fff; border-radius: 8px; padding: 14px 20px; margin-bottom: 8px; border: 1px solid #eee; transition: box-shadow .2s; }
+    .result-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    .result-item a { color: #6C63FF; text-decoration: none; font-size: 16px; font-weight: 500; }
+    .result-item a:hover { text-decoration: underline; }
+    .result-item .path { font-size: 12px; color: #999; margin-top: 4px; }
+    .no-results { text-align: center; padding: 40px; color: #999; }
+    .stats { font-size: 13px; color: #888; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🔍 Kimi Code 离线文档搜索</h1>
+    <p>全文搜索 39 篇官方文档（中文）</p>
+  </div>
+  <input type="text" id="searchInput" placeholder="输入关键词搜索文档..." autofocus>
+  <div class="stats" id="stats">共 39 篇文档</div>
+  <div id="results"></div>
+</div>
+
+<script>
+var PAGES = [{"title":"Kimi Code 概览","path":"other/产品概览.md","snippet":"Kimi Code 概览"},{"title":"配置文件","path":"03-cli-configuration/配置文件.md","snippet":"配置文件"},{"title":"数据路径","path":"03-cli-configuration/数据路径.md","snippet":"数据路径"},{"title":"环境变量","path":"03-cli-configuration/环境变量.md","snippet":"环境变量"},{"title":"配置覆盖","path":"03-cli-configuration/配置覆盖.md","snippet":"配置覆盖"},{"title":"平台与模型","path":"03-cli-configuration/平台与模型.md","snippet":"平台与模型"},{"title":"Agent 与子 Agent","path":"04-cli-customization/Agent与子Agent.md","snippet":"Agent 与子 Agent"},{"title":"Hooks","path":"04-cli-customization/Hooks.md","snippet":"Hooks"},{"title":"Model Context Protocol","path":"04-cli-customization/Model-Context-Protocol.md","snippet":"Model Context Protocol"},{"title":"Plugins","path":"04-cli-customization/Plugins.md","snippet":"Plugins"},{"title":"Agent Skills","path":"04-cli-customization/Agent-Skills.md","snippet":"Agent Skills"},{"title":"自定义主题","path":"04-cli-customization/自定义主题.md","snippet":"自定义主题"},{"title":"开始使用","path":"02-cli-guides/开始使用.md","snippet":"开始使用"},{"title":"使用目标模式","path":"02-cli-guides/使用目标模式.md","snippet":"使用目标模式"},{"title":"在 IDE 中使用","path":"02-cli-guides/在IDE中使用.md","snippet":"在 IDE 中使用"},{"title":"交互与输入","path":"02-cli-guides/交互与输入.md","snippet":"交互与输入"},{"title":"从 kimi-cli 迁移","path":"02-cli-guides/从kimi-cli迁移.md","snippet":"从 kimi-cli 迁移"},{"title":"会话与上下文","path":"02-cli-guides/会话与上下文.md","snippet":"会话与上下文"},{"title":"常见使用案例","path":"02-cli-guides/常见使用案例.md","snippet":"常见使用案例"},{"title":"键盘快捷键","path":"05-cli-reference/键盘快捷键.md","snippet":"键盘快捷键"},{"title":"kimi acp 子命令","path":"05-cli-reference/kimi-acp子命令.md","snippet":"kimi acp 子命令"},{"title":"kimi 命令","path":"05-cli-reference/kimi命令.md","snippet":"kimi 命令"},{"title":"斜杠命令","path":"05-cli-reference/斜杠命令.md","snippet":"斜杠命令"},{"title":"内置工具","path":"05-cli-reference/内置工具.md","snippet":"内置工具"},{"title":"变更记录","path":"06-cli-release-notes/变更记录.md","snippet":"变更记录"},{"title":"配置","path":"07-vscode/配置.md","snippet":"配置"},{"title":"核心操作","path":"07-vscode/核心操作.md","snippet":"核心操作"},{"title":"定制化","path":"07-vscode/定制化.md","snippet":"定制化"},{"title":"快速开始","path":"07-vscode/开始使用.md","snippet":"快速开始"},{"title":"Kimi Code 社区倡议","path":"01-overview/社区倡议.md","snippet":"Kimi Code 社区倡议"},{"title":"联系与反馈","path":"01-overview/联系与反馈.md","snippet":"联系与反馈"},{"title":"错误参考（Error Reference）","path":"01-overview/错误参考.md","snippet":"错误参考（Error Reference）"},{"title":"常见问题","path":"01-overview/常见问题.md","snippet":"常见问题"},{"title":"会员权益","path":"01-overview/会员权益.md","snippet":"会员权益"},{"title":"模型配置","path":"01-overview/模型配置.md","snippet":"模型配置"},{"title":"最新动态","path":"01-overview/最新动态.md","snippet":"最新动态"},{"title":"Claude Code","path":"08-third-party/Claude-Code.md","snippet":"Claude Code"},{"title":"在 Codex 中使用","path":"08-third-party/Codex.md","snippet":"在 Codex 中使用"},{"title":"在 OpenCode 中使用","path":"08-third-party/OpenCode.md","snippet":"在 OpenCode 中使用"}];
+
+function renderResults(pages) {
+  var el = document.getElementById("results");
+  var stats = document.getElementById("stats");
+  if (pages.length === 0) {
+    el.textContent = "";
+    var div = document.createElement("div");
+    div.className = "no-results";
+    div.textContent = "😕 未找到匹配的文档，试试其他关键词";
+    el.appendChild(div);
+    stats.textContent = "无匹配结果";
+    return;
+  }
+  stats.textContent = "找到 " + pages.length + " 篇文档";
+  el.textContent = "";
+  pages.forEach(function(p) {
+    var item = document.createElement("div");
+    item.className = "result-item";
+    var a = document.createElement("a");
+    a.href = p.path;
+    a.target = "_blank";
+    a.textContent = p.title;
+    var div = document.createElement("div");
+    div.className = "path";
+    div.textContent = p.path;
+    item.appendChild(a);
+    item.appendChild(div);
+    el.appendChild(item);
+  });
+}
+
+document.getElementById("searchInput").addEventListener("input", function(e) {
+  var q = e.target.value.trim().toLowerCase();
+  if (!q) { renderResults(PAGES); return; }
+  var keywords = q.split(/\s+/).filter(Boolean);
+  var results = PAGES.filter(function(p) {
+    var text = (p.title + " " + p.path + " " + p.snippet).toLowerCase();
+    return keywords.every(function(kw) { return text.indexOf(kw) !== -1; });
+  });
+  renderResults(results);
+});
+
+renderResults(PAGES);
+</script>
+</body>
+</html>

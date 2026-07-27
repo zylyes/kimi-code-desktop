@@ -1,0 +1,164 @@
+{
+  "version": "1.0",
+  "generated": "2026-07-27T04:30:42.072Z",
+  "source": "https://www.kimi.com/code/docs/",
+  "totalPages": 39,
+  "pages": [
+    {
+      "title": "Kimi Code 概览",
+      "path": "other/产品概览.md"
+    },
+    {
+      "title": "配置文件",
+      "path": "03-cli-configuration/配置文件.md"
+    },
+    {
+      "title": "数据路径",
+      "path": "03-cli-configuration/数据路径.md"
+    },
+    {
+      "title": "环境变量",
+      "path": "03-cli-configuration/环境变量.md"
+    },
+    {
+      "title": "配置覆盖",
+      "path": "03-cli-configuration/配置覆盖.md"
+    },
+    {
+      "title": "平台与模型",
+      "path": "03-cli-configuration/平台与模型.md"
+    },
+    {
+      "title": "Agent 与子 Agent",
+      "path": "04-cli-customization/Agent与子Agent.md"
+    },
+    {
+      "title": "Hooks",
+      "path": "04-cli-customization/Hooks.md"
+    },
+    {
+      "title": "Model Context Protocol",
+      "path": "04-cli-customization/Model-Context-Protocol.md"
+    },
+    {
+      "title": "Plugins",
+      "path": "04-cli-customization/Plugins.md"
+    },
+    {
+      "title": "Agent Skills",
+      "path": "04-cli-customization/Agent-Skills.md"
+    },
+    {
+      "title": "自定义主题",
+      "path": "04-cli-customization/自定义主题.md"
+    },
+    {
+      "title": "开始使用",
+      "path": "02-cli-guides/开始使用.md"
+    },
+    {
+      "title": "使用目标模式",
+      "path": "02-cli-guides/使用目标模式.md"
+    },
+    {
+      "title": "在 IDE 中使用",
+      "path": "02-cli-guides/在IDE中使用.md"
+    },
+    {
+      "title": "交互与输入",
+      "path": "02-cli-guides/交互与输入.md"
+    },
+    {
+      "title": "从 kimi-cli 迁移",
+      "path": "02-cli-guides/从kimi-cli迁移.md"
+    },
+    {
+      "title": "会话与上下文",
+      "path": "02-cli-guides/会话与上下文.md"
+    },
+    {
+      "title": "常见使用案例",
+      "path": "02-cli-guides/常见使用案例.md"
+    },
+    {
+      "title": "键盘快捷键",
+      "path": "05-cli-reference/键盘快捷键.md"
+    },
+    {
+      "title": "kimi acp 子命令",
+      "path": "05-cli-reference/kimi-acp子命令.md"
+    },
+    {
+      "title": "kimi 命令",
+      "path": "05-cli-reference/kimi命令.md"
+    },
+    {
+      "title": "斜杠命令",
+      "path": "05-cli-reference/斜杠命令.md"
+    },
+    {
+      "title": "内置工具",
+      "path": "05-cli-reference/内置工具.md"
+    },
+    {
+      "title": "变更记录",
+      "path": "06-cli-release-notes/变更记录.md"
+    },
+    {
+      "title": "配置",
+      "path": "07-vscode/配置.md"
+    },
+    {
+      "title": "核心操作",
+      "path": "07-vscode/核心操作.md"
+    },
+    {
+      "title": "定制化",
+      "path": "07-vscode/定制化.md"
+    },
+    {
+      "title": "快速开始",
+      "path": "07-vscode/开始使用.md"
+    },
+    {
+      "title": "Kimi Code 社区倡议",
+      "path": "01-overview/社区倡议.md"
+    },
+    {
+      "title": "联系与反馈",
+      "path": "01-overview/联系与反馈.md"
+    },
+    {
+      "title": "错误参考（Error Reference）",
+      "path": "01-overview/错误参考.md"
+    },
+    {
+      "title": "常见问题",
+      "path": "01-overview/常见问题.md"
+    },
+    {
+      "title": "会员权益",
+      "path": "01-overview/会员权益.md"
+    },
+    {
+      "title": "模型配置",
+      "path": "01-overview/模型配置.md"
+    },
+    {
+      "title": "最新动态",
+      "path": "01-overview/最新动态.md"
+    },
+    {
+      "title": "Claude Code",
+      "path": "08-third-party/Claude-Code.md"
+    },
+    {
+      "title": "在 Codex 中使用",
+      "path": "08-third-party/Codex.md"
+    },
+    {
+      "title": "在 OpenCode 中使用",
+      "path": "08-third-party/OpenCode.md"
+    }
+  ]
+}

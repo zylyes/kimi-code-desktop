@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kimi Code 文档 - 离线索引</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        .container { max-width: 960px; margin: 0 auto; }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        .section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .doc-list { list-style: none; }
+        .doc-list li { margin-bottom: 6px; }
+        .doc-list a {
+            color: #0066cc;
+            text-decoration: none;
+            font-size: 15px;
+            display: block;
+            padding: 6px 8px;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .doc-list a:hover {
+            background: #f0f7ff;
+            text-decoration: underline;
+        }
+        .doc-list a::before {
+            content: "📄 ";
+        }
+        .info {
+            background: #e8f4fd;
+            border-left: 4px solid #0066cc;
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #1a4a7a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Kimi Code 文档</h1>
+        <p class="subtitle">离线文档索引 | 共 39 篇中文文档</p>
+
+        <div class="info">
+            <strong>浏览提示：</strong>以下链接指向预渲染的 HTML 文件，可直接在浏览器中打开阅读。
+            如需完整样式，请在文档根目录运行 <code>python serve.py</code> 启动本地服务器。
+        </div>
+
+        <div class="section">
+            <h2>📘 概览</h2>
+            <ul class="doc-list">
+                <li><a href="html/index.html">Kimi Code 概览</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🖥️ Kimi Code CLI</h2>
+            <ul class="doc-list">
+                <li><a href="html/kimi-code-cli/guides/getting-started.html">快速开始</a></li>
+                <li><a href="html/kimi-code-cli/guides/goals.html">目标设定</a></li>
+                <li><a href="html/kimi-code-cli/guides/ides.html">支持的 IDE</a></li>
+                <li><a href="html/kimi-code-cli/guides/interaction.html">交互方式</a></li>
+                <li><a href="html/kimi-code-cli/guides/migration.html">版本迁移</a></li>
+                <li><a href="html/kimi-code-cli/guides/sessions.html">会话管理</a></li>
+                <li><a href="html/kimi-code-cli/guides/use-cases.html">使用场景</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>⚙️ CLI 配置</h2>
+            <ul class="doc-list">
+                <li><a href="html/kimi-code-cli/configuration/config-files.html">配置文件</a></li>
+                <li><a href="html/kimi-code-cli/configuration/data-locations.html">数据存储位置</a></li>
+                <li><a href="html/kimi-code-cli/configuration/env-vars.html">环境变量</a></li>
+                <li><a href="html/kimi-code-cli/configuration/overrides.html">配置覆盖</a></li>
+                <li><a href="html/kimi-code-cli/configuration/providers.html">Provider 配置</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🔧 CLI 自定义</h2>
+            <ul class="doc-list">
+                <li><a href="html/kimi-code-cli/customization/agents.html">Agents</a></li>
+                <li><a href="html/kimi-code-cli/customization/hooks.html">Hooks</a></li>
+                <li><a href="html/kimi-code-cli/customization/mcp.html">MCP</a></li>
+                <li><a href="html/kimi-code-cli/customization/plugins.html">插件</a></li>
+                <li><a href="html/kimi-code-cli/customization/skills.html">Skills</a></li>
+                <li><a href="html/kimi-code-cli/customization/themes.html">主题</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>📖 CLI 参考</h2>
+            <ul class="doc-list">
+                <li><a href="html/kimi-code-cli/reference/keyboard.html">键盘快捷键</a></li>
+                <li><a href="html/kimi-code-cli/reference/kimi-acp.html">Kimi ACP</a></li>
+                <li><a href="html/kimi-code-cli/reference/kimi-command.html">Kimi 命令</a></li>
+                <li><a href="html/kimi-code-cli/reference/slash-commands.html">斜杠命令</a></li>
+                <li><a href="html/kimi-code-cli/reference/tools.html">工具</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>📝 版本更新</h2>
+            <ul class="doc-list">
+                <li><a href="html/kimi-code-cli/release-notes/changelog.html">更新日志</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🎯 VS Code 扩展</h2>
+            <ul class="doc-list">
+                <li><a href="html/kimi-code-for-vscode/getting-started.html">快速开始</a></li>
+                <li><a href="html/kimi-code-for-vscode/core-operations.html">核心操作</a></li>
+                <li><a href="html/kimi-code-for-vscode/configuration.html">配置</a></li>
+                <li><a href="html/kimi-code-for-vscode/customization.html">自定义</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>📚 其他</h2>
+            <ul class="doc-list">
+                <li><a href="html/kimi-code/community-guidelines.html">社区规范</a></li>
+                <li><a href="html/kimi-code/contact-and-feedback.html">联系与反馈</a></li>
+                <li><a href="html/kimi-code/error-reference.html">错误参考</a></li>
+                <li><a href="html/kimi-code/faq.html">常见问题</a></li>
+                <li><a href="html/kimi-code/membership.html">会员权益</a></li>
+                <li><a href="html/kimi-code/models.html">模型配置</a></li>
+                <li><a href="html/kimi-code/whats-new.html">新功能</a></li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🔗 第三方工具</h2>
+            <ul class="doc-list">
+                <li><a href="html/third-party-tools/claude-code.html">Claude Code</a></li>
+                <li><a href="html/third-party-tools/codex.html">Codex</a></li>
+                <li><a href="html/third-party-tools/opencode.html">OpenCode</a></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

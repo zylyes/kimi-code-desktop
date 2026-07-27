@@ -284,7 +284,7 @@ function getCliVersion(cli) {
       return cliVersionCache;
     }
   } catch { /* ignore */ }
-  logLine('CLI 版本检测失败，使用向后兼容参数');
+  logLine('CLI 版本检测失败，将提示用户升级 CLI');
   return null;
 }
 
@@ -587,31 +587,24 @@ function startKimiServer() {
   // 多实例检查
   checkMultiInstances();
 
-  // 版本检测决定参数
+  // 版本检测决定参数：仅支持 0.28+ 的 CLI，过旧或无法识别时提示升级，不再启动
   const ver = getCliVersion(cli);
-  const isNewCli = ver && (ver.semver[0] >= 1 || (ver.semver[0] === 0 && ver.semver[1] >= 28));
-  let args;
-  if (isNewCli) {
-    args = ['web', '--no-open'];
-    // 自定义启动参数（仅新版 CLI 支持）
-    const port = Number(cfg.port);
-    if (Number.isInteger(port) && port > 0 && port < 65536) args.push('--port', String(port));
-    if (cfg.host && typeof cfg.host === 'string' && cfg.host.trim()) args.push('--host', cfg.host.trim());
-    if (cfg.debugMode === true) {
-      // 调试模式：固定 debug 日志并开启调试端点，忽略自定义 logLevel
-      args.push('--log-level', 'debug', '--debug-endpoints');
-      logLine('调试模式已开启: --log-level debug --debug-endpoints');
-    } else if (cfg.logLevel && typeof cfg.logLevel === 'string' && cfg.logLevel.trim()) {
-      args.push('--log-level', cfg.logLevel.trim());
-    }
-  } else {
-    args = ['web', '--no-open', '--foreground'];
-    if (cfg.port || cfg.host || cfg.logLevel) {
-      logLine('当前 CLI 版本不支持 --port/--host/--log-level，已忽略自定义启动参数');
-    }
-    if (cfg.debugMode === true) {
-      logLine('当前 CLI 不支持 --debug-endpoints，已忽略');
-    }
+  if (!ver || (ver.semver[0] === 0 && ver.semver[1] < 28)) {
+    logLine(`检测到过旧或无法识别的 CLI 版本（${ver ? ver.version : '检测失败'}），需要 0.28 及以上版本`);
+    showSetup('cli-outdated');
+    return;
+  }
+  const args = ['web', '--no-open'];
+  // 自定义启动参数（仅新版 CLI 支持）
+  const port = Number(cfg.port);
+  if (Number.isInteger(port) && port > 0 && port < 65536) args.push('--port', String(port));
+  if (cfg.host && typeof cfg.host === 'string' && cfg.host.trim()) args.push('--host', cfg.host.trim());
+  if (cfg.debugMode === true) {
+    // 调试模式：固定 debug 日志并开启调试端点，忽略自定义 logLevel
+    args.push('--log-level', 'debug', '--debug-endpoints');
+    logLine('调试模式已开启: --log-level debug --debug-endpoints');
+  } else if (cfg.logLevel && typeof cfg.logLevel === 'string' && cfg.logLevel.trim()) {
+    args.push('--log-level', cfg.logLevel.trim());
   }
   if (pendingSessionId) {
     args.unshift('--session', pendingSessionId);

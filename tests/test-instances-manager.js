@@ -104,45 +104,18 @@ async function run() {
     assert.strictEqual(list[1].alive, true);
   });
 
-  // 2. 无 instances 目录时回退 server/lock（旧版 CLI 0.27 实测格式）
-  const home2 = makeHome('home-lock');
-  writeFile(path.join(home2, 'server', 'lock'), {
-    pid: process.pid,
-    started_at: '2026-07-22T09:57:50.851Z',
-    host: '127.0.0.1',
-    port: 58627,
-    host_version: '0.27.0',
-    entry: 'C:\\Users\\zyl\\.kimi-code\\bin\\kimi.exe',
-  });
-  check('无 instances 目录时回退 lock', () => {
-    const list = instancesManager.scanInstances(home2);
-    assert.strictEqual(list.length, 1);
-    assert.strictEqual(list[0].source, 'lock');
-    assert.strictEqual(list[0].host, '127.0.0.1');
-    assert.strictEqual(list[0].port, 58627);
-    assert.strictEqual(list[0].version, '0.27.0');
-    assert.strictEqual(list[0].startedAt, '2026-07-22T09:57:50.851Z');
-    assert.strictEqual(list[0].alive, true);
+  // 2. 无 instances 目录时返回 []（基线已切换 0.28+，不再回退 server/lock）
+  const home2 = makeHome('home-no-instances');
+  check('无 instances 目录返回空数组', () => {
+    assert.deepStrictEqual(instancesManager.scanInstances(home2), []);
   });
 
-  // 2b. instances 目录存在但无有效条目时同样回退 lock
-  const home2b = makeHome('home-fallback');
-  writeFile(path.join(home2b, 'server', 'instances', 'bad.json'), 'not json at all');
-  writeFile(path.join(home2b, 'server', 'lock'), { pid: process.pid, port: 58000 });
-  check('instances 无有效条目时回退 lock', () => {
-    const list = instancesManager.scanInstances(home2b);
-    assert.strictEqual(list.length, 1);
-    assert.strictEqual(list[0].source, 'lock');
-    assert.strictEqual(list[0].port, 58000);
-  });
-
-  // 3. lock 损坏 / 完全无数据时返回 []
-  const home3 = makeHome('home-broken-lock');
-  writeFile(path.join(home3, 'server', 'lock'), '{broken json');
-  const home3b = makeHome('home-empty');
-  check('lock 损坏或缺失返回空数组', () => {
+  // 3. instances 目录存在但文件全为坏 JSON / 无效条目时返回 []
+  const home3 = makeHome('home-all-invalid');
+  writeFile(path.join(home3, 'server', 'instances', 'bad.json'), 'not json at all');
+  writeFile(path.join(home3, 'server', 'instances', 'useless.json'), { note: 'no pid no port' });
+  check('instances 全为坏 JSON 或无效条目返回空数组', () => {
     assert.deepStrictEqual(instancesManager.scanInstances(home3), []);
-    assert.deepStrictEqual(instancesManager.scanInstances(home3b), []);
   });
 
   // 4. checkPidAlive
