@@ -57,6 +57,9 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   openSessionLauncher: () => ipcRenderer.invoke('session:openLauncher'),
   archiveSession: (id) => ipcRenderer.invoke('session:archiveSession', id),
   deleteSession: (id) => ipcRenderer.invoke('session:deleteSession', id),
+  getTrashSessions: () => ipcRenderer.invoke('session:getTrashSessions'),
+  restoreSessionFromTrash: (entryName) => ipcRenderer.invoke('session:restoreSessionFromTrash', entryName),
+  purgeTrashSession: (entryName) => ipcRenderer.invoke('session:purgeTrashSession', entryName),
   getCaps: () => ipcRenderer.invoke('session:getCaps'),
   onSessionChanged: (fn) => {
     const listener = () => fn();

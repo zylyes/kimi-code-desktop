@@ -158,6 +158,62 @@
     color: var(--label-tertiary);
   }
 
+  /* ---------- 回收站折叠区 ---------- */
+  .trash-section {
+    border-top: 1px solid var(--separator);
+    font-size: 12px;
+  }
+  .trash-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 9px 14px;
+    border: none;
+    background: transparent;
+    color: var(--label-tertiary);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .trash-header:hover { color: var(--label-primary); background: var(--bg-secondary-hover); }
+  .trash-arrow { margin-left: auto; transition: transform 0.15s; }
+  .trash-header[aria-expanded="true"] .trash-arrow { transform: rotate(90deg); }
+  .trash-body { padding: 2px 8px 8px; }
+  .trash-list { list-style: none; }
+  .trash-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--label-tertiary);
+  }
+  .trash-item:hover { background: var(--bg-secondary-hover); }
+  .trash-item-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--label-secondary);
+  }
+  .trash-item-time { white-space: nowrap; font-size: 11px; }
+  .trash-item-btn {
+    border: none;
+    background: transparent;
+    color: var(--label-tertiary);
+    cursor: pointer;
+    font-size: 11px;
+    font-family: inherit;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+  }
+  .trash-item-btn:hover { color: var(--label-primary); background: var(--bg-secondary-hover); }
+  .trash-item-btn.danger:hover { color: var(--color-error); }
+  .trash-empty { padding: 12px 10px; text-align: center; }
+
   /* ---------- 右侧详情 ---------- */
   .detail {
     flex: 1;
@@ -355,6 +411,18 @@
       <ul class="list side-nav" id="sessionList" role="listbox" aria-label="会话列表"></ul>
       <div class="empty notice" id="emptyState"></div>
       <div class="side-foot" id="countLabel">正在加载…</div>
+      <!-- 回收站折叠区 -->
+      <div class="trash-section" id="trashSection" hidden>
+        <button class="trash-header" id="trashToggle" type="button" aria-expanded="false">
+          <span class="trash-icon" aria-hidden="true">🗑</span>
+          <span id="trashLabel">回收站（0）</span>
+          <span class="trash-arrow" aria-hidden="true">▶</span>
+        </button>
+        <div class="trash-body" id="trashBody" hidden>
+          <ul class="trash-list" id="trashList"></ul>
+          <div class="trash-empty notice" id="trashEmpty">回收站为空</div>
+        </div>
+      </div>
     </aside>
 
     <main class="detail" aria-label="会话详情">
@@ -393,7 +461,7 @@
           <button class="btn btn-secondary" id="exportMdBtn" type="button" aria-label="导出此会话为 Markdown 文件" title="解析会话记录并导出为 Markdown 文件">导出 Markdown</button>
           <button class="btn btn-secondary" id="monitorBtn" type="button" aria-label="打开此会话的子 Agent 任务监视器" title="在新窗口中查看子 Agent 活动与后台任务">任务监视</button>
           <button class="btn btn-secondary" id="archiveBtn" type="button" aria-label="归档此会话" title="归档此会话（服务端支持时可用）">归档</button>
-          <button class="btn btn-danger" id="deleteBtn" type="button" aria-label="删除此会话" title="永久删除此会话（服务端支持时可用）">删除</button>
+          <button class="btn btn-danger" id="deleteBtn" type="button" aria-label="移至回收站" title="将会话移至回收站，可随时恢复">移至回收站</button>
         </div>
         <div class="action-status" id="actionStatus" aria-live="polite"></div>
       </section>
@@ -639,7 +707,20 @@
       exportMdBtn.disabled = !on;
       monitorBtn.disabled = !on;
       archiveBtn.disabled = !on || !caps.archive;
-      deleteBtn.disabled = !on || !caps.delete;
+      // 删除按钮：ACP 独有会话（sessionDir 为空）禁用
+      if (selectedId) {
+        const s = sessions.find((x) => x.id === selectedId);
+        if (s && !s.sessionDir) {
+          deleteBtn.disabled = true;
+          deleteBtn.title = '无法定位会话目录';
+        } else {
+          deleteBtn.disabled = !on;
+          deleteBtn.title = '将会话移至回收站，可随时恢复';
+        }
+      } else {
+        deleteBtn.disabled = !on;
+        deleteBtn.title = '将会话移至回收站，可随时恢复';
+      }
     }
 
     function report(kind, msg) {
@@ -753,12 +834,109 @@
     deleteBtn.addEventListener('click', () => {
       const s = sessions.find((x) => x.id === selectedId);
       const name = (s && s.title) || selectedId;
-      if (!window.confirm('确定永久删除会话「' + name + '」吗？\n此操作不可撤销！')) return;
-      runAction(deleteBtn, '正在删除…', async (id) => {
+      if (!window.confirm('确定把会话「' + name + '」移至回收站吗？可随时恢复。')) return;
+      runAction(deleteBtn, '正在移至回收站…', async (id) => {
         const r = await api.deleteSession(id);
         if (r && r.ok) await loadSessions();
         return r;
-      }, '会话已删除。');
+      }, '会话已移至回收站。');
+    });
+
+    /* ---------- 回收站 ---------- */
+    const trashSection = $('trashSection');
+    const trashToggle = $('trashToggle');
+    const trashBody = $('trashBody');
+    const trashList = $('trashList');
+    const trashEmpty = $('trashEmpty');
+    const trashLabel = $('trashLabel');
+    let trashExpanded = false;
+
+    async function loadTrash() {
+      if (!api || typeof api.getTrashSessions !== 'function') return;
+      try {
+        const r = await api.getTrashSessions();
+        if (!r || !r.ok) return;
+        const entries = Array.isArray(r.entries) ? r.entries : [];
+        trashLabel.textContent = '回收站（' + entries.length + '）';
+        trashSection.hidden = false;
+        if (!trashExpanded) return;
+        renderTrash(entries);
+      } catch { /* 静默 */ }
+    }
+
+    function renderTrash(entries) {
+      trashList.textContent = '';
+      if (!entries.length) {
+        trashList.hidden = true;
+        trashEmpty.hidden = false;
+        return;
+      }
+      trashList.hidden = false;
+      trashEmpty.hidden = true;
+      entries.forEach((e) => {
+        const li = document.createElement('li');
+        li.className = 'trash-item';
+        const title = document.createElement('span');
+        title.className = 'trash-item-title';
+        title.textContent = e.title || e.sessionId || '未知';
+        const time = document.createElement('span');
+        time.className = 'trash-item-time';
+        time.textContent = e.deletedAt ? new Date(e.deletedAt).toLocaleString('zh-CN', { hour12: false }) : '';
+        const restoreBtn = document.createElement('button');
+        restoreBtn.className = 'trash-item-btn';
+        restoreBtn.textContent = '恢复';
+        restoreBtn.title = '恢复此会话';
+        restoreBtn.addEventListener('click', async () => {
+          restoreBtn.disabled = true;
+          restoreBtn.textContent = '…';
+          try {
+            const r = await api.restoreSessionFromTrash(e.entryName);
+            if (r && r.ok) {
+              await loadTrash();
+              await loadSessions();
+            } else {
+              restoreBtn.textContent = '恢复';
+              restoreBtn.disabled = false;
+            }
+          } catch {
+            restoreBtn.textContent = '恢复';
+            restoreBtn.disabled = false;
+          }
+        });
+        const purgeBtn = document.createElement('button');
+        purgeBtn.className = 'trash-item-btn danger';
+        purgeBtn.textContent = '彻底删除';
+        purgeBtn.title = '不可恢复，确定？';
+        purgeBtn.addEventListener('click', async () => {
+          if (!window.confirm('确定彻底删除此会话？不可恢复！')) return;
+          purgeBtn.disabled = true;
+          purgeBtn.textContent = '…';
+          try {
+            const r = await api.purgeTrashSession(e.entryName);
+            if (r && r.ok) {
+              await loadTrash();
+            } else {
+              purgeBtn.textContent = '彻底删除';
+              purgeBtn.disabled = false;
+            }
+          } catch {
+            purgeBtn.textContent = '彻底删除';
+            purgeBtn.disabled = false;
+          }
+        });
+        li.appendChild(title);
+        li.appendChild(time);
+        li.appendChild(restoreBtn);
+        li.appendChild(purgeBtn);
+        trashList.appendChild(li);
+      });
+    }
+
+    trashToggle.addEventListener('click', () => {
+      trashExpanded = !trashExpanded;
+      trashToggle.setAttribute('aria-expanded', String(trashExpanded));
+      trashBody.hidden = !trashExpanded;
+      if (trashExpanded) loadTrash();
     });
 
     // 服务端能力探测：不支持的端点禁用对应按钮
@@ -769,7 +947,7 @@
         if (r && r.ok && r.caps) {
           caps = r.caps;
           archiveBtn.title = caps.archive ? '归档此会话' : '当前服务端不支持归档';
-          deleteBtn.title = caps.delete ? '永久删除此会话' : '当前服务端不支持删除';
+          deleteBtn.title = '将会话移至回收站，可随时恢复';
           if (!panelEl.hidden) setActionsEnabled(true);
         }
       } catch { /* 保持默认禁用 */ }
@@ -778,7 +956,7 @@
 
     // 其他端删除/归档会话后自动刷新列表
     if (api && typeof api.onSessionChanged === 'function') {
-      api.onSessionChanged(() => { loadCaps(); loadSessions(); });
+      api.onSessionChanged(() => { loadCaps(); loadSessions(); loadTrash(); });
     }
 
     async function onCreate() {

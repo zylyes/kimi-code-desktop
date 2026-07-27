@@ -14,6 +14,7 @@ const ideIntegration = require('./ide-integration');
 const sessionExport = require('./session-export');
 const pluginsManager = require('./plugins-manager');
 const { AcpClient } = require('./acp-client');
+const { moveToTrash, listTrash, restoreFromTrash, purgeTrash } = require('./trash-manager');
 
 const APP_NAME = 'Kimi Code Desktop';
 // 让 Windows 通知显示应用名，而非 electron.app 默认 ID
@@ -4598,10 +4599,156 @@ function isSensitiveWorkDir(dir) {
   return false;
 }
 
-// ---------- 会话 IPC ----------
-ipcMain.handle('session:getSessions', () => {
+// ---------- ACP session/list 集成 ----------
+// 调用 `kimi acp` 的 session/list 获取磁盘会话，30 秒内缓存
+let _acpListCache = null; // { at: number, sessions: [] }
+
+async function querySessionsViaAcp() {
+  // 缓存有效期内直接返回
+  const now = Date.now();
+  if (_acpListCache && _acpListCache.at && (now - _acpListCache.at) < 30000) {
+    return _acpListCache.sessions;
+  }
+
+  const cfg = loadConfig();
+  const cli = resolveCliPath(cfg);
+  if (!cli) return null;
+
+  let cwd = null;
   try {
-    const sessions = getAllSessions();
+    cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-acp-list-'));
+  } catch {
+    return null;
+  }
+
+  let client = null;
+  try {
+    client = new AcpClient({ cliPath: cli, cwd, logFn: (msg) => logLine(`[acp-list] ${msg}`) });
+    await client.start();
+    const result = await client.listSessions();
+    const sessions = result && Array.isArray(result.sessions) ? result.sessions : [];
+    _acpListCache = { at: now, sessions };
+    return sessions;
+  } catch (err) {
+    logLine(`[acp-list] session/list 失败: ${err.message}`);
+    return null;
+  } finally {
+    if (client) {
+      try { client.dispose('acp-list 完成'); } catch { /* ignore */ }
+    }
+    // 清理临时目录
+    try { fs.rmSync(cwd, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
+
+// 归一化 updatedAt：ACP 返回 ISO 字符串，本地为毫秒时间戳，统一转毫秒
+function normalizeUpdatedAt(val) {
+  if (typeof val === 'number') {
+    // 本地已归一化（毫秒）
+    if (val > 0 && val < 1e12) val *= 1000; // 秒→毫秒
+    return val;
+  }
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    return isNaN(d) ? 0 : d.getTime();
+  }
+  return 0;
+}
+
+// 扫描 <home>/sessions/ 目录，查找包含指定 sessionId 子目录的会话目录
+function findSessionDirByAcpId(homeDir, sessionId) {
+  try {
+    const sessionsDir = path.join(homeDir, 'sessions');
+    if (!fs.existsSync(sessionsDir)) return null;
+    const topDirs = fs.readdirSync(sessionsDir, { withFileTypes: true });
+    for (const top of topDirs) {
+      if (!top.isDirectory()) continue;
+      const childDir = path.join(sessionsDir, top.name, sessionId);
+      if (fs.existsSync(childDir)) {
+        const st = fs.statSync(childDir);
+        if (st.isDirectory()) return childDir;
+      }
+    }
+  } catch { /* 容忍 */ }
+  return null;
+}
+
+// 合并本地索引与 ACP 列表，返回完整会话数组（按 updatedAt 倒序）
+async function getAllSessionsMerged() {
+  const localSessions = getAllSessions();
+  const localMap = new Map();
+  for (const s of localSessions) {
+    localMap.set(s.sessionId, s);
+  }
+
+  const acpSessions = await querySessionsViaAcp();
+  if (!acpSessions) return localSessions;
+
+  const homeDir = getKimiHomeDir();
+  const mergedMap = new Map(localMap);
+
+  for (const acp of acpSessions) {
+    const sid = acp.sessionId;
+    if (!sid) continue;
+    const local = localMap.get(sid);
+    const acpTitle = (typeof acp.title === 'string' && acp.title && acp.title !== 'New Session') ? acp.title : null;
+    const acpUpdated = normalizeUpdatedAt(acp.updatedAt);
+
+    if (local) {
+      // ACP 的 title 和 updatedAt 覆盖本地（title 非空且非 'New Session' 时）
+      if (acpTitle) local.title = acpTitle;
+      if (acpUpdated > 0) local.updatedAt = acpUpdated;
+    } else {
+      // ACP 独有会话：尝试在本地 sessions/ 目录下定位
+      const sessionDir = findSessionDirByAcpId(homeDir, sid);
+      if (sessionDir) {
+        // 本地有目录，构造完整条目
+        const entry = {
+          sessionId: sid,
+          sessionDir: sessionDir,
+          workDir: acp.cwd || '',
+          title: acpTitle || 'New Session',
+          lastPrompt: '',
+          updatedAt: acpUpdated || 0,
+        };
+        mergedMap.set(sid, entry);
+      } else {
+        // 本地无目录，以 ACP 的 cwd 列出，sessionDir 置空
+        const entry = {
+          sessionId: sid,
+          sessionDir: '',
+          workDir: acp.cwd || '',
+          title: acpTitle || 'New Session',
+          lastPrompt: '',
+          updatedAt: acpUpdated || 0,
+        };
+        mergedMap.set(sid, entry);
+      }
+    }
+  }
+
+  const result = Array.from(mergedMap.values());
+  result.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return result;
+}
+
+// 带超时回退的合并加载
+async function loadSessionsWithFallback() {
+  try {
+    const result = await Promise.race([
+      getAllSessionsMerged(),
+      new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]);
+    if (result) return result;
+  } catch { /* 超时或异常，回退 */ }
+  // 超时回退：仅本地
+  return getAllSessions();
+}
+
+// ---------- 会话 IPC ----------
+ipcMain.handle('session:getSessions', async () => {
+  try {
+    const sessions = await loadSessionsWithFallback();
     return { ok: true, sessions };
   } catch (err) {
     logLine(`getSessions 失败: ${err.message}`);
@@ -4609,9 +4756,9 @@ ipcMain.handle('session:getSessions', () => {
   }
 });
 
-ipcMain.handle('session:refreshSessions', () => {
+ipcMain.handle('session:refreshSessions', async () => {
   try {
-    const sessions = getAllSessions();
+    const sessions = await loadSessionsWithFallback();
     return { ok: true, sessions };
   } catch (err) {
     logLine(`refreshSessions 失败: ${err.message}`);
@@ -4983,12 +5130,12 @@ ipcMain.handle('session:openLauncher', () => {
   return { ok: true };
 });
 
-// ---------- 会话归档/删除（REST 能力自适应）----------
+// ---------- 会话归档/删除（删除走本地回收站，archive 仍走 REST）----------
 ipcMain.handle('session:getCaps', () => ({
   ok: true,
   caps: {
     archive: serverCaps.archive,
-    delete: serverCaps.delete,
+    delete: true, // 本地回收站删除始终可用
     models: serverCaps.models,
   },
 }));
@@ -5056,30 +5203,110 @@ ipcMain.handle('session:deleteSession', async (_e, sessionId) => {
   if (!sessionId || typeof sessionId !== 'string') {
     return { ok: false, message: '无效的 sessionId' };
   }
-  if (!serverCaps.delete || !serverCaps.deletePath) {
-    return { ok: false, message: '当前服务端不支持删除操作（openapi 未暴露删除端点）' };
+
+  // 从索引定位 entry
+  const indexEntries = readSessionIndex();
+  let entry = indexEntries.find((e) => e.sessionId === sessionId);
+
+  // 如果索引未命中，尝试扫描 sessions/*/ 定位
+  let sessionDir = entry ? entry.sessionDir : null;
+  if (!sessionDir) {
+    try {
+      const homeDir = getKimiHomeDir();
+      const sessionsDir = path.join(homeDir, 'sessions');
+      if (fs.existsSync(sessionsDir)) {
+        const topDirs = fs.readdirSync(sessionsDir, { withFileTypes: true });
+        for (const top of topDirs) {
+          if (!top.isDirectory()) continue;
+          const candidate = path.join(sessionsDir, top.name, sessionId);
+          if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+            sessionDir = candidate;
+            break;
+          }
+        }
+      }
+    } catch { /* 容忍 */ }
   }
-  if (!knownServerBase) {
-    return { ok: false, message: 'Web 服务未就绪' };
+
+  if (!sessionDir) {
+    return { ok: false, error: '无法定位会话目录，未删除' };
   }
-  // 先归档（若支持），再删除，降低误删损失
-  if (serverCaps.archive && serverCaps.archivePath) {
-    const archiveUrl = buildSessionActionUrl(knownServerBase, serverCaps.archivePath, sessionId);
-    await httpRequest('POST', archiveUrl, knownServerToken);
+
+  // 如果当前 acp 会话正是待删除的，dispose 它
+  if (acpClient && acpClient.sessionId === sessionId) {
+    disposeAcpClient('删除会话');
   }
-  const url = buildSessionActionUrl(knownServerBase, serverCaps.deletePath, sessionId);
-  logLine(`删除会话: ${sessionId}`);
-  const res = await httpRequest(serverCaps.deleteMethod.toUpperCase(), url, knownServerToken);
-  if (!res) {
-    return { ok: false, message: '删除请求失败（网络错误或超时）' };
+
+  const homeDir = getKimiHomeDir();
+  // 取会话标题供回收站展示（索引条目 title 可能为空，enrich 一次兜底）
+  let trashTitle = (entry && entry.title) || '';
+  if (!trashTitle && entry) {
+    try {
+      const enriched = enrichSessionFromState(entry);
+      trashTitle = (enriched && enriched.title) || '';
+    } catch { /* 容忍，空标题不影响回收 */ }
   }
-  if (res.status < 200 || res.status >= 300) {
-    logLine(`删除会话失败: HTTP ${res.status}`);
-    return { ok: false, message: `删除失败 (HTTP ${res.status})` };
+  try {
+    const trashEntry = moveToTrash(homeDir, {
+      sessionId,
+      sessionDir,
+      workDir: (entry && entry.workDir) || '',
+      title: trashTitle,
+    });
+    removeSessionFromIndex(sessionId);
+    notifySessionChanged();
+    logLine(`会话已移至回收站: ${sessionId} → ${trashEntry}`);
+    return { ok: true, message: '会话已移至回收站', trashEntry };
+  } catch (err) {
+    logLine(`移至回收站失败: ${err.message}`);
+    return { ok: false, message: `移至回收站失败: ${err.message}` };
   }
-  removeSessionFromIndex(sessionId);
-  notifySessionChanged();
-  return { ok: true, message: '会话已删除' };
+});
+
+// ---------- 回收站 IPC ----------
+ipcMain.handle('session:getTrashSessions', () => {
+  try {
+    const entries = listTrash(getKimiHomeDir());
+    return { ok: true, entries };
+  } catch (err) {
+    logLine(`getTrashSessions 失败: ${err.message}`);
+    return { ok: false, message: err.message, entries: [] };
+  }
+});
+
+ipcMain.handle('session:restoreSessionFromTrash', async (_e, entryName) => {
+  if (!entryName || typeof entryName !== 'string') {
+    return { ok: false, message: '无效的 entryName' };
+  }
+  try {
+    const meta = restoreFromTrash(getKimiHomeDir(), entryName);
+    // 把会话信息追加回 session_index.jsonl
+    const indexPath = getSessionIndexPath();
+    const line = JSON.stringify({
+      sessionId: meta.sessionId,
+      sessionDir: meta.originalDir,
+      workDir: meta.workDir || '',
+    }) + '\n';
+    fs.appendFileSync(indexPath, line, 'utf8');
+    notifySessionChanged();
+    return { ok: true };
+  } catch (err) {
+    logLine(`restoreSessionFromTrash 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
+});
+
+ipcMain.handle('session:purgeTrashSession', async (_e, entryName) => {
+  if (!entryName || typeof entryName !== 'string') {
+    return { ok: false, message: '无效的 entryName' };
+  }
+  try {
+    purgeTrash(getKimiHomeDir(), entryName);
+    return { ok: true };
+  } catch (err) {
+    logLine(`purgeTrashSession 失败: ${err.message}`);
+    return { ok: false, message: err.message };
+  }
 });
 
 // ---------- 旧版数据目录迁移提示 ----------
