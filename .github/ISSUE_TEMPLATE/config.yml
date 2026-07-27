@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞报告
+    url: https://github.com/zylyes/kimi-code-desktop/security
+    about: 请通过 Security Advisory 私下报告安全漏洞
+  - name: 查看已有功能建议
+    url: https://github.com/zylyes/kimi-code-desktop/blob/main/FEATURE-IDEAS.md
+    about: 提交功能请求前先查看已调研的功能建议

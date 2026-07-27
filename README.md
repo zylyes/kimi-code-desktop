@@ -215,3 +215,14 @@ docs/                      调研文档
 CHANGELOG.md               版本变更历史
 FEATURE-IDEAS.md           功能建议报告
 RELEASE_NOTES.md           发行版说明
+
+## 项目文档
+
+| 文档 | 说明 |
+|---|---|
+| [LICENSE](LICENSE) | MIT 开源许可证 |
+| [CHANGELOG](CHANGELOG.md) | v0.1.0 至今的完整版本变更历史 |
+| [CONTRIBUTING](CONTRIBUTING.md) | 贡献指南（Bug 报告、功能请求、代码提交） |
+| [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md) | 贡献者行为准则 |
+| [SECURITY](SECURITY.md) | 安全策略与漏洞报告 |
+| [SUPPORT](SUPPORT.md) | 获取支持与诊断工具 |
