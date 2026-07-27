@@ -1,11 +1,31 @@
-### 修复
+# v1.0.0 - 首个公开发行版 🎉
 
-- **深色模式顶栏异色根治**：`header.chat-header` 强制背景色的暗色变体原挂在 `@media (prefers-color-scheme)`（跟随桌面应用主题），与 Web UI 自身主题设置解耦——Web UI 深色 + 桌面/系统浅色时头部被刷白、右上窗控采样随之整条顶栏发白。改为 preload 在内容区代表点用 `elementsFromPoint` source-over 合成判定**页面实际渲染主题**（亮度 ≤0.4 判暗），在 `<html>` 维护 `kcd-page-dark` 类，注入 CSS 暗色规则改挂该类；顶栏任何「Web UI 主题 × 桌面主题」组合下都与页面一致。
-- **本地页面深色跟随 Web UI 实际主题**：全部本地页的暗色此前只经 `prefers-color-scheme` 跟随桌面主题，Web UI 深色时仍渲染浅色。新增生效主题裁决 `effectiveDark()`（桌面设置显式亮/暗优先，「跟随系统」时随 Web UI 实际主题），preload 检测翻转经 `kcd:page-theme` 上报，主进程向所有窗口与覆盖层页面置 `kcd-page-dark`/`kcd-page-light` 类并刷新窗口底色与悬浮窗控。
+经过 20 个版本的迭代（v0.1.0 → v0.20.0），Kimi Code Desktop 已达到公开发行标准。
 
-### 其他
+### 核心能力
 
-- `kimi-theme.css` 暗色令牌与 `menu-panel.js` 暗色规则改为「类驱动 + 媒体查询兜底」双通道
-- 无破坏性变更
+- **Kimi Web 桌面化**：一键启动，自动捕获会话地址，无需浏览器。
+- **ACP 原生聊天**：完全原生聊天 UI——流式正文/思考折叠、真实会话化、历史恢复、configOptions 切换栏、斜杠命令菜单、图片输入、审批弹窗、工具调用卡片、WebView 降级入口。
+- **会话启动器**：历史浏览/搜索/恢复/导出/可视化/指定目录新建。
+- **图形化设置中心**：侧栏分组导航，config.toml 编辑、权限规则、供应商/模型、MCP、Skills/Hooks、IDE 接入、插件、应用设置 8 项。
+- **无边框窗口体系**：全窗口 frameless + titleBarOverlay，窗控颜色与页面实时同步（<100ms），暗色模式 Web UI 与桌面主题解耦。
+- **全局热键**：`Ctrl+Shift+Space` 全局显隐，`Ctrl+Shift+S` 启动器，`Ctrl+,` 设置。
+- **多实例/通知/托盘**：桌面原生通知（消双重弹出）、托盘用量/任务进度、Kimi 风自绘菜单面板。
 
-📦 下载：见下方 `KimiCodeDesktop-Portable.exe`
+### 统计
+
+- 20 个版本，80 项功能，7 套单元测试全部通过。
+- 源码：~4500 行主进程 + ~6000 行页面 + ~800 行 CSS。
+
+### 要求
+
+- Windows 10+（x64）
+- Kimi Code CLI（可选，可在设置页在线安装）
+
+📦 下载：见下方附件
+
+| 格式 | 文件 | 说明 |
+|---|---|---|
+| 🖥️ 安装包 | `KimiCodeDesktop-Setup-1.0.0.exe` | 安装向导，可选路径，创建快捷方式 |
+| 🚀 便携版 | `KimiCodeDesktop-Portable-1.0.0.exe` | 绿色版，双击即用 |
+| 📦 7z | `KimiCodeDesktop-1.0.0-x64.7z` | 解压到任意目录运行 |

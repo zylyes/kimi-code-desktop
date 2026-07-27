@@ -1,8 +1,8 @@
 {
   "name": "kimi-code-desktop",
-  "version": "0.19.4",
+  "version": "1.0.0",
   "description": "Kimi Code 网页版桌面套壳 — 自动启动 kimi web 并嵌入桌面窗口",
-  "main": "main.js",
+  "main": "src/main/main.js",
   "author": "zyl",
   "license": "MIT",
   "scripts": {
@@ -22,44 +22,35 @@
     "appId": "com.kimi.code.desktop",
     "productName": "Kimi Code Desktop",
     "files": [
-      "main.js",
-      "preload.js",
-      "menu-panel.js",
-      "config-manager.js",
-      "skills-manager.js",
-      "instances-manager.js",
-      "ide-integration.js",
-      "loading.html",
-      "setup.html",
-      "sessions.html",
-      "question.html",
-      "question.js",
-      "question-preload.js",
-      "session-export.js",
-      "plugins-manager.js",
-      "prompts.html",
-      "help.html",
-      "agents.html",
-      "lan.html",
-      "kimi-theme.css",
-      "acp-client.js",
-      "chat.html",
-      "chat.js",
-      "chat-preload.js",
-      "permission.html",
-      "permission.js",
-      "permission-preload.js",
+      "src/main/*.js",
+      "src/preload/*.js",
+      "src/pages/*.html",
+      "src/pages/*.js",
+      "src/styles/*.css",
       "assets/**",
       "package.json"
     ],
     "win": {
       "target": [
-        "portable"
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "7z", "arch": ["x64"] }
       ],
       "icon": "assets/icon.ico"
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "artifactName": "KimiCodeDesktop-Setup-${version}.${ext}",
+      "shortcutName": "Kimi Code Desktop"
+    },
     "portable": {
-      "artifactName": "KimiCodeDesktop-Portable.${ext}"
+      "artifactName": "KimiCodeDesktop-Portable-${version}.${ext}"
+    },
+    "7z": {
+      "artifactName": "KimiCodeDesktop-${version}.${ext}"
     },
     "directories": {
       "output": "release"

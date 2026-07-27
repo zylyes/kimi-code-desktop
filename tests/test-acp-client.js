@@ -7,7 +7,7 @@ const os = require('os');
 const assert = require('assert');
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-desktop-acp-test-'));
-const { AcpClient, FrameParser, encodeMessage } = require('./acp-client');
+const { AcpClient, FrameParser, encodeMessage } = require('../src/main/acp-client');
 
 function cleanup() {
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }

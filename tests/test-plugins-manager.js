@@ -8,7 +8,7 @@ const assert = require('assert');
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-desktop-plugins-test-'));
 process.env.KIMI_CODE_HOME = tmpDir;
 
-const pluginsManager = require('./plugins-manager');
+const pluginsManager = require('../src/main/plugins-manager');
 
 const managedDirPath = path.join(tmpDir, 'plugins', 'managed');
 const installedPath = path.join(tmpDir, 'plugins', 'installed.json');

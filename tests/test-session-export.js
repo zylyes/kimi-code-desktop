@@ -5,7 +5,7 @@ const os = require('os');
 const assert = require('assert');
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-desktop-export-test-'));
-const sessionExport = require('./session-export');
+const sessionExport = require('../src/main/session-export');
 
 function cleanup() {
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }

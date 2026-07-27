@@ -1,10 +1,21 @@
-# Kimi Code Desktop
+# Kimi Code Desktop v1.0.0 🎉
 
-Kimi Code 网页版（`kimi web`）的桌面套壳应用。基于 Electron，打开后自动启动 `kimi web` 本地服务，捕获带 token 的会话地址并在桌面窗口中打开，无需再手动复制链接到浏览器。
+> Kimi Code 网页版的原生桌面体验。一键启动 Kimi Code 本地服务，无需浏览器——ACP 原生聊天、图形化设置、会话管理、全局热键、无边框窗口，全部开箱即用。
 
-## 直接使用（已打包）
+## 直接使用
 
-从 [Releases](https://github.com/zylyes/kimi-code-desktop/releases) 下载最新 `KimiCodeDesktop-Portable.exe` 即可运行（绿色便携版，无需安装）。
+从 [Releases](https://github.com/zylyes/kimi-code-desktop/releases) 下载最新版本，提供三种分发格式：
+
+| 格式 | 文件名 | 说明 |
+|---|---|---|
+| **安装包** | `KimiCodeDesktop-Setup-x.x.x.exe` | 带安装向导，可选安装路径，创建开始菜单快捷方式 |
+| **便携版** | `KimiCodeDesktop-Portable-x.x.x.exe` | 绿色版，双击即用，无需安装 |
+| **7z 自解压** | `KimiCodeDesktop-x.x.x-x64.7z` | 压缩包，解压到任意目录直接运行 |
+
+### 要求
+
+- Windows 10+（x64）
+- [Kimi Code CLI](https://www.kimi.com/code)（可选——首次运行可在设置页一键在线安装）
 
 ## 工作方式
 
@@ -165,44 +176,42 @@ npm install
 ## 文件结构
 
 ```
-main.js              Electron 主进程（CLI 版本检测、双通道地址捕获、HTTP 轮询就绪探测、优雅退出、IPC、会话管理、WebSocket 订阅、托盘用量/任务状态、全局热键、问答窗口管理、编辑器协议接管、配置中心 IPC、ACP 原生聊天窗）
-preload.js           渲染进程桥接（含会话启动器 API 和配置中心 API）
-config-manager.js    配置管理模块（读写 config.toml、tui.toml、mcp.json，写入前备份、doctor 校验、失败回滚）
-instances-manager.js 多实例管理模块（扫描 instances/ 目录、lock 回退、PID 存活检测、HTTP 探测）
-ide-integration.js   IDE 接入模块（kimi acp 探测、编辑器检测、Zed 配置写入、JSONC 处理、配置片段生成）
-skills-manager.js    Skills 管理模块（frontmatter 解析、目录扫描、用户级技能读写删）
-plugins-manager.js   插件管理模块（清单扫描、启用状态合并、启用/禁用写回）
-session-export.js    会话导出模块（JSONL 解析、消息提取、Markdown 渲染、子 Agent 扫描）
-acp-client.js        ACP 协议客户端（stdio JSON-RPC 2.0，ndjson 分帧，initialize→session/new/load→prompt 全链路，图片附件支持、set_config_option/cancel，权限请求自动取消）
-question.html        原生问答窗口（单选/多选/多题/自定义输入，深色主题 UI）
-question.js          问答窗口渲染逻辑（选项渲染、多题翻页、答案校验、提交/回退/取消）
-question-preload.js  问答窗口预加载桥接（contextIsolation 下暴露 kimiQuestion API）
-loading.html         启动等待页（实时显示 CLI 日志）
-setup.html           设置页（侧栏分组导航——应用/环境/配置/集成——含应用设置面板、自动/手动连接、标签页配置管理）
-sessions.html        会话启动器（历史浏览、恢复、导出 ZIP/Markdown、可视化、任务监视器、新建会话）
-prompts.html         Prompt 模板库（按场景分类展示 15 条工程实践示例，一键复制）
-help.html            命令与快捷键速查（F1 快捷键打开）
-agents.html          子 Agent 任务监视器（时间线渲染各 Agent 卡片与后台任务）
-lan.html             局域网访问面板（网卡 URL 展示 + 二维码 + 安全警示）
-chat.html + chat.js + chat-preload.js  ACP 原生聊天前端（流式正文渲染、思考折叠区、节流合并、状态栏、历史恢复、configOptions 切换栏、停止生成、斜杠命令菜单、图片附件 chips 与气泡预览、WebView 降级入口）
-permission.html + permission.js + permission-preload.js  ACP 原生审批弹窗（once/always 按钮组、工具上下文展示、Esc/关窗取消；CSS 复用 kimi-theme 共享组件）
-kimi-theme.css       全应用共享设计令牌样式表（kimi.com 官方黑白灰设计语言，亮/暗双主题跟随系统；含 .btn.ghost/.icon-btn 组件、弹窗共享族、spinner 动画、--font-mono/--radius-sm 令牌）
-assets/              应用图标
-scripts/
-  mock-kimi-server.js  Mock Kimi 服务端（HTTP+WS，覆盖 client_hello/订阅/问答/审批/用量/任务事件验证）
-  pack-versioned.ps1   版本化打包脚本
-  acp-probe.js         ACP 协议探测（ndjson 分帧握手验证）
-  acp-probe3.js        第三次 ACP 探测（session/load、set_config_option、list、cancel 实测）
-  acp-probe4.js        第四次 ACP 探测（图片块 prompt 往返验证）
-test-config-manager.js   配置管理模块单元测试
-test-skills-manager.js   Skills 管理模块单元测试
-test-instances-manager.js 多实例管理模块单元测试
-test-ide-integration.js   IDE 接入模块单元测试
-test-plugins-manager.js   插件管理模块单元测试（9 组 48 条断言）
-test-session-export.js    会话导出模块单元测试（8 组断言）
-docs/
-  acp-research.md        ACP 协议调研报告
-  acp-probe4-output.txt  第四次 ACP 探测原始输出
-CHANGELOG.md            版本变更历史
-FEATURE-IDEAS.md        功能建议报告与实施状态
-```
+src/
+  main/                   主进程模块
+    main.js               Electron 主进程（启动/托盘/窗口/WS/IPC/ACP 全逻辑）
+    acp-client.js          ACP 协议客户端（stdio JSON-RPC 2.0，图片附件支持）
+    config-manager.js      配置管理（config.toml/tui.toml/mcp.json 读写校验）
+    instances-manager.js   多实例管理（扫描/探测/切换）
+    ide-integration.js     IDE 接入（kimi acp 探测/编辑器检测/Zed 配置）
+    skills-manager.js      Skills 管理（frontmatter 解析/目录扫描/读写删）
+    plugins-manager.js     插件管理（清单扫描/启用状态合并）
+    session-export.js      会话导出（JSONL 解析/Markdown 渲染/Agent 扫描）
+    menu-panel.js          Kimi 风自绘菜单面板（全窗口统一入口）
+  pages/                  原生页面
+    loading.html           启动等待页
+    setup.html             设置页（侧栏分组导航）
+    sessions.html          会话启动器
+    chat.html + chat.js    ACP 原生聊天前端（斜杠命令/图片输入/WebView 降级）
+    permission.html + .js  ACP 原生审批弹窗
+    question.html + .js    原生问答窗口
+    prompts.html           Prompt 模板库
+    help.html              命令与快捷键速查
+    agents.html            子 Agent 任务监视器
+    lan.html               局域网访问面板
+  preload/                预加载桥接
+    preload.js             主窗口渲染桥接
+    chat-preload.js        聊天窗桥接
+    permission-preload.js  审批窗桥接
+    question-preload.js    问答窗桥接
+  styles/
+    kimi-theme.css         全应用共享设计令牌样式表（亮/暗双主题）
+scripts/                   工具脚本
+  mock-kimi-server.js      Mock Kimi 服务端
+  pack-versioned.ps1       版本化打包脚本
+  acp-probe.js/3.js/4.js  ACP 协议探测
+  probe-panels.js          页面元素探针 dump + 窗控变色逐帧测量
+tests/                     单元测试（7 个文件，全部通过）
+docs/                      调研文档
+CHANGELOG.md               版本变更历史
+FEATURE-IDEAS.md           功能建议报告
+RELEASE_NOTES.md           发行版说明

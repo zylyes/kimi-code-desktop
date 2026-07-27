@@ -1,5 +1,26 @@
+# 依赖 & 构建产物
 node_modules/
 release/
 dist/
-*.log
+
+# 缓存 & 工具
 .qoder/
+*.log
+*.tmp
+*.bak
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+Thumbs.db
+.DS_Store
+
+# 敏感配置
+.env
+.env.local
+.env.*.local

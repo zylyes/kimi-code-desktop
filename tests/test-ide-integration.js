@@ -7,7 +7,7 @@ const assert = require('assert');
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-desktop-ide-test-'));
 
-const ide = require('./ide-integration');
+const ide = require('../src/main/ide-integration');
 
 // 仅作为字符串嵌入配置，测试中不会真实执行它
 const fakeCli = process.platform === 'win32'

@@ -1202,9 +1202,9 @@ function createQuestionWindow(sessionId, payload, gen) {
       backgroundColor: windowBackground(),
       autoHideMenuBar: true,
       ...framelessOpts(),
-      icon: path.join(__dirname, 'assets', 'icon.png'),
+      icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
       webPreferences: {
-        preload: path.join(__dirname, 'question-preload.js'),
+        preload: path.join(__dirname, '..', 'preload', 'question-preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
@@ -1238,7 +1238,7 @@ function createQuestionWindow(sessionId, payload, gen) {
       });
     } catch { /* ignore */ }
   });
-  win.loadFile(path.join(__dirname, 'question.html')).catch((err) => {
+  win.loadFile(path.join(__dirname, '..', 'pages', 'question.html')).catch((err) => {
     logLine(`问答窗口加载失败: ${err.message}`);
     if (!win.isDestroyed()) win.close();
     // 仅在问题仍未处理时回退（用户可能已手动关窗）
@@ -1633,7 +1633,7 @@ function startWsSubscription() {
 function showDesktopNotification(title, body) {
   if (loadConfig().notificationsEnabled === false) return;
   try {
-    const notif = new Notification({ title, body, icon: path.join(__dirname, 'assets', 'icon.png') });
+    const notif = new Notification({ title, body, icon: path.join(__dirname, '..', '..', 'assets', 'icon.png') });
     notif.on('click', () => {
       // 与托盘点击同一入口：窗口被销毁（mainWindow 为 null）时自动重建并拉起服务
       showMainWindow();
@@ -1684,7 +1684,7 @@ function showSetup(reason, tab) {
     return;
   }
   closeOverlay(); // 防御：整页加载前确保覆盖层已关闭
-  mainWindow.loadFile(path.join(__dirname, 'setup.html'), { query });
+  mainWindow.loadFile(path.join(__dirname, '..', 'pages', 'setup.html'), { query });
 }
 
 // ---------- 覆盖层（本地页盖在常驻 Web UI 之上，切回零重载）----------
@@ -1693,7 +1693,7 @@ function ensureOverlayView() {
   if (overlayView || !mainWindow || mainWindow.isDestroyed()) return;
   overlayView = new WebContentsView({
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -1719,7 +1719,7 @@ function showOverlay(kind, file, query) {
   if (overlayView) closeOverlay(); // 已有覆盖层（含不同 kind）先销毁重建
   ensureOverlayView();
   if (!overlayView) return;
-  overlayView.webContents.loadFile(path.join(__dirname, file), query ? { query } : undefined).catch((err) => {
+  overlayView.webContents.loadFile(path.join(__dirname, '..', 'pages', file), query ? { query } : undefined).catch((err) => {
     logLine(`加载 ${file} 失败: ${err.message}`);
   });
   overlayKind = kind;
@@ -1774,7 +1774,7 @@ function showSessionLauncher() {
   mainWindow.show();
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.focus();
-  mainWindow.loadFile(path.join(__dirname, 'sessions.html')).catch((err) => {
+  mainWindow.loadFile(path.join(__dirname, '..', 'pages', 'sessions.html')).catch((err) => {
     logLine(`加载 sessions.html 失败: ${err.message}`);
   });
 }
@@ -1799,9 +1799,9 @@ function makeSingletonWindow(title, file) {
       backgroundColor: windowBackground(),
       autoHideMenuBar: true,
       ...framelessOpts(),
-      icon: path.join(__dirname, 'assets', 'icon.png'),
+      icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
       webPreferences: {
-        preload: path.join(__dirname, 'preload.js'),
+        preload: path.join(__dirname, '..', 'preload', 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
@@ -1811,7 +1811,7 @@ function makeSingletonWindow(title, file) {
     });
     applyFrameless(win);
     win.on('closed', () => { win = null; });
-    win.loadFile(path.join(__dirname, file)).catch((err) => {
+    win.loadFile(path.join(__dirname, '..', 'pages', file)).catch((err) => {
       logLine(`加载 ${file} 失败: ${err.message}`);
     });
   };
@@ -1837,9 +1837,9 @@ function showAgentsMonitor(sessionDir, title) {
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     ...framelessOpts(),
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -1848,7 +1848,7 @@ function showAgentsMonitor(sessionDir, title) {
     },
   });
   applyFrameless(win);
-  win.loadFile(path.join(__dirname, 'agents.html'), {
+  win.loadFile(path.join(__dirname, '..', 'pages', 'agents.html'), {
     query: { dir, title: ensureString(title) },
   }).catch((err) => {
     logLine(`加载 agents.html 失败: ${err.message}`);
@@ -2034,9 +2034,9 @@ function openAcpPermissionWindow(payload, settle) {
       backgroundColor: windowBackground(),
       autoHideMenuBar: true,
       ...framelessOpts(),
-      icon: path.join(__dirname, 'assets', 'icon.png'),
+      icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
       webPreferences: {
-        preload: path.join(__dirname, 'permission-preload.js'),
+        preload: path.join(__dirname, '..', 'preload', 'permission-preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
@@ -2062,7 +2062,7 @@ function openAcpPermissionWindow(payload, settle) {
     if (!acpPermissionPending || acpPermissionPending.settle !== settle) return;
     try { win.webContents.send('acp-permission:init', payload); } catch { /* ignore */ }
   });
-  win.loadFile(path.join(__dirname, 'permission.html')).catch((err) => {
+  win.loadFile(path.join(__dirname, '..', 'pages', 'permission.html')).catch((err) => {
     logLine(`权限窗口加载失败: ${err.message}`);
     fellBack = true;
     if (!win.isDestroyed()) win.close();
@@ -2142,9 +2142,9 @@ function showAcpChatWindow() {
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
     ...framelessOpts(),
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
-      preload: path.join(__dirname, 'chat-preload.js'),
+      preload: path.join(__dirname, '..', 'preload', 'chat-preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -2157,7 +2157,7 @@ function showAcpChatWindow() {
     if (acpChatWindow === win) acpChatWindow = null;
     disposeAcpClient('窗口关闭');
   });
-  win.loadFile(path.join(__dirname, 'chat.html')).catch((err) => {
+  win.loadFile(path.join(__dirname, '..', 'pages', 'chat.html')).catch((err) => {
     logLine(`加载 chat.html 失败: ${err.message}`);
   });
 }
@@ -2484,7 +2484,7 @@ async function restartServer() {
     knownServerToken = null;
     sessionLauncherVisible = false; // 开始新重启时清除启动器可见状态，确保 startPolling 能加载页面
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+      mainWindow.loadFile(path.join(__dirname, '..', 'pages', 'loading.html'));
     }
     startKimiServer();
   })();
@@ -2745,7 +2745,7 @@ function hideToTray() {
       tray.displayBalloon({
         title: APP_NAME,
         content: '已最小化到系统托盘。单击图标恢复窗口。',
-        icon: nativeImage.createFromPath(path.join(__dirname, 'assets', 'icon.png')),
+        icon: nativeImage.createFromPath(path.join(__dirname, '..', '..', 'assets', 'icon.png')),
       });
     } catch { /* ignore */ }
   }
@@ -2771,7 +2771,7 @@ function buildTrayMenu(statusLabel) {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray.png'));
+  const icon = nativeImage.createFromPath(path.join(__dirname, '..', '..', 'assets', 'tray.png'));
   tray = new Tray(icon);
   tray.setToolTip(APP_NAME);
   tray.setContextMenu(buildTrayMenu(''));
@@ -2890,9 +2890,9 @@ function createWindow() {
     autoHideMenuBar: true,
     // 无边框：原生标题栏与 Web UI 品牌区/会话头部重复，改为悬浮窗控（右上角叠加 min/max/close）
     ...framelessOpts(),
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -3065,7 +3065,7 @@ function createWindow() {
   mainWindow.webContents.on('did-navigate-in-page', syncTitlebarColor);
   mainWindow.webContents.on('did-finish-load', syncTitlebarColor);
 
-  mainWindow.loadFile(path.join(__dirname, 'loading.html'));
+  mainWindow.loadFile(path.join(__dirname, '..', 'pages', 'loading.html'));
 }
 
 // ---------- 全局热键 ----------
@@ -4867,9 +4867,9 @@ ipcMain.handle('session:visualiseSession', async (_e, sessionId) => {
             backgroundColor: windowBackground(),
             autoHideMenuBar: true,
             ...framelessOpts(),
-            icon: path.join(__dirname, 'assets', 'icon.png'),
+            icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
             webPreferences: {
-              preload: path.join(__dirname, 'preload.js'),
+              preload: path.join(__dirname, '..', 'preload', 'preload.js'),
               contextIsolation: true,
               nodeIntegration: false,
               sandbox: false,

@@ -20,7 +20,7 @@ if (process.platform === 'win32') {
   fs.chmodSync(fakeCli, 0o755);
 }
 
-const configManager = require('./config-manager');
+const configManager = require('../src/main/config-manager');
 
 function cleanup() {
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }

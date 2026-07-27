@@ -6,7 +6,7 @@ const os = require('os');
 const assert = require('assert');
 const http = require('http');
 
-const instancesManager = require('./instances-manager');
+const instancesManager = require('../src/main/instances-manager');
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-desktop-instances-test-'));
 

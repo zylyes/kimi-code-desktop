@@ -8,7 +8,7 @@ const assert = require('assert');
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kimi-desktop-skills-test-'));
 process.env.KIMI_CODE_HOME = tmpDir;
 
-const skillsManager = require('./skills-manager');
+const skillsManager = require('../src/main/skills-manager');
 
 function cleanup() {
   try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
