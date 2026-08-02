@@ -3,6 +3,7 @@
 ## 项目概况
 
 - Kimi Code Desktop 是 Electron 应用；主进程入口为 `src/main/main.js`，设置中心为 `src/pages/setup.html`。
+- 用量统计面板为独立窗口页 `src/pages/usage.html`（菜单 ☰→「用量统计」打开，IPC `usage:getSnapshot` 复用 `runLocalCommand('/usage')` 契约；前端无框架无图表库，样式走 `src/styles/kimi-theme.css` 变量）。
 
 ## 重要决策
 

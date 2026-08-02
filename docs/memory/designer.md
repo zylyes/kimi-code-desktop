@@ -34,3 +34,11 @@
 ## 经验教训
 
 - 工作区常有其他 agent 的并行改动（如 main.js、cli-update.js），`git status` 看到的脏文件不一定是自己的；只提交/只改自己负责的文件。
+
+## usage.html / usage.js 页面约定（2026-08）
+
+- 用量统计面板：骨架沿用 agents.html（drag-strip + app-topbar + `menu-panel.js` defer + 共享 loading/notice/spinner）。页面级 `[hidden]{display:none !important}` 防护必加——共享/页面类一旦带 display（.fail/.wrap/grid）会压过 UA 的 `[hidden]` 规则。
+- 数据形状以主进程代码为准（managed-usage.js / usage-stats.js），任务书字段名可能过时：managed.plans 是 `{id,label,used,limit,resetAt}`（used/limit 平台十进制数，**非分**）；wallet 金额（balanceMinor 等）是分；trends[range] 的 byModel 是数组；errors 元素字段兼容 `source||part`。
+- 仪表盘决策：hero 34px mono 大数字（字号纪律的破例点，仅限视觉锚点）；tabs 联动趋势图+分模型明细；byModel 展示层按 totalTokens 降序；partial 桶用斜纹柱（repeating-linear-gradient + var(--label-primary)，不引入新颜色）；plan 标签展示层中文化（Weekly limit→每周额度、5h limit→5 小时额度）。
+- 刷新纪律：入场动画只挂容器、只首次播放；刷新只重建卡片内容；静默刷新失败保留旧数据 + 警示条（文案「这次刷新没成功…」）；60s 自动刷新 + visibilitychange 暂停/回前台立即刷；loadSeq 递增防竞态；auth-required 空态集中在 hero 卡 + plans 卡整卡隐藏（grid-top 加 .single），「去登录」调 `api.showSetup()`。
+- 自检：桩 DOM 跑 IIFE 断言（Temp/opencode/*.cjs 模式），43 断言全过；`node --check` 验语法。

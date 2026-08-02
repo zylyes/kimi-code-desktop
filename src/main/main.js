@@ -1894,6 +1894,41 @@ function showAgentsMonitor(sessionDir, title) {
   });
 }
 
+// 用量统计面板窗口（单例：重复打开时聚焦既有窗口，关闭后下次重新创建）
+let usageWindow = null;
+function showUsagePanel() {
+  if (usageWindow && !usageWindow.isDestroyed()) {
+    usageWindow.show();
+    if (usageWindow.isMinimized()) usageWindow.restore();
+    usageWindow.focus();
+    return;
+  }
+  usageWindow = new BrowserWindow({
+    width: 960,
+    height: 640,
+    minWidth: 720,
+    minHeight: 480,
+    title: '用量统计',
+    backgroundColor: windowBackground(),
+    autoHideMenuBar: true,
+    ...framelessOpts(),
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false,
+      partition: 'persist:kimi-code',
+    },
+  });
+  applyFrameless(usageWindow);
+  usageWindow.on('closed', () => { usageWindow = null; });
+  usageWindow.loadFile(path.join(__dirname, '..', 'pages', 'usage.html')).catch((err) => {
+    logLine(`加载 usage.html 失败: ${err.message}`);
+  });
+}
+
 // ---------- ACP 原型聊天窗（实验）----------
 // 直连 `kimi acp`，会话落在系统临时目录；工具执行权限经原生审批窗确认（见下方「ACP 权限审批窗」）
 let acpChatWindow = null;
@@ -2630,6 +2665,12 @@ ipcMain.handle('chat:runLocalCommand', async (event, args) => {
   const sessionId = args && typeof args.sessionId === 'string' ? args.sessionId.slice(0, 200) : null;
   if (!command) return { ok: false, code: 'not-local-command' };
   try { return await localCommandService.runLocalCommand(command, { sessionId }); }
+  catch (err) { return { ok: false, code: 'command-failed', error: { message: String(err && err.message || err).slice(0, 200) } }; }
+});
+
+// 用量统计快照（usage.html 面板取数）：无用户输入参数，直接复用本地命令服务
+ipcMain.handle('usage:getSnapshot', async () => {
+  try { return await localCommandService.runLocalCommand('/usage', null); }
   catch (err) { return { ok: false, code: 'command-failed', error: { message: String(err && err.message || err).slice(0, 200) } }; }
 });
 
@@ -3963,6 +4004,7 @@ function buildMenuDefinition() {
     {
       title: '视图',
       items: [
+        { id: 'view.usage', label: '用量统计' },
         { id: 'view.toggleWindow', label: '显示/隐藏窗口', shortcut: 'Ctrl+Shift+Space' },
         { id: 'view.alwaysOnTop', label: '窗口置顶', shortcut: 'Ctrl+T', checked: loadConfig().alwaysOnTop === true },
         { separator: true },
@@ -4022,6 +4064,7 @@ ipcMain.handle('menu:run', (e, id) => {
       'app.manualUrl': () => showSetup('manual'),
       'app.rotateToken': () => { void rotateToken(); },
       'app.lan': () => showLanWindow(),
+      'view.usage': () => showUsagePanel(),
       'view.toggleWindow': () => toggleMainWindow(),
       'view.alwaysOnTop': () => setAlwaysOnTopFlag(!(loadConfig().alwaysOnTop === true)),
       'view.zoomIn': () => { if (wc && !wc.isDestroyed()) wc.setZoomLevel(wc.getZoomLevel() + 0.5); },

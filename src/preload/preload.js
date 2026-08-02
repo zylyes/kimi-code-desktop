@@ -83,6 +83,7 @@ contextBridge.exposeInMainWorld('kimiDesktop', {
   exportMarkdown: (id) => ipcRenderer.invoke('session:exportMarkdown', id),
   scanSubagents: (dir) => ipcRenderer.invoke('session:scanSubagents', dir),
   openAgentsMonitor: (sessionDir, title) => ipcRenderer.invoke('app:openAgentsMonitor', { sessionDir, title }),
+  getUsageSnapshot: () => ipcRenderer.invoke('usage:getSnapshot'),
   // 插件管理 API
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   pluginsSetEnabled: (id, enabled) => ipcRenderer.invoke('plugins:setEnabled', id, enabled),

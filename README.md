@@ -1,4 +1,4 @@
-# Kimi Code Desktop v1.3.0
+# Kimi Code Desktop v1.4.0
 
 > Kimi Code 网页版的原生桌面体验。一键启动 Kimi Code 本地服务，无需浏览器——ACP 原生聊天、图形化设置、会话管理、全局热键、无边框窗口，全部开箱即用。
 
@@ -198,6 +198,7 @@ src/
     help.html              命令与快捷键速查
     agents.html            子 Agent 任务监视器
     lan.html               局域网访问面板
+    usage.html + usage.js  用量统计面板（上下文/会话/托管用量、趋势、诊断）
   preload/                预加载桥接
     preload.js             主窗口渲染桥接
     chat-preload.js        聊天窗桥接

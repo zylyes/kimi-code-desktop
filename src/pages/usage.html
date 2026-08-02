@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+<title>Kimi Code Desktop · 用量统计</title>
+<link rel="stylesheet" href="../styles/kimi-theme.css" />
+<script src="../main/menu-panel.js" defer></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  [hidden] { display: none !important; }
+
+  /* .app-topbar / .card / .icon-btn / .loading / .spinner / .bridge-warn 等共享组件由 kimi-theme.css 提供，页面内不重定义 */
+  .icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---------- 主体 ---------- */
+  .body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 18px 22px;
+  }
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* 部分失败警示条：与 chat 页 .cmd-warn 同款 color-mix 淡化手法 */
+  .warn-bar {
+    padding: 8px 12px;
+    border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-error) 8%, transparent);
+    color: var(--color-error);
+    font-size: 12px;
+    line-height: 1.6;
+    word-break: break-word;
+  }
+
+  /* ---------- 布局网格 ---------- */
+  /* 入场动画只挂在容器上（rise 由主题提供）；刷新只重建卡片内容，不重放动画 */
+  .grid-top {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    animation: rise 0.3s ease both;
+  }
+  /* managed 非 ok 时套餐卡隐藏，余额卡独占一行 */
+  .grid-top.single { grid-template-columns: minmax(0, 1fr); }
+  .trend-card { animation: rise 0.3s 0.06s ease both; }
+  .grid-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 12px;
+    animation: rise 0.3s 0.12s ease both;
+  }
+
+  /* ---------- 卡片通用 ---------- */
+  .card { padding: 16px 18px; }
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin-bottom: 12px;
+  }
+  .card-title { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .head-note { font-size: 11px; color: var(--label-quaternary); }
+  /* stale 标注等右对齐小胶囊 */
+  .pill {
+    margin-left: auto;
+    padding: 2px 9px;
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    color: var(--label-tertiary);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ---------- 余额 hero（视觉重心：34px 等宽大数字） ---------- */
+  #heroBody { display: flex; flex-direction: column; min-width: 0; }
+  .hero-amount {
+    font-family: var(--font-mono);
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 2px 0 4px;
+    color: var(--label-primary);
+    word-break: break-all;
+  }
+  .hero-sub { font-size: 12px; color: var(--label-secondary); line-height: 1.6; }
+  .hero-foot { margin-top: 10px; font-size: 11px; color: var(--label-quaternary); }
+  .hero-empty { font-size: 12px; color: var(--label-secondary); line-height: 1.7; }
+  .hero-empty.err { color: var(--color-error); }
+  .hero-action { margin-top: 10px; align-self: flex-start; }
+
+  /* ---------- 进度条（沿用 chat 页 .cmd-progress 语言） ---------- */
+  .meter {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    overflow: hidden;
+    margin: 8px 0 6px;
+  }
+  .meter-fill { height: 100%; border-radius: 3px; background: var(--label-primary); }
+  .meter-fill.hot { background: var(--color-error); }
+
+  /* ---------- 套餐 plans ---------- */
+  .plan + .plan { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--separator); }
+  .plan-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .plan-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label-primary);
+  }
+  .plan-val { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--label-primary); }
+  .plan-foot { font-size: 11px; color: var(--label-quaternary); }
+
+  /* ---------- 趋势：胶囊 tabs + 纯 CSS 条形图 ---------- */
+  .tabs {
+    margin-left: auto;
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+    flex-shrink: 0;
+  }
+  .tab {
+    padding: 3px 12px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--label-tertiary);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .tab:hover { color: var(--label-primary); }
+  .tab.active { background: var(--label-primary); color: var(--bg-ground); }
+
+  .sum-line { font-size: 13px; margin-bottom: 6px; color: var(--label-secondary); }
+  .sum-line .n { font-family: var(--font-mono); font-weight: 600; color: var(--label-primary); }
+
+  /* token 小段行：「名 + 等宽值」可换行 */
+  .stat-line { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; margin-bottom: 10px; }
+  .stat { display: inline-flex; align-items: baseline; gap: 5px; }
+  .stat-k { color: var(--label-tertiary); }
+  .stat-v { font-family: var(--font-mono); color: var(--label-primary); }
+
+  .bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 96px;
+    padding: 8px 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+  }
+  .bar {
+    flex: 1;
+    min-width: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--label-quaternary);
+    transition: opacity 0.12s ease;
+  }
+  .bar.has { background: var(--label-primary); }
+  /* partial 桶：斜纹柱，表示这一桶的数据不完整 */
+  .bar.has.partial {
+    background: repeating-linear-gradient(135deg, var(--label-primary) 0 3px, transparent 3px 7px);
+  }
+  .bar:hover { opacity: 0.65; }
+  .axis {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+  .trend-note { margin-top: 8px; font-size: 11px; color: var(--label-quaternary); line-height: 1.6; }
+
+  /* ---------- 分模型明细表（单 grid 共享轨道，列对齐；窄屏隐藏缓存两列） ---------- */
+  .mtable-wrap { overflow-x: auto; }
+  .mtable {
+    display: grid;
+    grid-template-columns: minmax(96px, 1.6fr) repeat(6, minmax(52px, auto));
+    column-gap: 14px;
+    min-width: 520px;
+    font-size: 12px;
+  }
+  .mtable .th {
+    padding: 0 0 6px;
+    font-size: 11px;
+    color: var(--label-tertiary);
+    white-space: nowrap;
+    text-align: right;
+  }
+  .mtable .td {
+    padding: 7px 0;
+    border-top: 1px solid var(--separator);
+    font-family: var(--font-mono);
+    color: var(--label-primary);
+    white-space: nowrap;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mtable .th.name, .mtable .td.name { text-align: left; }
+  .mtable .td.name { color: var(--label-secondary); }
+  .mtable .td.total { font-weight: 600; }
+
+  /* ---------- 会话卡 ---------- */
+  .sub-block + .sub-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--separator); }
+  .sub-title { font-size: 11px; letter-spacing: 0.02em; color: var(--label-tertiary); margin-bottom: 4px; }
+  .ctx-line { font-family: var(--font-mono); font-size: 12px; color: var(--label-primary); }
+  .sub-block .stat-line { margin-bottom: 0; }
+
+  /* ---------- 空态 / 失败态 ---------- */
+  .empty { font-size: 12px; color: var(--label-quaternary); line-height: 1.7; }
+  .fail {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 64px 20px;
+    text-align: center;
+    display: flex;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .fail-title { font-size: 14px; font-weight: 600; }
+  .fail-msg { font-size: 12px; color: var(--label-secondary); line-height: 1.6; word-break: break-word; }
+
+  /* ---------- 响应式 ---------- */
+  @media (max-width: 680px) {
+    .grid-top, .grid-bottom { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .mtable { grid-template-columns: minmax(84px, 1.4fr) repeat(4, minmax(48px, auto)); min-width: 400px; }
+    .mtable .col-cache { display: none; }
+  }
+  @media (max-width: 420px) {
+    .body { padding: 12px 12px 18px; }
+    .hero-amount { font-size: 28px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .grid-top, .trend-card, .grid-bottom { animation: none; }
+    .bar { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <!-- 无边框窗口顶部拖拽条（样式见 kimi-theme.css #kcd-drag-strip） -->
+  <div id="kcd-drag-strip" aria-hidden="true"></div>
+  <div class="app">
+    <header class="app-topbar">
+      <div class="brand"><span class="mark">K</span><span class="brand-name">Kimi Code</span></div>
+      <span class="app-topbar-title">用量统计</span>
+      <span class="app-topbar-sub" id="topbarSub"></span>
+      <div class="app-topbar-actions">
+        <button class="icon-btn" id="refreshBtn" type="button" aria-label="刷新用量数据" title="刷新用量数据">刷新</button>
+      </div>
+    </header>
+    <div class="bridge-warn" id="bridgeWarn" hidden>
+      未检测到桌面桥接接口（window.kimiDesktop），当前页面无法获取用量数据。
+    </div>
+    <main class="body" aria-label="用量统计面板">
+      <div class="loading" id="stateLoading"><span class="spinner" aria-hidden="true"></span>正在统计用量…</div>
+      <div class="fail" id="stateError" hidden>
+        <div class="fail-title">获取用量数据失败</div>
+        <div class="fail-msg" id="failMsg"></div>
+        <button class="btn btn-secondary" id="retryBtn" type="button">重试</button>
+      </div>
+      <div class="wrap" id="dashboard" hidden>
+        <div class="warn-bar" id="errorsBar" hidden></div>
+        <div class="grid-top" id="gridTop">
+          <section class="card hero" aria-label="钱包余额">
+            <div class="card-head">
+              <span class="card-title">钱包余额</span>
+              <span class="pill" id="staleBadge" hidden>可能不是最新</span>
+            </div>
+            <div id="heroBody"></div>
+          </section>
+          <section class="card" id="plansCard" aria-label="套餐额度">
+            <div class="card-head"><span class="card-title">套餐额度</span></div>
+            <div id="plansBody"></div>
+          </section>
+        </div>
+        <section class="card trend-card" aria-label="使用趋势">
+          <div class="card-head">
+            <span class="card-title">使用趋势</span>
+            <div class="tabs" id="trendTabs" role="group" aria-label="选择统计时段"></div>
+          </div>
+          <div id="trendBody"></div>
+        </section>
+        <div class="grid-bottom">
+          <section class="card" aria-label="分模型明细">
+            <div class="card-head">
+              <span class="card-title">分模型明细</span>
+              <span class="head-note" id="modelsNote"></span>
+            </div>
+            <div id="modelsBody"></div>
+          </section>
+          <section class="card" aria-label="当前会话">
+            <div class="card-head"><span class="card-title">当前会话</span></div>
+            <div id="sessionBody"></div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="usage.js"></script>
+</body>
+</html>
