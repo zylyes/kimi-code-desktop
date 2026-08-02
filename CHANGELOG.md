@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0] - 2026-07-27
+
+### 新功能
+
+- **用量统计面板自绘窗控**：usage 窗口改为 `titleBarStyle: 'hidden'` 页面自绘三键（min/max/close，`.kcd-win-btn` 视觉逐字复刻 ☰ 按钮），不再依赖 OS `titleBarOverlay`；新增 `window:control` IPC（action 白名单，供自绘窗控调用）。
+- **托盘菜单「用量统计」入口**：托盘右键菜单新增「用量统计」，直达用量面板。
+
+### 改进
+
+- `usage:getSnapshot` 显式传 `sessionId: null`（明确取全局用量）。
+- preload 新增 `windowControl` 桥接。
+
+### 其他
+
+- 无破坏性变更。
+
 ## [1.4.0] - 2026-07-27
 
 ### 新功能

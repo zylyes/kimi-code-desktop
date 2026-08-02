@@ -1911,7 +1911,8 @@ function showUsagePanel() {
     title: '用量统计',
     backgroundColor: windowBackground(),
     autoHideMenuBar: true,
-    ...framelessOpts(),
+    // 窗控由页面自绘（与 ☰ 菜单按钮同款），不用 titleBarOverlay
+    titleBarStyle: 'hidden',
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
@@ -2670,8 +2671,21 @@ ipcMain.handle('chat:runLocalCommand', async (event, args) => {
 
 // 用量统计快照（usage.html 面板取数）：无用户输入参数，直接复用本地命令服务
 ipcMain.handle('usage:getSnapshot', async () => {
-  try { return await localCommandService.runLocalCommand('/usage', null); }
+  try { return await localCommandService.runLocalCommand('/usage', { sessionId: null }); }
   catch (err) { return { ok: false, code: 'command-failed', error: { message: String(err && err.message || err).slice(0, 200) } }; }
+});
+
+// 通用窗口控制：供自绘窗控按钮（usage.html 等页面）调用；action 白名单外直接忽略
+ipcMain.handle('window:control', (event, action) => {
+  if (action !== 'minimize' && action !== 'toggle-maximize' && action !== 'close') {
+    logLine(`window:control 未知操作: ${action}`);
+    return;
+  }
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return;
+  if (action === 'minimize') win.minimize();
+  else if (action === 'toggle-maximize') (win.isMaximized() ? win.unmaximize() : win.maximize());
+  else win.close();
 });
 
 // 任务目录查询（Phase 5a）：会话任务/cron/子代理合并视图；sessionId 可选（null -> 全部会话），封顶 200 字符
@@ -3068,6 +3082,7 @@ function buildTrayMenu(statusLabel) {
   template.push(
     { label: '显示主窗口', click: showMainWindow },
     { label: '打开会话启动器', click: showSessionLauncher },
+    { label: '用量统计', click: () => { showUsagePanel(); } },
     { label: '新建对话', click: () => { newConversationInPlace(); } },
     { label: '默认模型', submenu: buildModelSubmenu() },
     { label: '多实例', submenu: buildInstancesSubmenu() },
