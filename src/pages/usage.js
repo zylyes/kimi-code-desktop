@@ -516,46 +516,6 @@
     }
   }
 
-  /* ---------------- 自绘窗控按钮（最小化 / 最大化 / 关闭） ---------------- */
-  // 视觉复刻 menu-panel.js 的 ☰（38×32 透明钮 + 15×15 SVG 线条图标），样式类 .kcd-win-btn 见 usage.html。
-  // 顺序保证：menu-panel.js 与本脚本均为 defer 且 menu-panel 在前，☰ 先挂载到 .app-topbar-actions 末尾，
-  // 此处 append 自然位于 ☰ 右侧（…刷新、☰、min、max、close）。
-  var WIN_BTN_DEFS = [
-    ['minimize', '最小化',
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>'],
-    ['toggle-maximize', '最大化',
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12"></rect></svg>'],
-    ['close', '关闭',
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>'],
-  ];
-
-  function buildWinControls() {
-    var actions = document.querySelector('.app-topbar-actions');
-    if (!actions) return;
-    var wrap = el('div', 'win-controls');
-    for (var i = 0; i < WIN_BTN_DEFS.length; i++) {
-      var def = WIN_BTN_DEFS[i];
-      var btn = el('button', 'kcd-win-btn');
-      btn.type = 'button';
-      btn.title = def[1];
-      btn.setAttribute('aria-label', def[1]);
-      btn.setAttribute('data-action', def[0]);
-      // 静态 SVG 图标常量（无任何动态内容拼接），与 menu-panel.js 挂 ☰ 图标同款手法
-      btn.innerHTML = def[2];
-      btn.addEventListener('click', function () {
-        var action = this.getAttribute('data-action');
-        try {
-          if (api && typeof api.windowControl === 'function') {
-            var p = api.windowControl(action);
-            if (p && typeof p.catch === 'function') p.catch(function () { /* IPC 失败静默 */ });
-          }
-        } catch (e) { /* 桥接异常静默忽略 */ }
-      });
-      wrap.appendChild(btn);
-    }
-    actions.appendChild(wrap);
-  }
-
   /* ---------------- 初始化 ---------------- */
   function buildTabs() {
     for (var i = 0; i < TAB_DEFS.length; i++) {
@@ -572,9 +532,6 @@
       trendTabs.appendChild(tab);
     }
   }
-
-  // 窗控按钮无桥也照常渲染（点击静默），故在桥接检查之前挂载
-  buildWinControls();
 
   if (!api || typeof api.getUsageSnapshot !== 'function') {
     bridgeWarn.hidden = false;

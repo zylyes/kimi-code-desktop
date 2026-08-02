@@ -1,25 +1,30 @@
 /**
- * menu-panel.js —— Kimi Code Desktop 应用菜单面板（渲染端共享，无依赖）
+ * menu-panel.js —— Kimi Code Desktop 应用菜单面板 + 自绘窗控按钮（渲染端共享，无依赖）
  *
  * 挂载：DOMContentLoaded 时自动挂载右上角 ☰ 按钮（.kcd-menu-btn，38×32，
- * 视觉对齐悬浮窗控）：优先挂到 .app-topbar-actions 内（原生页），否则 fixed
- * 定位 top:0;right:142px（Web UI 页，紧贴 138px 悬浮窗控左缘）。
- * body 带 data-kcd-no-menu 属性、页面无 body 或桥接 kimiDesktopMenu 不存在时跳过。
- * 挂载后带自愈：MutationObserver + 1s 轮询检查按钮是否仍在 DOM，被 SPA 重渲染移除时自动重挂。
+ * 视觉对齐悬浮窗控）与自绘窗控三键（.kcd-win-controls 内 min/max/close，同款 38×32）：
+ * 优先挂到 .app-topbar-actions 内（本地页，☰ 在左、窗控在右），否则 ☰ fixed
+ * 定位 top:0;right:118px、窗控容器 fixed top:0;right:0（Web UI 页，无 OS 窗控，
+ * 窗口已去 titleBarOverlay）。body 带 data-kcd-no-menu 属性、页面无 body 或桥接
+ * kimiDesktopMenu 不存在时跳过。
+ * 挂载后带自愈：MutationObserver + 1s 轮询检查按钮是否仍在 DOM，被 SPA 重渲染移除时
+ * 整组重挂（☰ 与窗控任一缺失即全部重建，保证 ☰ 恒在窗控左侧）。
  *
  * 面板：点击 ☰ 经 IPC 拉取菜单定义（分组结构）并展开下拉；叶子项点击调用
  * kimiDesktopMenu.run(id) 并关闭；二级项原地切换子面板（顶部带返回项）；
  * Esc / 点外部 / 窗口 blur 关闭。
+ * 窗控：点击调 kimiDesktopMenu.windowControl('minimize'|'toggle-maximize'|'close')，
+ * 桥缺失 / 异常 / reject 一律静默。
  *
  * 样式全部内联于下方 <style>，色值写成 var(--token, 兜底) 格式：本地页命中
  * kimi-theme.css 令牌，Web UI 页无令牌时用兜底色（与 kimi-theme.css 亮/暗令牌值一致，
  * 暗色经 @media (prefers-color-scheme: dark) 或主进程在 <html> 置 kcd-page-dark 类命中，
  * 显式置亮 kcd-page-light 时媒体查询兜底也不再命中）。
  *
- * 窗控样式跟随：主窗口 Web UI 页上，主进程会把 OS 绘制的 −▢× 悬浮窗控
- * （titleBarOverlay）的符号色与高度经 preload 桥广播给页面；本模块通过
- * kimiDesktopMenu.getTitlebarStyle / onTitlebarStyle 取到后以内联 style 写到 ≡ 上，
- * 使 ≡ 与原生三键颜色/高度一致。未收到广播时（如本地页，桥恒返回 null）维持样式表令牌色。
+ * 窗控样式跟随：主窗口 Web UI 页上，主进程会把窗口实际亮暗对应的符号色/高度经
+ * preload 桥广播给页面；本模块通过 kimiDesktopMenu.getTitlebarStyle / onTitlebarStyle
+ * 取到后以内联 style 写到 ☰ 与三个窗控按钮上（四键同色同高，与系统原绘一致）。
+ * 未收到广播时（如本地页，桥恒返回 null）维持样式表令牌色。
  */
 (() => {
   'use strict';
@@ -28,10 +33,16 @@
 
   const STYLE_TEXT = `
 .kcd-menu-btn{width:38px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:0;color:var(--label-secondary, #00000099);cursor:pointer;-webkit-app-region:no-drag;transition:background-color .15s ease,color .15s ease;flex:none;padding:0;}
-.kcd-menu-btn--fixed{position:fixed;top:0;right:142px;z-index:2147483647;}
+.kcd-menu-btn--fixed{position:fixed;top:0;right:118px;z-index:2147483647;}
 .kcd-menu-btn:hover{background:#00000012;color:var(--label-primary, #000000e6);}
 .kcd-menu-btn:focus-visible{outline:2px solid var(--label-quaternary, #0000004d);outline-offset:-2px;}
 .kcd-menu-btn svg{width:15px;height:15px;pointer-events:none;}
+.kcd-win-controls{display:inline-flex;align-items:center;flex:none;}
+.kcd-win-controls--fixed{position:fixed;top:0;right:0;z-index:2147483647;}
+.kcd-win-btn{width:38px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:0;color:var(--label-secondary, #00000099);cursor:pointer;-webkit-app-region:no-drag;transition:background-color .15s ease,color .15s ease;flex:none;padding:0;}
+.kcd-win-btn:hover{background:#00000012;color:var(--label-primary, #000000e6);}
+.kcd-win-btn:focus-visible{outline:2px solid var(--label-quaternary, #0000004d);outline-offset:-2px;}
+.kcd-win-btn svg{width:15px;height:15px;pointer-events:none;}
 .kcd-menu-panel{position:fixed;z-index:2147483647;min-width:248px;max-width:340px;max-height:calc(100vh - 48px);overflow-y:auto;padding:6px;background:var(--bg-primary, #ffffff);border:1px solid var(--separator, #00000021);border-radius:14px;box-shadow:0 8px 30px #0000001f;font-family:var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", sans-serif, Arial, "PingFang SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC");font-size:13px;color:var(--label-primary, #000000e6);-webkit-app-region:no-drag;user-select:none;animation:kcdMenuIn .12s ease;}
 @keyframes kcdMenuIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 .kcd-menu-group-title{padding:12px 10px 4px;font-size:12px;line-height:1.4;color:var(--label-tertiary, #00000073);}
@@ -49,6 +60,9 @@
 html:not(.kcd-page-light) .kcd-menu-btn{color:var(--label-secondary, #ffffff8f);}
 html:not(.kcd-page-light) .kcd-menu-btn:hover{background:#ffffff1a;color:var(--label-primary, #ffffffd6);}
 html:not(.kcd-page-light) .kcd-menu-btn:focus-visible{outline-color:var(--label-quaternary, #ffffff42);}
+html:not(.kcd-page-light) .kcd-win-btn{color:var(--label-secondary, #ffffff8f);}
+html:not(.kcd-page-light) .kcd-win-btn:hover{background:#ffffff1a;color:var(--label-primary, #ffffffd6);}
+html:not(.kcd-page-light) .kcd-win-btn:focus-visible{outline-color:var(--label-quaternary, #ffffff42);}
 html:not(.kcd-page-light) .kcd-menu-panel{background:var(--bg-secondary, #1f1f1f);border-color:var(--separator, #ffffff1f);color:var(--label-primary, #ffffffd6);}
 html:not(.kcd-page-light) .kcd-menu-item{color:var(--label-primary, #ffffffd6);}
 html:not(.kcd-page-light) .kcd-menu-item:hover:not(.is-disabled){background:#ffffff12;}
@@ -61,6 +75,9 @@ html:not(.kcd-page-light) .kcd-menu-back:hover{background:#ffffff12;color:var(--
 html.kcd-page-dark .kcd-menu-btn{color:var(--label-secondary, #ffffff8f);}
 html.kcd-page-dark .kcd-menu-btn:hover{background:#ffffff1a;color:var(--label-primary, #ffffffd6);}
 html.kcd-page-dark .kcd-menu-btn:focus-visible{outline-color:var(--label-quaternary, #ffffff42);}
+html.kcd-page-dark .kcd-win-btn{color:var(--label-secondary, #ffffff8f);}
+html.kcd-page-dark .kcd-win-btn:hover{background:#ffffff1a;color:var(--label-primary, #ffffffd6);}
+html.kcd-page-dark .kcd-win-btn:focus-visible{outline-color:var(--label-quaternary, #ffffff42);}
 html.kcd-page-dark .kcd-menu-panel{background:var(--bg-secondary, #1f1f1f);border-color:var(--separator, #ffffff1f);color:var(--label-primary, #ffffffd6);}
 html.kcd-page-dark .kcd-menu-item{color:var(--label-primary, #ffffffd6);}
 html.kcd-page-dark .kcd-menu-item:hover:not(.is-disabled){background:#ffffff12;}
@@ -73,8 +90,21 @@ html.kcd-page-dark .kcd-menu-back:hover{background:#ffffff12;color:var(--label-p
 
   let btn = null;
   let panel = null;
+  // 自绘窗控：容器 + 三键（min/max/close），与 ☰ 同挂载/同自愈/同吃样式广播
+  let winWrap = null;
+  const winBtns = [];
   // 子面板返回栈：[{ title, groups }]，空栈表示根面板
   const navStack = [];
+
+  // 窗控按钮定义：action / 中文标签 / 静态 SVG 图标常量（与 ☰ 图标同款手法，无动态拼接）
+  const WIN_BTN_DEFS = [
+    ['minimize', '最小化',
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>'],
+    ['toggle-maximize', '最大化',
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12"></rect></svg>'],
+    ['close', '关闭',
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>'],
+  ];
 
   function injectStyle() {
     if (document.getElementById('kcd-menu-style')) return;
@@ -198,6 +228,38 @@ html.kcd-page-dark .kcd-menu-back:hover{background:#ffffff12;color:var(--label-p
     window.addEventListener('resize', closePanel);
   }
 
+  // 挂自绘窗控三键：有 .app-topbar-actions（本地页）→ 容器 append 到 actions 末尾
+  //（调用时 ☰ 已先 append，故窗控自然位于 ☰ 右侧）；无（Web UI 页）→ 容器 fixed
+  // top:0;right:0，☰ 的 fixed 定位（right:118px）紧贴其左缘。
+  function mountWinControls(actions) {
+    winWrap = el('div', 'kcd-win-controls');
+    winBtns.length = 0;
+    for (const def of WIN_BTN_DEFS) {
+      const wb = el('button', 'kcd-win-btn');
+      wb.type = 'button';
+      wb.title = def[1];
+      wb.setAttribute('aria-label', def[1]);
+      wb.innerHTML = def[2];
+      wb.addEventListener('click', () => {
+        try {
+          const wm = window.kimiDesktopMenu;
+          if (wm && typeof wm.windowControl === 'function') {
+            const p = wm.windowControl(def[0]);
+            if (p && typeof p.catch === 'function') p.catch(() => { /* IPC 失败静默 */ });
+          }
+        } catch { /* 桥接异常静默忽略 */ }
+      });
+      winBtns.push(wb);
+      winWrap.appendChild(wb);
+    }
+    if (actions) {
+      actions.appendChild(winWrap);
+    } else {
+      winWrap.classList.add('kcd-win-controls--fixed');
+      document.body.appendChild(winWrap);
+    }
+  }
+
   function mount() {
     try {
       if (!document.body || document.body.hasAttribute('data-kcd-no-menu')) return;
@@ -221,7 +283,10 @@ html.kcd-page-dark .kcd-menu-back:hover{background:#ffffff12;color:var(--label-p
         btn.classList.add('kcd-menu-btn--fixed');
         document.body.appendChild(btn);
       }
+      // ☰ 之后紧接着挂窗控（actions 模式窗控在 ☰ 右侧；fixed 模式各就各位）
+      mountWinControls(actions);
       // 广播可能早于本次挂载/重挂到达，先用 preload 桥缓存值应用一次
+      //（applyTitlebarStyle 同时作用于 ☰ 与三个窗控按钮，保证四键同色同高）
       try {
         if (typeof window.kimiDesktopMenu.getTitlebarStyle === 'function') {
           applyTitlebarStyle(window.kimiDesktopMenu.getTitlebarStyle());
@@ -230,24 +295,38 @@ html.kcd-page-dark .kcd-menu-back:hover{background:#ffffff12;color:var(--label-p
     } catch { /* 挂载失败不影响页面本身 */ }
   }
 
-  // 应用主进程广播的窗控样式：让 ≡ 与 OS 绘制的 −▢× 悬浮窗控（titleBarOverlay）保持
-  // 颜色/高度一致。symbolColor 写内联 style，优先于样式表令牌色（含 :hover 色——可接受，
-  // 背景 hover 仍生效）；height 取整后钳制在 32~64，与原生键同中心线。
+  // 应用主进程广播的窗控样式：让 ☰ 与三个自绘窗控按钮同吃一一份广播——
+  // symbolColor 写内联 style，优先于样式表令牌色（含 :hover 色——可接受，
+  // 背景 hover 仍生效）；height 取整后钳制在 32~64，四键同高同色，与原生三键观感一致。
   function applyTitlebarStyle(style) {
-    if (!btn || !style || typeof style !== 'object') return;
-    if (typeof style.symbolColor === 'string') btn.style.color = style.symbolColor;
-    const h = Math.round(Number(style.height));
-    if (h >= 32 && h <= 64) btn.style.height = h + 'px';
+    if (!style || typeof style !== 'object') return;
+    const targets = [];
+    if (btn) targets.push(btn);
+    for (const wb of winBtns) targets.push(wb);
+    if (targets.length === 0) return;
+    for (const t of targets) {
+      if (typeof style.symbolColor === 'string') t.style.color = style.symbolColor;
+      const h = Math.round(Number(style.height));
+      if (h >= 32 && h <= 64) t.style.height = h + 'px';
+    }
   }
 
   // 自愈：SPA 路由切换/框架重渲染可能把 body 下的按钮节点移除，mount() 只跑一次就会永久丢失。
-  // 持续检查按钮是否还在 DOM，掉了就重挂；只补按钮——面板状态独立处理：面板节点若一并
-  // 被移除按关闭处理（清理监听），仍在 DOM 则原样保留，避免已打开的面板闪烁。
+  // 持续检查 ☰ 与窗控容器是否还在 DOM：任一缺失即整组重挂（残留的另一半先移除再走 mount，
+  // 否则 mount 的 querySelector('.kcd-menu-btn') 判定会命中残留 ☰ 而直接返回），
+  // 重建顺序天然 ☰ 在左、窗控在右。面板节点若一并被移除按关闭处理（清理监听），
+  // 仍在 DOM 则原样保留，避免已打开的面板闪烁。
   function ensureMounted() {
     try {
       if (panel && !panel.isConnected) closePanel();
-      if (btn && btn.isConnected) return;
+      const btnOk = !!(btn && btn.isConnected);
+      const winOk = !!(winWrap && winWrap.isConnected);
+      if (btnOk && winOk) return;
+      if (btnOk) btn.remove();
+      if (winOk) winWrap.remove();
       btn = null;
+      winWrap = null;
+      winBtns.length = 0;
       mount();
     } catch { /* 自愈失败不影响页面本身 */ }
   }

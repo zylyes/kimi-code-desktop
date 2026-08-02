@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0] - 2026-07-27
+
+### 改进
+
+- **自绘窗控全应用统一**：窗口控制三键（min/max/close）由 `menu-panel.js` 统一注入——本地页挂 `.app-topbar-actions` 末尾（☰ 右侧），Web UI 页 `fixed top:0;right:0`（☰ 相应改为 `right:118px`）；`framelessOpts()` 移除 `titleBarOverlay`，全窗口不再依赖 OS 悬浮窗控。
+- **样式收拢**：`.app-topbar` 收回为 OS 窗控让位的 150px 右 padding（`0 14px` 对称）；`.kcd-win-btn` 样式与暗色规则并入 menu-panel.js 内联样式；usage 页单页窗控实现全量回退。
+- **桥接统一**：`windowControl` 归入 `kimiDesktopMenu` 桥（preload + chat-preload 双端），`applyTitlebarStyle` 广播四键同吃（☰ + 三窗控同色同高）。
+
+### 其他
+
+- preload 采样过滤补 `.kcd-win-btn`/`.kcd-win-controls`。
+- 无破坏性变更。
+
 ## [1.5.0] - 2026-07-27
 
 ### 新功能

@@ -123,6 +123,7 @@ contextBridge.exposeInMainWorld('kimiDesktopMenu', {
     titlebarStyleListeners.add(cb);
     return () => titlebarStyleListeners.delete(cb);
   },
+  windowControl: (action) => ipcRenderer.invoke('window:control', action),
 });
 
 // 主窗口标记：createWindow 经 additionalArguments 传入，辅助窗口复用本 preload 时不带此标记
@@ -164,7 +165,8 @@ function compositeColorAt(x, y, darkBase) {
     const stack = document.elementsFromPoint(x, y).filter((el) => {
       if (!el || el.id === 'kcd-drag-strip') return false;
       const cls = el.classList;
-      return !cls || (!cls.contains('kcd-menu-btn') && !cls.contains('kcd-menu-panel'));
+      return !cls || (!cls.contains('kcd-menu-btn') && !cls.contains('kcd-menu-panel')
+        && !cls.contains('kcd-win-btn') && !cls.contains('kcd-win-controls'));
     });
     if (stack.length === 0) return null;
     const styles = stack.map((el) => getComputedStyle(el));

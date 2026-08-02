@@ -1,7 +1,8 @@
-### 新功能
+### 改进
 
-- **用量统计面板自绘窗控**：页面自绘三键（min/max/close），新增 `window:control` IPC。
-- **托盘菜单「用量统计」入口**。
+- **自绘窗控全应用统一**：min/max/close 三键由 menu-panel.js 统一注入，全窗口移除 OS titleBarOverlay。
+- **样式收拢**：`.app-topbar` 收回 150px 让位；usage 页单页窗控回退。
+- **桥接统一**：`windowControl` 归入 kimiDesktopMenu 桥，四键同色同高。
 
 ### 其他
 

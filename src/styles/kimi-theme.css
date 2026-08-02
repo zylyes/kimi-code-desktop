@@ -355,7 +355,8 @@ kbd {
 }
 
 /* ================= 统一应用头部（所有无边框窗口的唯一规范头部） ================= */
-/* 48px 高，背景与窗口底色/titleBarOverlay 同色（var(--bg-ground)），右侧 150px 避开悬浮窗控；
+/* 48px 高，背景与窗口底色同色（var(--bg-ground)）；窗控三键由 menu-panel.js 页面自绘
+  （挂进 .app-topbar-actions 末尾），不再为 OS 悬浮窗控预留右侧让位，右 padding 与左侧一致。
    整行作拖拽区，内部交互控件 no-drag。各页结构：
    <header class="app-topbar"><div class="brand"><span class="mark">K</span><span class="brand-name">Kimi Code</span></div>
    <span class="app-topbar-title">标题</span><div class="app-topbar-actions">…</div></header> */
@@ -364,7 +365,7 @@ kbd {
   align-items: center;
   gap: 10px;
   height: 48px;
-  padding: 0 150px 0 14px;
+  padding: 0 14px;
   flex: none;
   background: var(--bg-ground);
   -webkit-app-region: drag;

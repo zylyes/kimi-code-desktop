@@ -1,4 +1,4 @@
-# Kimi Code Desktop v1.5.0
+# Kimi Code Desktop v1.6.0
 
 > Kimi Code 网页版的原生桌面体验。一键启动 Kimi Code 本地服务，无需浏览器——ACP 原生聊天、图形化设置、会话管理、全局热键、无边框窗口，全部开箱即用。
 

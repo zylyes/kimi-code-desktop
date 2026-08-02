@@ -130,4 +130,5 @@ contextBridge.exposeInMainWorld('kimiChat', {
 contextBridge.exposeInMainWorld('kimiDesktopMenu', {
   getDefinition: () => ipcRenderer.invoke('menu:getDefinition'),
   run: (id) => ipcRenderer.invoke('menu:run', id),
+  windowControl: (action) => ipcRenderer.invoke('window:control', action),
 });

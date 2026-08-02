@@ -1162,10 +1162,11 @@ function applyAppThemeEverywhere() {
   for (const w of BrowserWindow.getAllWindows()) applyTitlebarOverlay(w);
 }
 
-// 无边框窗口通用选项与后配置：全窗口统一无边框 + 悬浮窗控（品牌一致性），
-// 页面拖拽区由 kimi-theme.css（#kcd-drag-strip/.app-topbar）与 preload 注入提供
+// 无边框窗口通用选项与后配置：全窗口统一无边框，窗控由页面自绘（menu-panel.js 统一注入，
+// 与 ☰ 菜单按钮同款），页面拖拽区由 kimi-theme.css（#kcd-drag-strip/.app-topbar）与 preload 注入提供
 function framelessOpts() {
-  return { titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlayOpts() };
+  // 窗控由页面自绘（menu-panel.js 统一注入，与 ☰ 菜单按钮同款），不用 titleBarOverlay
+  return { titleBarStyle: 'hidden' };
 }
 
 function applyFrameless(win) {
