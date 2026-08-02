@@ -3488,7 +3488,6 @@ function buildMenu() {
       label: '设置',
       submenu: [
         { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => showSetup('manual') },
-        { label: '手动输入地址…', accelerator: 'CmdOrCtrl+L', click: () => showSetup('manual') },
         { label: '轮换访问令牌…', click: rotateToken },
         { label: '局域网访问…', click: showLanWindow },
       ],
@@ -3496,6 +3495,7 @@ function buildMenu() {
     {
       label: '视图',
       submenu: [
+        { label: '用量统计', click: showUsagePanel },
         {
           label: '显示/隐藏窗口', accelerator: 'CmdOrCtrl+Shift+Space',
           click: toggleMainWindow,
@@ -3507,30 +3507,46 @@ function buildMenu() {
           click: (item) => setAlwaysOnTopFlag(item.checked),
         },
         { type: 'separator' },
-        { role: 'zoomIn', label: '放大' },
-        { role: 'zoomOut', label: '缩小' },
-        { role: 'resetZoom', label: '重置缩放' },
-        { type: 'separator' },
-        { role: 'togglefullscreen', label: '全屏' },
-        { role: 'toggleDevTools', label: '开发者工具' },
+        {
+          label: '缩放与全屏',
+          submenu: [
+            { role: 'zoomIn', label: '放大' },
+            { role: 'zoomOut', label: '缩小' },
+            { role: 'resetZoom', label: '重置缩放' },
+            { type: 'separator' },
+            { role: 'togglefullscreen', label: '全屏' },
+          ],
+        },
       ],
     },
     {
       label: '帮助',
       submenu: [
-        { label: '打开数据目录(日志/配置)', click: () => shell.openPath(userDataDir()) },
-        { label: '运行 kimi doctor', click: () => { void runKimiDoctorWithDialog(); } },
+        { label: '命令与快捷键速查…', accelerator: 'F1', click: showHelpWindow },
         { label: 'IDE 接入向导…', click: () => showSetup('manual', 'ide') },
         { label: 'Prompt 模板库…', click: showPromptLibrary },
-        { label: '命令与快捷键速查…', accelerator: 'F1', click: showHelpWindow },
-        { label: '打包诊断信息…', click: () => { void packDiagnosticsWithDialog(); } },
+        {
+          label: '排查问题',
+          submenu: [
+            { label: '运行 kimi doctor', click: () => { void runKimiDoctorWithDialog(); } },
+            { label: '打包诊断信息…', click: () => { void packDiagnosticsWithDialog(); } },
+            { type: 'separator' },
+            { label: '打开数据目录(日志/配置)', click: () => shell.openPath(userDataDir()) },
+          ],
+        },
         { label: '关于', click: showAboutDialog },
       ],
     },
     {
       label: '应用',
       submenu: [
-        { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => { const wc = foregroundContents(); if (wc) wc.reload(); } },
+        {
+          label: '开发者',
+          submenu: [
+            { role: 'toggleDevTools', label: '开发者工具' },
+            { label: '重新加载', accelerator: 'CmdOrCtrl+R', click: () => { const wc = foregroundContents(); if (wc) wc.reload(); } },
+          ],
+        },
         { role: 'quit', label: '退出' },
       ],
     },
@@ -4012,7 +4028,6 @@ function buildMenuDefinition() {
       title: '设置',
       items: [
         { id: 'app.setup', label: '设置…', shortcut: 'Ctrl+,' },
-        { id: 'app.manualUrl', label: '手动输入地址…', shortcut: 'Ctrl+L' },
         { id: 'app.rotateToken', label: '轮换访问令牌…' },
         { id: 'app.lan', label: '局域网访问…' },
       ],
@@ -4023,31 +4038,46 @@ function buildMenuDefinition() {
         { id: 'view.usage', label: '用量统计' },
         { id: 'view.toggleWindow', label: '显示/隐藏窗口', shortcut: 'Ctrl+Shift+Space' },
         { id: 'view.alwaysOnTop', label: '窗口置顶', shortcut: 'Ctrl+T', checked: loadConfig().alwaysOnTop === true },
-        { separator: true },
-        { id: 'view.zoomIn', label: '放大', shortcut: 'Ctrl+=' },
-        { id: 'view.zoomOut', label: '缩小', shortcut: 'Ctrl+-' },
-        { id: 'view.resetZoom', label: '重置缩放', shortcut: 'Ctrl+0' },
-        { separator: true },
-        { id: 'view.fullscreen', label: '全屏', shortcut: 'F11' },
-        { id: 'view.devtools', label: '开发者工具', shortcut: 'Ctrl+Shift+I' },
+        {
+          id: 'view.display', label: '缩放与全屏',
+          submenu: [
+            { id: 'view.zoomIn', label: '放大', shortcut: 'Ctrl+=' },
+            { id: 'view.zoomOut', label: '缩小', shortcut: 'Ctrl+-' },
+            { id: 'view.resetZoom', label: '重置缩放', shortcut: 'Ctrl+0' },
+            { separator: true },
+            { id: 'view.fullscreen', label: '全屏', shortcut: 'F11' },
+          ],
+        },
       ],
     },
     {
       title: '帮助',
       items: [
-        { id: 'help.dataDir', label: '打开数据目录(日志/配置)' },
-        { id: 'help.doctor', label: '运行 kimi doctor' },
+        { id: 'help.shortcuts', label: '命令与快捷键速查…', shortcut: 'F1' },
         { id: 'help.ide', label: 'IDE 接入向导…' },
         { id: 'help.prompts', label: 'Prompt 模板库…' },
-        { id: 'help.shortcuts', label: '命令与快捷键速查…', shortcut: 'F1' },
-        { id: 'help.diagnostics', label: '打包诊断信息…' },
+        {
+          id: 'help.troubleshoot', label: '排查问题',
+          submenu: [
+            { id: 'help.doctor', label: '运行 kimi doctor' },
+            { id: 'help.diagnostics', label: '打包诊断信息…' },
+            { separator: true },
+            { id: 'help.dataDir', label: '打开数据目录(日志/配置)' },
+          ],
+        },
         { id: 'help.about', label: '关于' },
       ],
     },
     {
       title: '',
       items: [
-        { id: 'app.reload', label: '重新加载', shortcut: 'Ctrl+R' },
+        {
+          id: 'app.dev', label: '开发者',
+          submenu: [
+            { id: 'view.devtools', label: '开发者工具', shortcut: 'Ctrl+Shift+I' },
+            { id: 'app.reload', label: '重新加载', shortcut: 'Ctrl+R' },
+          ],
+        },
         { id: 'app.quit', label: '退出' },
       ],
     },
@@ -4077,7 +4107,6 @@ ipcMain.handle('menu:run', (e, id) => {
       'session.acpChat': () => showAcpChatWindow(),
       'instances:rescan': () => { void refreshInstancesCache(true); },
       'app.setup': () => showSetup('manual'),
-      'app.manualUrl': () => showSetup('manual'),
       'app.rotateToken': () => { void rotateToken(); },
       'app.lan': () => showLanWindow(),
       'view.usage': () => showUsagePanel(),

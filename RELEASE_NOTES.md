@@ -1,8 +1,7 @@
 ### 改进
 
-- **自绘窗控全应用统一**：min/max/close 三键由 menu-panel.js 统一注入，全窗口移除 OS titleBarOverlay。
-- **样式收拢**：`.app-topbar` 收回 150px 让位；usage 页单页窗控回退。
-- **桥接统一**：`windowControl` 归入 kimiDesktopMenu 桥，四键同色同高。
+- **菜单结构整理**：缩放与全屏、排查问题、开发者归组二级菜单；视图新增「用量统计」。
+- **移除「手动输入地址…」菜单入口**（Ctrl+L），功能保留在设置页手动模式。
 
 ### 其他
 

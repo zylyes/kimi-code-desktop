@@ -34,6 +34,7 @@
 ## 经验教训
 
 - 工作区常有其他 agent 的并行改动（如 main.js、cli-update.js），`git status` 看到的脏文件不一定是自己的；只提交/只改自己负责的文件。
+- ☰ 菜单分级约定（2026-08 精简后）：面板 `buildMenuDefinition()` 与原生 `buildMenu()` 顶层结构对齐；低频项收二级用 `submenu` 字段（menu-panel.js 自动渲染 › 与子面板，无需改渲染层）；二级分组现有三个：「缩放与全屏」「排查问题」「开发者」；`menu:run` 白名单只放叶子动作 id，二级父项 id 不加分发。
 
 ## usage.html / usage.js 页面约定（2026-08）
 
