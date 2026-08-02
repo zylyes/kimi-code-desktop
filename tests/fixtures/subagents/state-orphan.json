@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "agents": {
+    "main": {
+      "homedir": "C:/Users/tester/.kimi-code/sessions/wd_orphan/agents/main",
+      "type": "main"
+    },
+    "agent-0": {
+      "homedir": "C:/Users/tester/.kimi-code/sessions/wd_orphan/agents/agent-0",
+      "type": "sub",
+      "parentAgentId": "ghost-agent",
+      "labels": { "parentAgentId": "ghost-agent" }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+[
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "0:tool_eiihsvyYSWHKPDMqHnOYyD4x",
+      "title": "Agent",
+      "kind": "other",
+      "status": "pending",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "" } }]
+    }
+  },
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "0:tool_eiihsvyYSWHKPDMqHnOYyD4x",
+      "status": "in_progress",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "{\"subagent_type\":" } }]
+    }
+  },
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "0:tool_eiihsvyYSWHKPDMqHnOYyD4x",
+      "status": "in_progress",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "\"explore\",\"description\":\"Count test files via Glob\"," } }]
+    }
+  },
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "0:tool_eiihsvyYSWHKPDMqHnOYyD4x",
+      "title": "Launching explore agent: Count test files via Glob",
+      "kind": "other",
+      "status": "in_progress",
+      "rawInput": {
+        "subagent_type": "explore",
+        "description": "Count test files via Glob",
+        "prompt": "Use Glob to count test files under tests/, return the number."
+      },
+      "content": [{ "type": "content", "content": { "type": "text", "text": "" } }]
+    }
+  },
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "0:tool_eiihsvyYSWHKPDMqHnOYyD4x",
+      "title": "Agent",
+      "kind": "other",
+      "status": "completed",
+      "rawInput": {
+        "subagent_type": "explore",
+        "description": "Count test files via Glob",
+        "prompt": "Use Glob to count test files under tests/, return the number."
+      },
+      "content": [{ "type": "content", "content": { "type": "text", "text": "探针发现 12 个测试文件（tests/test-*.js）" } }],
+      "rawOutput": "探针发现 12 个测试文件（tests/test-*.js）"
+    }
+  }
+]

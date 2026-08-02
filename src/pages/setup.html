@@ -165,6 +165,45 @@
   }
   .badge.ok { color: var(--color-success); border-color: color-mix(in srgb, var(--color-success) 40%, transparent); background: color-mix(in srgb, var(--color-success) 8%, transparent); }
   .badge.bad { color: var(--color-error); border-color: color-mix(in srgb, var(--color-error) 40%, transparent); background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+  /* CLI 升级状态区：复用 .status 卡片骨架，版本行与环境状态同款；末行结论带语义色圆点 */
+  .ver-state {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 0;
+    border-top: 1px solid var(--separator);
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--label-secondary);
+    word-break: break-word;
+  }
+  .ver-state::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: var(--label-quaternary);
+    flex: none;
+  }
+  /* ok 结论文字用正文主色保证可读性，绿色语义仅保留在圆点 */
+  .ver-state.ok { color: var(--label-primary); }
+  .ver-state.ok::before { background: var(--color-success); }
+  .ver-state.bad { color: var(--color-error); }
+  .ver-state.bad::before { background: var(--color-error); }
+  /* 仅升级状态区内提高版本标签对比度（tertiary → secondary），不影响全局 .sname */
+  #upgradeStatus .sname { color: var(--label-secondary); }
+  /* 缓存提示：结论行下方的弱化补充说明（仅供参考） */
+  .ver-cache {
+    margin-top: -4px;
+    padding-bottom: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--label-tertiary);
+    word-break: break-word;
+  }
+  /* 检查/升级按钮组：自然宽度、成组左对齐，窄窗口自动换行不溢出 */
+  .upgrade-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   /* 日志/代码片段框：与 .input 同级的内嵌次要底 + 小圆角，区别于内容卡片 */
   .log {
     margin-top: 12px;
@@ -990,14 +1029,20 @@
     <!-- 维护面板 -->
     <div class="tab-panel" id="panel-maint">
       <div class="section-title">CLI 升级</div>
-      <div class="form-row">
-        <label>当前版本 / 最新版本</label>
-        <div class="hint" id="upgradeInfo">检测中…</div>
+      <!-- 版本状态区：结构化版本行 + 语义色结论行；role=status 等效 aria-live=polite，区域整体朗读 -->
+      <div class="status" id="upgradeStatus" role="status" aria-live="polite" aria-atomic="true">
+        <div class="srow"><span class="sname">当前版本</span><span class="sval" id="verCurrent">—</span></div>
+        <div class="srow"><span class="sname">最新版本</span><span class="sval" id="verLatest">—</span></div>
+        <div class="ver-state" id="upgradeStateText">尚未检查</div>
+        <div class="ver-cache hidden" id="upgradeCacheNote"></div>
       </div>
-      <div class="btn-row">
+      <div class="upgrade-actions">
         <button class="btn btn-secondary" id="checkUpgradeBtn" type="button">检查更新</button>
-        <button class="btn btn-secondary hidden" id="upgradeBtn" type="button">一键升级</button>
+        <button class="btn btn-primary hidden" id="upgradeBtn" type="button">一键升级</button>
       </div>
+      <!-- 检查/升级的操作反馈紧跟按钮组；自动安装开关与安装日志保持原有行为 -->
+      <div class="ok" id="upgradeOk"></div>
+      <div class="err" id="upgradeErr"></div>
       <div class="form-row">
         <div class="switch">
           <div>
@@ -1008,8 +1053,6 @@
         </div>
       </div>
       <div class="log hidden" id="upgradeLog"></div>
-      <div class="ok" id="upgradeOk"></div>
-      <div class="err" id="upgradeErr"></div>
 
       <div class="section-title">数据目录</div>
       <div class="hint" id="dataDirPath"></div>
@@ -2353,7 +2396,11 @@
     });
 
     // ==================== 维护面板 ====================
-    const upgradeInfo = $('upgradeInfo');
+    const verCurrent = $('verCurrent');
+    const verLatest = $('verLatest');
+    const upgradeStateText = $('upgradeStateText');
+    const upgradeCacheNote = $('upgradeCacheNote');
+    const checkUpgradeBtn = $('checkUpgradeBtn');
     const upgradeBtn = $('upgradeBtn');
     const upgradeLog = $('upgradeLog');
     const upgradeOk = $('upgradeOk');
@@ -2384,49 +2431,112 @@
       return v.toFixed(1) + ' ' + units[u];
     }
 
+    // 时间兜底格式化：非法输入返回空串，由调用方省略对应片段
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function parseDateOrNull(v) {
+      if (v === undefined || v === null || v === '') return null;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function formatDate(v) {
+      const d = parseDateOrNull(v);
+      return d ? d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) : '';
+    }
+    function formatTime(v) {
+      const d = parseDateOrNull(v);
+      return d ? formatDate(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) : '';
+    }
+
+    // 升级结论行：kind 为 ''（中性灰点）/ 'ok'（绿）/ 'bad'（红）
+    function setUpgradeState(kind, text) {
+      upgradeStateText.className = 'ver-state' + (kind ? ' ' + kind : '');
+      upgradeStateText.textContent = text;
+    }
+
+    function setCacheNote(text) {
+      upgradeCacheNote.textContent = text || '';
+      upgradeCacheNote.classList.toggle('hidden', !text);
+    }
+
+    // 检查更新状态机：checking / update-available / up-to-date / current-unknown / unknown
+    // 后端契约：成功 {ok,current,latest,publishedAt?,updateAvailable}（latest 经远端校验，current 可能为空）；
+    // 失败 {ok:false,error,current,cachedLatest?,cachedCheckedAt?}（无 latest/updateAvailable，缓存仅供参考）
     async function checkUpgrade(userTriggered) {
       if (typeof window.kimiDesktop.checkUpdate !== 'function') return;
-      upgradeInfo.textContent = '检测中…';
+      checkUpgradeBtn.disabled = true;
+      // 检查进行中隐藏升级 CTA，避免基于过期结论触发升级
+      upgradeBtn.classList.add('hidden');
+      setUpgradeState('', '正在检查…');
+      setCacheNote('');
+      // 清空上一轮检查/升级遗留的操作反馈，避免旧错误与本次结果并存
+      setFeedback(upgradeOk, upgradeErr, '', '');
       try {
         const r = await window.kimiDesktop.checkUpdate();
         if (r.ok) {
-          upgradeInfo.textContent = '当前 ' + (r.current || '未知') + ' · 最新 ' + (r.latest || '未知');
+          verCurrent.textContent = r.current || '未检测到';
+          const pubDate = formatDate(r.publishedAt);
+          verLatest.textContent = r.latest ? r.latest + (pubDate ? ' · 发布于 ' + pubDate : '') : '—';
           if (r.updateAvailable) {
+            setUpgradeState('ok', '发现新版本，可一键升级');
             upgradeBtn.classList.remove('hidden');
-            upgradeBtn.textContent = '一键升级（有新版本）';
+          } else if (r.current && r.latest) {
+            // 当前与最新都拿到且无更新，才能说已是最新
+            setUpgradeState('ok', '已是最新版本');
+            upgradeBtn.classList.add('hidden');
+          } else if (!r.current) {
+            setUpgradeState('', '未检测到本地 CLI 版本；如已安装，请到「环境」页确认 CLI 路径');
+            upgradeBtn.classList.add('hidden');
           } else {
+            setUpgradeState('', '暂未获取到最新版本信息，可稍后重试');
             upgradeBtn.classList.add('hidden');
           }
-          if (userTriggered) {
-            setFeedback(upgradeOk, upgradeErr, 'ok', r.updateAvailable ? '发现新版本，可一键升级' : '已是最新版本');
-          }
         } else {
-          upgradeInfo.textContent = '检查失败：' + (r.error || '未知错误');
+          // current 为空时明确回落「未检测到」，不保留上次检查的旧值
+          verCurrent.textContent = r.current || '未检测到';
+          verLatest.textContent = '—';
+          setUpgradeState('bad', '无法获取最新版本' + (r.error ? '：' + r.error : ''));
+          if (r.cachedLatest) {
+            const checkedAt = formatTime(r.cachedCheckedAt);
+            setCacheNote('缓存版本 ' + r.cachedLatest + (checkedAt ? '（' + checkedAt + '，仅供参考）' : '（仅供参考）'));
+          }
+          upgradeBtn.classList.add('hidden');
+          // 自动触发失败只落在状态区；用户点击时才给强错误反馈
           if (userTriggered) setFeedback(upgradeOk, upgradeErr, 'err', '检查失败：' + (r.error || '未知错误'));
         }
       } catch (e) {
-        upgradeInfo.textContent = '检查失败：' + e.message;
+        setUpgradeState('bad', '无法获取最新版本：' + e.message);
+        // 旧值与本次失败结论冲突，current/latest 同步回落；缓存提示与升级按钮亦不保留
+        verCurrent.textContent = '未检测到';
+        verLatest.textContent = '—';
+        setCacheNote('');
+        upgradeBtn.classList.add('hidden');
         if (userTriggered) setFeedback(upgradeOk, upgradeErr, 'err', '检查异常：' + e.message);
+      } finally {
+        // 升级进行中（upgradeBtn.disabled 为 true）时由升级流程负责恢复，避免提前放开检查入口
+        if (!upgradeBtn.disabled) checkUpgradeBtn.disabled = false;
       }
     }
 
-    $('checkUpgradeBtn').addEventListener('click', () => checkUpgrade(true));
+    checkUpgradeBtn.addEventListener('click', () => checkUpgrade(true));
 
     upgradeBtn.addEventListener('click', async () => {
       if (typeof window.kimiDesktop.upgradeCli !== 'function') return;
       if (!confirm('将重新运行官方安装脚本升级到最新版，升级后自动重启服务。继续？')) return;
       upgradeBtn.disabled = true;
       upgradeBtn.textContent = '正在升级…';
+      // 升级期间禁止并发检查，结束后在 finally 恢复
+      checkUpgradeBtn.disabled = true;
       upgradeLog.classList.remove('hidden');
       upgradeLog.textContent = '';
       setFeedback(upgradeOk, upgradeErr, '', '');
       try {
         const r = await window.kimiDesktop.upgradeCli();
         if (r.ok) {
-          setFeedback(upgradeOk, upgradeErr, 'ok', '升级完成，服务正在重启…');
           upgradeBtn.classList.add('hidden');
           refreshStatus();
-          checkUpgrade(false);
+          // checkUpgrade 开始即清空操作反馈，成功提示须等它完成后再写入，否则会被清掉
+          await checkUpgrade(false);
+          setFeedback(upgradeOk, upgradeErr, 'ok', '升级完成，服务正在重启…');
         } else {
           setFeedback(upgradeOk, upgradeErr, 'err', '升级失败：' + (r.error || '未知错误'));
         }
@@ -2435,6 +2545,7 @@
       } finally {
         upgradeBtn.disabled = false;
         upgradeBtn.textContent = '一键升级';
+        checkUpgradeBtn.disabled = false;
       }
     });
 

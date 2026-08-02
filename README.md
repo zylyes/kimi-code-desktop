@@ -1,4 +1,4 @@
-# Kimi Code Desktop v1.2.0
+# Kimi Code Desktop v1.3.0
 
 > Kimi Code 网页版的原生桌面体验。一键启动 Kimi Code 本地服务，无需浏览器——ACP 原生聊天、图形化设置、会话管理、全局热键、无边框窗口，全部开箱即用。
 
@@ -54,7 +54,7 @@
 30. **Hooks 可视化编辑器**（v0.7.0）：设置中心新增 Hooks 标签页，按官方文档内置 16 个事件清单与用途提示，编辑 `[[hooks]]`（event/matcher/command/timeout），提供拦截 rm -rf、任务完成通知、附加 Git 分支、Bash 审计日志 4 个模板，保存走 doctor 校验回滚。
 31. **模型切换下拉**（v0.7.0）：托盘菜单与「会话」菜单新增「默认模型」单选子菜单，模型列表取自 `GET /api/v1/models`（失败回退双档模型 + 当前配置），切换写入 config.toml 并可选立即重启生效；订阅 `event.model_catalog.changed` 自动刷新。
 32. **新会话权限模式选择**（v0.7.0）：会话启动器新建按钮旁新增权限模式下拉与 Plan 复选（默认「保持当前配置」），选择后先写 config.toml 再创建会话。
-33. **维护面板**（v0.7.0）：设置中心新增维护标签页——CLI 检查更新（读 `updates/latest.json` 比对版本）与一键升级（重跑官方 install.ps1，成功后自动重启）；数据目录体积统计与勾选清理（sessions/logs/bin/updates/server，凭据受保护）；诊断打包（app.log + doctor 输出 + 最近会话导出，PowerShell Compress-Archive 生成 ZIP）。
+33. **维护面板**（v0.7.0）：设置中心新增维护标签页——CLI 检查更新（主动请求官方 `https://code.kimi.com/kimi-code/latest.json`，失败回退 `/latest`；远端均失败时本地缓存仅作"仅供参考"辅助信息，不再宣称已是最新）与一键升级（重跑官方 install.ps1，成功后自动重启）；数据目录体积统计与勾选清理（sessions/logs/bin/updates/server，凭据受保护）；诊断打包（app.log + doctor 输出 + 最近会话导出，PowerShell Compress-Archive 生成 ZIP）。
 34. **高级启动参数**（v0.7.0）：环境页新增固定端口 `--port`、监听地址 `--host`、日志级别 `--log-level`、自定义 `KIMI_CODE_HOME` 四项设置（仅新版 CLI 生效，旧版自动忽略并记日志）；KIMI_CODE_HOME 在应用启动最早期注入，全进程统一生效。
 35. **令牌轮换**（v0.7.0）：「会话」菜单新增「轮换访问令牌…」，调用 `kimi web rotate-token` 后重读 server.token、重载窗口并重建 WS 订阅。
 36. **多实例管理面板**（v0.8.0）：托盘新增「多实例」子菜单，扫描 `~/.kimi-code/server/instances/`（0.28+ 格式，目录不存在时回退 `server/lock` 旧版格式），显示各实例端口/版本/存活状态/当前连接标记；点击实例先 HTTP 探测可达再重读 server.token 完成切换；10 秒缓存防抖 + 「重新扫描」手动刷新，已退出实例置灰。
@@ -212,7 +212,7 @@ scripts/                   工具脚本
   regression-0.29.js      CLI 0.29 回归测试
   ws-event-probe.js       WebSocket 事件探测
   probe-panels.js          页面元素探针 dump + 窗控变色逐帧测量
-tests/                     单元测试（7 个文件，全部通过）
+tests/                     单元测试（12 个测试脚本，全部通过）
 docs/                      文档
   ROADMAP.md                路线图
   kimi-docs/                Kimi Code 参考文档（API/CLI/配置/ACP）

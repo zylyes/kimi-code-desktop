@@ -1,0 +1,44 @@
+[
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call",
+      "toolCallId": "0:tool_wiEZSgkMc55WZL4La5jCWyKh",
+      "title": "Read",
+      "kind": "read",
+      "status": "pending",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "" } }]
+    }
+  },
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "0:tool_wiEZSgkMc55WZL4La5jCWyKh",
+      "status": "in_progress",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "{\"file_path\":" } }]
+    }
+  },
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "0:tool_wiEZSgkMc55WZL4La5jCWyKh",
+      "status": "in_progress",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "\"D:\\\\code\\\\kimi-code-desktop\\\\src\\\\main\\\\main.js\"}" } }]
+    }
+  },
+  {
+    "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+    "update": {
+      "sessionUpdate": "tool_call_update",
+      "toolCallId": "0:tool_wiEZSgkMc55WZL4La5jCWyKh",
+      "title": "Read",
+      "kind": "read",
+      "status": "completed",
+      "rawInput": { "file_path": "D:\\code\\kimi-code-desktop\\src\\main\\main.js" },
+      "content": [{ "type": "content", "content": { "type": "text", "text": "// 合成结果文本：main.js 前 100 行摘录" } }],
+      "rawOutput": "// 合成结果文本：main.js 前 100 行摘录"
+    }
+  }
+]

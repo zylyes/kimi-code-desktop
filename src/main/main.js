@@ -1,6 +1,6 @@
 // Kimi Code Desktop — 网页版桌面套壳
 // 自动启动 `kimi web`，从输出中捕获带 token 的本地地址，并在桌面窗口中打开。
-const { app, BrowserWindow, WebContentsView, Menu, Tray, shell, ipcMain, dialog, nativeImage, nativeTheme, Notification, globalShortcut, session } = require('electron');
+const { app, BrowserWindow, WebContentsView, Menu, Tray, shell, ipcMain, dialog, nativeImage, nativeTheme, Notification, globalShortcut, session, net } = require('electron');
 const { spawn, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -16,6 +16,10 @@ const pluginsManager = require('./plugins-manager');
 const { AcpClient } = require('./acp-client');
 const { parseElicitation } = require('./acp-elicitation');
 const { moveToTrash, listTrash, restoreFromTrash, purgeTrash } = require('./trash-manager');
+const cliUpdate = require('./cli-update');
+const { UsageStats } = require('./usage-stats');
+const { fetchManagedUsage, loadOAuthToken } = require('./managed-usage');
+const { LocalCommandService } = require('./local-command-service');
 
 const APP_NAME = 'Kimi Code Desktop';
 // 让 Windows 通知显示应用名，而非 electron.app 默认 ID
@@ -69,13 +73,14 @@ let wsActiveQuestions = new Map(); // question_id -> { session_id, resolved }
 // 问答窗口（同一时刻仅一个）
 let questionWindow = null;
 let questionWindowQuestionId = null;
-// 托盘用量/进度状态
+// 运行时状态层（Phase 1：WS/ACP 事件统一入口，托盘快照消费方）
+const { normalizeWsEvent, normalizeAcpToolCall, normalizeAcpCatalogEvent } = require('./runtime-event-normalizer');
+const RuntimeState = require('./runtime-state');
+const TaskCatalog = require('./task-catalog');
+const { buildSubagentTree } = require('./subagent-tree');
+const runtimeState = new RuntimeState();
+// 托盘用量/进度状态（仅审批/问答计数留在本地，其余字段由 runtimeState 快照提供）
 const usageState = {
-  totalTokens: 0,
-  contextUsed: 0,
-  contextLimit: 0,
-  runningTasks: 0,
-  lastTaskTitle: '',
   pendingApprovals: 0,
   pendingQuestions: 0,
 };
@@ -1559,29 +1564,19 @@ function startWsSubscription() {
 
       // 会话用量更新
       if (event === 'event.session.usage_updated' || event === 'session.usage_updated') {
-        const payload = raw.payload || raw.data || {};
-        const usage = payload.usage && typeof payload.usage === 'object' ? payload.usage : payload;
-        const num = (v) => (typeof v === 'number' && isFinite(v) ? v : 0);
-        let total = num(usage.total_tokens != null ? usage.total_tokens : usage.totalTokens);
-        if (!total) total = num(usage.input_tokens) + num(usage.output_tokens);
-        usageState.totalTokens = total;
-        usageState.contextUsed = num(usage.context_used);
-        usageState.contextLimit = num(usage.context_limit);
+        runtimeState.apply(normalizeWsEvent(raw));
         scheduleTrayStatus();
         return;
       }
 
       // 任务开始/进度
       if (event === 'event.task.started' || event === 'task.started') {
-        const payload = raw.payload || raw.data || {};
-        usageState.runningTasks++;
-        if (typeof payload.title === 'string' && payload.title) usageState.lastTaskTitle = payload.title;
+        runtimeState.apply(normalizeWsEvent(raw));
         scheduleTrayStatus();
         return;
       }
       if (event === 'event.task.progress' || event === 'task.progress') {
-        const payload = raw.payload || raw.data || {};
-        if (typeof payload.title === 'string' && payload.title) usageState.lastTaskTitle = payload.title;
+        runtimeState.apply(normalizeWsEvent(raw));
         scheduleTrayStatus();
         return;
       }
@@ -1641,7 +1636,7 @@ function startWsSubscription() {
       ];
       if (completionEvents.includes(event)) {
         if (event === 'event.task.completed' || event === 'task.completed') {
-          usageState.runningTasks = Math.max(0, usageState.runningTasks - 1);
+          runtimeState.apply(normalizeWsEvent(raw));
           scheduleTrayStatus();
         }
         if (mainWindowFocused) return;
@@ -1904,14 +1899,19 @@ function showAgentsMonitor(sessionDir, title) {
 let acpChatWindow = null;
 let acpClient = null;
 let acpConfigOptions = null; // 当前会话最近一次拿到的 configOptions（set-config 白名单依据，dispose 时清空）
+let acpSessionCwd = null; // 当前 ACP 会话工作目录（acp-chat:start 置位，dispose 时清空）
 
 function disposeAcpClient(reason) {
   cancelAllAcpPermissions(reason || '客户端销毁');
   if (acpClient) {
+    if (taskCatalog && acpClient.sessionId) {
+      try { taskCatalog.clearSession(acpClient.sessionId); } catch { /* ignore */ }
+    }
     try { acpClient.dispose(reason); } catch { /* ignore */ }
     acpClient = null;
   }
   acpConfigOptions = null;
+  acpSessionCwd = null;
 }
 
 function sendAcpEvent(payload) {
@@ -1919,6 +1919,66 @@ function sendAcpEvent(payload) {
     try { acpChatWindow.webContents.send('acp-chat:event', payload); } catch { /* ignore */ }
   }
 }
+
+// ---------- 本地命令服务（Phase 3a：/usage 与 /status 桌面侧执行）----------
+// 用量统计：扫描 KIMI_CODE_HOME/sessions 下的 wire.jsonl（30s TTL 缓存）
+const usageStats = new UsageStats({ sessionsRoot: path.join(getKimiHomeDir(), 'sessions') });
+// 任务目录（Phase 5a）：runtime 快照 + ACP cron/tasktool 观察 + 磁盘 tasks|/cron 合并，同 usageStats 的 sessionsRoot
+const taskCatalog = new TaskCatalog({ runtimeState, sessionsRoot: path.join(getKimiHomeDir(), 'sessions') });
+// managed 平台额度 60s 缓存：token/网络对服务层不可见（fetch/token/baseUrl 均闭包捕获）
+let managedCache = { at: 0, value: null };
+async function fetchManagedCached({ signal } = {}) {
+  if (managedCache.value && Date.now() - managedCache.at < 60000) return managedCache.value;
+  const cred = loadOAuthToken({ kimiCodeHome: getKimiHomeDir() });
+  const v = await fetchManagedUsage({
+    fetchImpl: net.fetch,
+    token: cred && cred.accessToken,
+    baseUrl: process.env.KIMI_CODE_BASE_URL || undefined,
+    signal,
+  });
+  if (!(signal && signal.aborted)) managedCache = { at: Date.now(), value: v };
+  return v;
+}
+// /status 静态字段：configOptions 缓存取 currentValue + 进程侧版本/目录，缺失一律 null
+function getStatusContext(sessionId) {
+  const findValue = (id) => {
+    if (!Array.isArray(acpConfigOptions)) return null;
+    const item = acpConfigOptions.find((c) => c && typeof c === 'object' && c.id === id);
+    return item && item.currentValue != null ? item.currentValue : null;
+  };
+  const cli = resolveCliPath(loadConfig());
+  const cliVer = cli ? getCliVersion(cli) : null;
+  return {
+    model: findValue('model'),
+    thinking: findValue('thinking'),
+    mode: findValue('mode'),
+    permissionMode: findValue('mode'),
+    cliVersion: cliVer && cliVer.version ? cliVer.version : null,
+    desktopVersion: app.getVersion(),
+    cwd: acpSessionCwd || null,
+    sessionState: acpClient && acpClient.sessionId ? 'active' : 'idle',
+  };
+}
+const localCommandService = new LocalCommandService({
+  runtimeState,
+  usageStats,
+  fetchManagedUsageImpl: fetchManagedCached,
+  getStatusContext,
+});
+// runtime 状态变化 → chat 窗广播（500ms 防抖，复用 sendAcpEvent 通道）
+let runtimeChangedTimer = null;
+runtimeState.on('changed', (payload) => {
+  if (runtimeChangedTimer) clearTimeout(runtimeChangedTimer);
+  runtimeChangedTimer = setTimeout(() => {
+    runtimeChangedTimer = null;
+    // counts：session = 当前 ACP 会话口径（无活跃会话 -> null，渲染层视为全 0）；global = 全部会话含 null 桶
+    const counts = {
+      session: acpClient && acpClient.sessionId ? runtimeState.getActiveCounts(acpClient.sessionId) : null,
+      global: runtimeState.getActiveCounts(),
+    };
+    sendAcpEvent({ type: 'runtime-changed', payload: { ...payload, counts } });
+  }, 500);
+});
 
 // ---------- ACP 权限审批窗 ----------
 // session/request_permission 的原生审批：一次一个窗串行处理，并发请求防御性排队；
@@ -2349,6 +2409,7 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
       return { ok: false, error: `创建临时目录失败: ${err.message}` };
     }
   }
+  acpSessionCwd = cwd || null;
   // 历史双保险：load 完成前到达的消息类 update 视为 agent 重放（置标记以跳过本地自绘）
   let loadPending = false;
   let loadReplayed = false;
@@ -2413,12 +2474,16 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
           detail: extractAcpToolDetail(update),
         },
       });
+      runtimeState.apply(normalizeAcpToolCall(client.sessionId || null, update));
+      taskCatalog.observe(normalizeAcpCatalogEvent(client.sessionId || null, update));
     } else if (kind === 'tool_call_update') {
       const ev = { type: 'tool-call-update', toolCallId: ensureString(update.toolCallId).slice(0, 100) };
       if (typeof update.status === 'string') ev.status = update.status.slice(0, 40);
       const out = extractAcpRawOutput(update.rawOutput);
       if (out) ev.output = out;
       sendAcpEvent(ev);
+      runtimeState.apply(normalizeAcpToolCall(client.sessionId || null, update));
+      taskCatalog.observe(normalizeAcpCatalogEvent(client.sessionId || null, update));
     }
     // 其它 sessionUpdate 类型暂不处理
   });
@@ -2557,6 +2622,47 @@ ipcMain.handle('acp-chat:cancel', () => {
   if (!acpClient) return { ok: false };
   try { acpClient.cancel(); } catch { /* ignore */ }
   return { ok: true };
+});
+
+// 本地命令执行（/usage、/status）：参数防御性截断，非本地命令按 not-local-command 放行给 CLI
+ipcMain.handle('chat:runLocalCommand', async (event, args) => {
+  const command = args && typeof args.command === 'string' ? args.command.slice(0, 100) : '';
+  const sessionId = args && typeof args.sessionId === 'string' ? args.sessionId.slice(0, 200) : null;
+  if (!command) return { ok: false, code: 'not-local-command' };
+  try { return await localCommandService.runLocalCommand(command, { sessionId }); }
+  catch (err) { return { ok: false, code: 'command-failed', error: { message: String(err && err.message || err).slice(0, 200) } }; }
+});
+
+// 任务目录查询（Phase 5a）：会话任务/cron/子代理合并视图；sessionId 可选（null -> 全部会话），封顶 200 字符
+ipcMain.handle('chat:getTaskCatalog', async (_e, payload) => {
+  const raw = payload && typeof payload === 'object' ? payload.sessionId : undefined;
+  const sessionId = typeof raw === 'string' && raw ? raw.slice(0, 200) : null;
+  try {
+    return await taskCatalog.getCatalog({ sessionId });
+  } catch (err) {
+    return { entries: [], diagnostics: {}, error: { message: String(err && err.message || err).slice(0, 200) } };
+  }
+});
+
+// 子代理树查询（Phase 6a）：sessionId 白名单校验——必须在 session_index 中登记
+// 且其 sessionDir 位于 KIMI_CODE_HOME/sessions 之内，再交给 subagent-tree 磁盘扫描补绘
+ipcMain.handle('chat:getSubagentTree', async (_e, payload) => {
+  const raw = payload && typeof payload === 'object' ? payload.sessionId : undefined;
+  const sessionId = typeof raw === 'string' && raw ? raw.slice(0, 200) : null;
+  if (!sessionId) return { ok: false, message: '无效的 sessionId' };
+  try {
+    const session = getAllSessions().find((s) => s.sessionId === sessionId);
+    if (!session) return { ok: false, message: `未找到会话: ${sessionId}` };
+    const sessionsRoot = path.join(getKimiHomeDir(), 'sessions');
+    const rel = path.relative(sessionsRoot, session.sessionDir);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      return { ok: false, message: '会话目录不在 sessions 目录之内' };
+    }
+    return buildSubagentTree(session.sessionDir, { sessionId });
+  } catch (err) {
+    logLine(`getSubagentTree 失败: ${err.message}`);
+    return { ok: false, message: String(err && err.message || err).slice(0, 200) };
+  }
 });
 
 // 聊天图片选择：系统对话框选图（≤4 张），按扩展名映射 MIME；>10MB 或读取失败的计入 skipped
@@ -2945,13 +3051,9 @@ let trayStatusTimer = null;
 let trayStatusLastKey = '';
 
 function resetUsageState() {
-  usageState.totalTokens = 0;
-  usageState.contextUsed = 0;
-  usageState.contextLimit = 0;
-  usageState.runningTasks = 0;
-  usageState.lastTaskTitle = '';
   usageState.pendingApprovals = 0;
   usageState.pendingQuestions = 0;
+  runtimeState.clear();
   scheduleTrayStatus();
 }
 
@@ -2970,14 +3072,15 @@ function updateTrayStatus() {
   if (!tray) return;
   try {
     const lines = [APP_NAME];
+    const snap = runtimeState.getUsageSnapshot();
     const usageParts = [];
-    if (usageState.totalTokens > 0) usageParts.push(`用量 ${formatTokenCount(usageState.totalTokens)} tokens`);
-    if (usageState.contextUsed > 0 && usageState.contextLimit > 0) {
-      usageParts.push(`上下文 ${Math.round((usageState.contextUsed / usageState.contextLimit) * 100)}%`);
+    if (snap.totalTokens > 0) usageParts.push(`用量 ${formatTokenCount(snap.totalTokens)} tokens`);
+    if (snap.contextUsed > 0 && snap.contextLimit > 0) {
+      usageParts.push(`上下文 ${Math.round((snap.contextUsed / snap.contextLimit) * 100)}%`);
     }
     if (usageParts.length > 0) lines.push(usageParts.join(' · '));
     const taskParts = [];
-    if (usageState.runningTasks > 0) taskParts.push(`任务 ${usageState.runningTasks} 运行中`);
+    if (snap.runningTasks > 0) taskParts.push(`任务 ${snap.runningTasks} 运行中`);
     if (usageState.pendingApprovals > 0) taskParts.push(`审批 ${usageState.pendingApprovals}`);
     if (usageState.pendingQuestions > 0) taskParts.push(`问答 ${usageState.pendingQuestions}`);
     if (taskParts.length > 0) lines.push(taskParts.join(' · '));
@@ -4329,33 +4432,30 @@ ipcMain.handle('cli:install', (_e, installDir) => {
 });
 
 // ---------- 维护 IPC ----------
-// 语义化版本比较：a>b 返回 1，a<b 返回 -1，相等返回 0（按 . 分段数字比较）
-function compareSemver(a, b) {
-  const pa = String(a).replace(/^v/, '').split('.').map((s) => parseInt(s, 10) || 0);
-  const pb = String(b).replace(/^v/, '').split('.').map((s) => parseInt(s, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    const x = pa[i] || 0;
-    const y = pb[i] || 0;
-    if (x > y) return 1;
-    if (x < y) return -1;
-  }
-  return 0;
-}
-
 ipcMain.handle('cli:checkUpdate', async () => {
   try {
     const cli = resolveCliPath(loadConfig());
     const current = (cli ? getCliVersion(cli) : null)?.version || '';
-    let latest = '';
-    try {
-      const latestFile = path.join(getKimiHomeDir(), 'updates', 'latest.json');
-      const data = JSON.parse(fs.readFileSync(latestFile, 'utf8'));
-      latest = String(data.latest || data.latest_version || data.version || data.tag_name || '').replace(/^v/, '');
-    } catch { /* latest.json 不存在或损坏时视为无更新信息 */ }
-    const updateAvailable = !!(current && latest && compareSemver(current, latest) < 0);
-    return { ok: true, current, latest, updateAvailable };
+    const cachePath = path.join(getKimiHomeDir(), 'updates', 'latest.json');
+    // 注入 Electron net.fetch，请求走 Chromium 代理与证书处理
+    const result = await cliUpdate.fetchLatest({ fetchImpl: (url, init) => net.fetch(url, init) });
+    if (result.ok) {
+      // 仅远端成功才下"已是最新"结论；current 未知时一律不算有更新
+      const updateAvailable = cliUpdate.isUpdateAvailable(current, result.latest);
+      const out = { ok: true, current, latest: result.latest, updateAvailable };
+      if (result.publishedAt) out.publishedAt = result.publishedAt;
+      return out;
+    }
+    // 远端失败：缓存仅作为标注的辅助信息返回，严禁携带 latest/updateAvailable
+    const cached = cliUpdate.readCache(cachePath);
+    const out = { ok: false, error: result.error, current };
+    if (cached && cached.latest) out.cachedLatest = cached.latest;
+    if (cached && cached.checkedAt) out.cachedCheckedAt = cached.checkedAt;
+    return out;
   } catch (err) {
-    return { ok: false, error: err.message };
+    // 非 Error 抛出（字符串/undefined 等）也返回可读错误字符串，保证 IPC error 恒为 string
+    const msg = err instanceof Error ? err.message : String(err == null ? '未知错误' : err);
+    return { ok: false, error: msg };
   }
 });
 

@@ -696,10 +696,512 @@
     font-style: italic;
   }
 
+  /* ================= 本地命令结果面板（/usage、/status） ================= */
+  /* 卡片式：与 composer 同材质（bg-secondary + 20px 圆角 + 卡片阴影），位于其正上方；
+     标题栏固定、内容区 max-height 内滚动；全部动态文本由 chat.js 经 textContent 写入 */
+  .cmd-panel {
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    animation: rise 0.25s ease both;
+  }
+  .cmd-panel[hidden] { display: none; }
+  .cmd-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--separator);
+  }
+  .cmd-panel-title {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--label-primary);
+  }
+  .cmd-panel-time {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+  /* 关闭钮：与附件 chip-remove 同款 20px 透明小钮 */
+  .cmd-panel-close {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--label-tertiary);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .cmd-panel-close:hover { color: var(--label-primary); background: var(--bg-secondary-hover); }
+  .cmd-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 10px 12px 12px;
+    font-size: 12px;
+    color: var(--label-secondary);
+  }
+
+  /* 分区：小标题（11px tertiary，同 slash-hint 层级）+ 内容，区间靠 body gap 分隔 */
+  .cmd-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .cmd-section-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .cmd-section-title { flex: none; font-size: 11px; letter-spacing: 0.02em; color: var(--label-tertiary); }
+  .cmd-section-note { font-size: 11px; color: var(--label-quaternary); }
+  .cmd-empty { font-size: 12px; color: var(--label-quaternary); }
+
+  /* 加载态：共享 .spinner + 小字 */
+  .cmd-loading { display: flex; align-items: center; gap: 8px; color: var(--label-tertiary); }
+
+  /* 通用键值行：标签 tertiary + 等宽数值（同 .chat-statusbar 的 mono 小字语言） */
+  .cmd-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .cmd-row-label { flex: none; color: var(--label-tertiary); }
+  .cmd-row-val {
+    font-family: var(--font-mono);
+    color: var(--label-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 进度条：track 比卡片底色亮一层（bg-tertiary），fill 用主文字色；用量 ≥90% 转 error 色警示 */
+  .cmd-progress {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    overflow: hidden;
+  }
+  .cmd-progress-fill { height: 100%; border-radius: 3px; background: var(--label-primary); }
+  .cmd-progress-fill.hot { background: var(--color-error); }
+
+  /* 错误/警示条：与共享 .bridge-warn 同款 color-mix 淡化手法 */
+  .cmd-warn {
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-error) 8%, transparent);
+    color: var(--color-error);
+    font-size: 12px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .cmd-retry { align-self: flex-start; padding: 4px 14px; font-size: 12px; }
+
+  /* Token 明细：可换行的「名 + 等宽值」小段 */
+  .cmd-token-line { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .cmd-token-item { display: inline-flex; align-items: baseline; gap: 5px; }
+  .cmd-token-k { color: var(--label-tertiary); }
+  .cmd-token-v { font-family: var(--font-mono); color: var(--label-primary); }
+
+  /* 模型小计行：模型名等宽截断 + 右侧数值 */
+  .cmd-model-row { display: flex; align-items: baseline; gap: 10px; }
+  .cmd-model-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    color: var(--label-secondary);
+  }
+  .cmd-model-val { flex: none; font-family: var(--font-mono); color: var(--label-primary); }
+
+  /* 额度计划行：label + used/limit + 进度条 + 重置时间 */
+  .cmd-plan { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .cmd-plan-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--label-secondary);
+  }
+
+  /* 趋势分段标签：胶囊轨道 + 反色选中态（与 slash-item active 的对比逻辑一致） */
+  .cmd-tabs {
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 2px;
+    padding: 2px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+  }
+  .cmd-tab {
+    padding: 2px 10px;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--label-tertiary);
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .cmd-tab:hover { color: var(--label-primary); }
+  .cmd-tab.active { background: var(--label-primary); color: var(--bg-ground); }
+
+  /* 纯 CSS 条形图：柱子等分宽度、高度按最大值归一；空桶 2px 浅柱占位，有数据柱主文字色 */
+  .cmd-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 64px;
+    padding: 6px 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+  }
+  .cmd-bar { flex: 1; min-width: 2px; border-radius: 2px 2px 0 0; background: var(--label-quaternary); }
+  .cmd-bar.has { background: var(--label-primary); }
+  .cmd-axis {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+
+  /* /status 字段表：标签列自然宽度 + 值列等宽折行（长路径不溢出） */
+  .cmd-kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; align-items: baseline; }
+  .cmd-kv-label { color: var(--label-tertiary); white-space: nowrap; }
+  .cmd-kv-val {
+    min-width: 0;
+    font-family: var(--font-mono);
+    color: var(--label-primary);
+    word-break: break-all;
+  }
+
+  /* ================= Tasks 抽屉（后台任务 / Cron 调度只读视图，Phase 5b） ================= */
+  /* 右侧卡片浮层：与 cmd-panel 同材质（bg-secondary + 20px 圆角 + 卡片阴影），
+     顶栏(48px)之下、状态条(28px)之上；z-index 20 高于 slash-menu(10)。
+     cmd-panel 是 composer 上方的文档流内联卡片，抽屉是右侧 fixed 浮层，二者位置错开 */
+  .tasks-drawer {
+    position: fixed;
+    top: 56px;
+    right: 10px;
+    bottom: 40px;
+    z-index: 20;
+    width: 320px;
+    max-width: calc(100vw - 20px);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    animation: tasks-in 0.22s ease both;
+  }
+  .tasks-drawer[hidden] { display: none; }
+  @keyframes tasks-in {
+    from { opacity: 0; transform: translateX(14px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  /* 标题栏：与 cmd-panel-head 同构（mono 标题 + 11px 诊断小字槽 + 共享 20px 关闭钮） */
+  .tasks-drawer-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--separator);
+  }
+  .tasks-drawer-title {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--label-primary);
+  }
+  /* diagnostics 摘要槽：同 cmd-panel-time 的槽位与层级（11px quaternary 截断） */
+  .tasks-diag {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+  .tasks-diag[hidden] { display: none; }
+  .tasks-drawer-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    padding: 10px 12px 12px;
+    font-size: 12px;
+    color: var(--label-secondary);
+  }
+  /* 分组：小标题（11px tertiary，同 cmd-section-title 层级）+ 计数注 + 行列表 */
+  .tasks-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tasks-group-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .tasks-group-title { flex: none; font-size: 11px; letter-spacing: 0.02em; color: var(--label-tertiary); }
+  .tasks-group-note { font-size: 11px; color: var(--label-quaternary); }
+  .tasks-list { display: flex; flex-direction: column; gap: 4px; }
+  /* 行：bg-tertiary 嵌块（与抽屉底色拉开一层，同 tool-output 手法）；
+     主行 = kind 徽标 + 标题 + 相对时间，副行 = 状态/来源/置信度/调度（cmd-token-line 式 wrap） */
+  .tasks-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+  }
+  .tasks-row.dim { opacity: 0.55; } /* failed / removed 降不透明度 */
+  .tasks-row-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  /* kind 徽标：与工具卡片 .tool-kind 同款描边胶囊 */
+  .tasks-kind {
+    flex: none;
+    padding: 1px 6px;
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    color: var(--label-tertiary);
+  }
+  .tasks-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--label-primary);
+  }
+  .tasks-time {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+  .tasks-row-sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+  .tasks-meta { font-size: 11px; color: var(--label-tertiary); }
+  .tasks-meta.is-failed { color: var(--color-error); }
+  .tasks-schedule { font-family: var(--font-mono); color: var(--label-secondary); }
+  .tasks-missing { color: var(--label-quaternary); }
+
+  /* Tasks 入口按钮打开态（共享 .icon-btn 未收录 active，本地补齐，同顶部 :disabled 先例） */
+  .icon-btn.tasks-open { background: var(--bg-tertiary); color: var(--label-primary); }
+  /* 状态条双徽章兼作抽屉入口：文字钮，hover 提亮一档 */
+  .badge-link { cursor: pointer; }
+  .badge-link:hover { color: var(--label-secondary); }
+
+  /* ================= 子代理步骤树（Agent 工具卡片内联展开，Phase 6b） ================= */
+  /* 树挂在 Agent 工具卡片内（文档流内联嵌块，非浮层），与 cmd-panel/Tasks 抽屉无遮挡关系；
+     全部颜色走 var(--*)，状态点复用 .dot 色系（busy=脉冲/ready/error/exited 灰），不新增颜色 */
+  /* 步骤展开钮：tool-head 行尾文本小钮，描边胶囊与 .tool-kind 同语言；.open 态填底 + 箭头翻转 */
+  .agent-steps-toggle {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 8px;
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--label-tertiary);
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 1.6;
+    cursor: pointer;
+  }
+  .agent-steps-toggle:hover { color: var(--label-primary); background: var(--bg-secondary-hover); }
+  .agent-steps-toggle.open { color: var(--label-secondary); background: var(--bg-tertiary); }
+  .agent-steps-toggle .sg-caret { font-size: 9px; transition: transform 0.15s ease; }
+  .agent-steps-toggle.open .sg-caret { transform: rotate(180deg); }
+
+  /* 树容器：卡片内嵌块，bg-primary + 1px 边框（同 .tool-output 手法与卡片底色拉开一层），限高内滚动 */
+  .agent-tree {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+    max-height: 320px;
+    overflow-y: auto;
+    font-size: 12px;
+    color: var(--label-secondary);
+  }
+  .agent-tree[hidden] { display: none; }
+
+  .sg-tree { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  /* 诊断/回退说明行：11px quaternary，同 .cmd-section-note 层级 */
+  .sg-note { font-size: 11px; color: var(--label-quaternary); }
+
+  /* 节点块：head 整行可点折叠；.open 态箭头右转 90° */
+  .sg-node { min-width: 0; }
+  .sg-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    user-select: none;
+  }
+  .sg-head:hover { background: var(--bg-secondary-hover); }
+  .sg-caret {
+    flex: none;
+    width: 10px;
+    font-size: 9px;
+    color: var(--label-quaternary);
+    transition: transform 0.15s ease;
+  }
+  .sg-node.open > .sg-head .sg-caret { transform: rotate(90deg); }
+  /* 类型徽标：与 .tool-kind 同款描边胶囊 */
+  .sg-type {
+    flex: none;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 6px;
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    color: var(--label-tertiary);
+  }
+  .sg-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--label-primary);
+  }
+  .sg-id {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+  /* 状态徽标：状态点 + 小字；failed 文字转 error 色（诚实标注失败） */
+  .sg-badge {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--label-tertiary);
+  }
+  .sg-badge.is-failed { color: var(--color-error); }
+  .sg-badge .dot { width: 6px; height: 6px; }
+  .sg-time {
+    flex: none;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+  /* 收起态预览行：对齐 title 起点（caret 10 + gap 6 + type 徽标约 26 的槽位简化为 22px），单行截断 */
+  .sg-preview {
+    margin: 1px 0 0 22px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--label-quaternary);
+  }
+  .sg-preview[hidden],
+  .sg-body[hidden] { display: none; }
+  .sg-body { margin: 4px 0 2px 22px; min-width: 0; }
+
+  /* 步骤行：mono seq + kind 小徽标 + 状态点 + 截断文本（title 悬浮全文） */
+  .sg-steps { display: flex; flex-direction: column; gap: 2px; }
+  .sg-step { min-width: 0; }
+  .sg-step-line { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 11px; }
+  .sg-step-seq { flex: none; font-family: var(--font-mono); color: var(--label-quaternary); }
+  .sg-step-kind {
+    flex: none;
+    padding: 0 5px;
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-pill);
+    font-size: 10px;
+    color: var(--label-tertiary);
+  }
+  .sg-step-dot { width: 6px; height: 6px; align-self: center; }
+  .sg-step-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--label-secondary);
+  }
+  .sg-step-call { flex: none; font-family: var(--font-mono); font-size: 10px; color: var(--label-quaternary); }
+  /* tool 输出折叠块：bg-tertiary 嵌块（同 .sg-step-out-body 与树底色拉开一层） */
+  .sg-step-out { margin: 2px 0; }
+  .sg-step-out summary {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    color: var(--label-quaternary);
+    cursor: pointer;
+    user-select: none;
+  }
+  .sg-step-out summary:hover { color: var(--label-secondary); }
+  .sg-step-out-body {
+    margin-top: 4px;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 6px 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--label-tertiary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* 子层级缩进线：1px separator（tool-card 色条语言的轻量版），逐级嵌套 */
+  .sg-children {
+    margin-top: 4px;
+    margin-left: 6px;
+    padding-left: 10px;
+    border-left: 1px solid var(--separator);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* 「未知关系」组：顶部虚线分隔 + 小标题计数，归置父链断裂/成环的节点（不虚构层级） */
+  .sg-unknown {
+    margin-top: 4px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--separator);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .sg-unknown-head { display: flex; align-items: baseline; gap: 8px; }
+  .sg-unknown-title { font-size: 11px; letter-spacing: 0.02em; color: var(--label-tertiary); }
+  .sg-unknown-note { font-size: 11px; color: var(--label-quaternary); }
+
   @media (prefers-reduced-motion: reduce) {
+    .cmd-panel { animation: none; }
+    .tasks-drawer { animation: none; }
     .dot.connecting, .dot.busy { animation: none; }
     .msg, .tool-card { animation: none; }
     .send { transition: none; }
+    .agent-steps-toggle .sg-caret, .sg-caret { transition: none; }
   }
 </style>
 </head>
@@ -716,6 +1218,7 @@
       <span class="dot connecting" id="statusDot" aria-hidden="true"></span>
       <span class="app-topbar-sub" id="statusText">正在连接…</span>
       <div class="app-topbar-actions">
+        <button class="icon-btn" id="tasksBtn" type="button" title="查看后台任务与 Cron 调度" aria-expanded="false">任务</button>
         <button class="icon-btn" id="plainToggleBtn" type="button" title="切换纯文本/Markdown 渲染">纯文本</button>
         <button class="icon-btn" id="webuiBtn" type="button" title="在 Web UI 高级面板中打开">Web UI</button>
       </div>
@@ -769,6 +1272,15 @@
           <span class="error-text" id="errorText" role="alert"></span>
           <button class="btn btn-secondary" id="retryBtn" type="button">重试</button>
         </div>
+        <!-- 本地命令结果面板：/usage、/status 即时结果，chat.js 控制显隐与内容（loading/result/error 三态） -->
+        <div class="cmd-panel" id="commandResultPanel" role="region" aria-label="命令结果" hidden>
+          <div class="cmd-panel-head">
+            <span class="cmd-panel-title" id="cmdPanelTitle"></span>
+            <span class="cmd-panel-time" id="cmdPanelTime"></span>
+            <button class="cmd-panel-close" id="cmdPanelClose" type="button" aria-label="关闭面板" title="关闭">×</button>
+          </div>
+          <div class="cmd-panel-body" id="cmdPanelBody"></div>
+        </div>
         <div class="composer">
           <!-- 斜杠命令浮层：chat.js 渲染 button.slash-item，缺省隐藏 -->
           <div class="slash-menu" id="slashMenu" hidden></div>
@@ -793,7 +1305,20 @@
       <span id="agentInfo" hidden></span>
       <span id="sessionInfo" class="mono" hidden></span>
       <span id="commandsInfo" hidden></span>
+      <!-- 运行中任务/子代理双徽章（Phase 3b）兼作 Tasks 抽屉入口：点击/Enter/Space 打开 -->
+      <span id="taskRunningBadge" class="badge-link" role="button" tabindex="0" title="查看任务列表" hidden></span>
+      <span id="agentRunningBadge" class="badge-link" role="button" tabindex="0" title="查看任务列表" hidden></span>
     </div>
+
+    <!-- Tasks 抽屉：后台任务 / Cron 调度只读视图（fixed 右侧浮层，chat.js 控制显隐与内容，无任何操作按钮） -->
+    <aside class="tasks-drawer" id="tasksDrawer" role="complementary" aria-label="后台任务" hidden>
+      <div class="tasks-drawer-head">
+        <span class="tasks-drawer-title">任务</span>
+        <span class="tasks-diag" id="tasksDiag" hidden></span>
+        <button class="cmd-panel-close" id="tasksDrawerClose" type="button" aria-label="关闭任务列表" title="关闭">×</button>
+      </div>
+      <div class="tasks-drawer-body" id="tasksDrawerBody"></div>
+    </aside>
   </div>
 
   <!-- 第三方 vendor 库：Markdown 解析、XSS 过滤、代码高亮 -->

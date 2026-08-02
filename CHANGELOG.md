@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.3.0] - 2026-07-27
+
+### 新功能
+
+- **运行时状态层**：新增 `runtime-state.js`——WS/ACP 事件统一规范化入口，维护任务状态（幂等 started/completed、乱序 tombstone、未知任务合成键）与按会话分桶的 usage 统计。
+- **任务目录**：新增 `task-catalog.js`——运行时快照 + ACP 目录观察（cron/tasktool）+ 磁盘 `sessions/<sid>/tasks|/cron` 三源合并，带诊断计数（扫描/坏行统计）。
+- **子 Agent 树**：新增 `subagent-tree.js`——从运行时快照构建子 Agent 层级树。
+- **用量统计**：新增 `usage-stats.js`（会话分桶统计）与 `managed-usage.js`（OAuth token 加载 + 托管用量拉取）。
+- **CLI 更新模块**：新增 `cli-update.js`——托管 CLI 更新流程（361 行测试覆盖）。
+- **本地命令服务**：新增 `local-command-service.js`——本地命令执行服务。
+- **ACP 事件探针**：新增 `scripts/acp-event-probe.js`。
+
+### 改进
+
+- **ACP 原生聊天窗大幅扩展**（+1033 行）：任务目录/子 Agent 树渲染、运行时状态可视化。
+- **setup.html**（+151 行）：CLI 更新与用量相关配置入口。
+- **托盘状态**：用量/任务进度改由 RuntimeState 快照提供，审批/问答计数保留本地。
+
+### 其他
+
+- 新增 7 套单元测试：test-runtime-state / test-task-catalog / test-subagent-tree / test-usage-stats / test-cli-update / test-local-command-service / test-managed-usage（含 fixtures）。
+- 新增 `docs/memory/`（agent 记忆）与 `docs/plan/`（计划归档）。
+- 无破坏性变更。
+
 ## [1.2.0] - 2026-07-27
 
 ### 新功能

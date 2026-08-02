@@ -1,0 +1,26 @@
+[
+  {
+    "event": "event.session.usage_updated",
+    "payload": {
+      "usage": {
+        "total_tokens": 12345,
+        "input_tokens": 8000,
+        "output_tokens": 4345,
+        "context_used": 45000,
+        "context_limit": 128000
+      }
+    }
+  },
+  {
+    "event": "event.session.usage_updated",
+    "payload": {
+      "usage": {
+        "total_tokens": 23456,
+        "input_tokens": 15000,
+        "output_tokens": 8456,
+        "context_used": 62000,
+        "context_limit": 128000
+      }
+    }
+  }
+]

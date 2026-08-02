@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "agents": {
+    "main": {
+      "homedir": "C:/Users/tester/.kimi-code/sessions/wd_loop/agents/main",
+      "type": "main"
+    },
+    "agent-0": {
+      "homedir": "C:/Users/tester/.kimi-code/sessions/wd_loop/agents/agent-0",
+      "type": "sub",
+      "parentAgentId": "agent-1",
+      "labels": { "parentAgentId": "agent-1" }
+    },
+    "agent-1": {
+      "homedir": "C:/Users/tester/.kimi-code/sessions/wd_loop/agents/agent-1",
+      "type": "sub",
+      "parentAgentId": "agent-0",
+      "labels": { "parentAgentId": "agent-0" }
+    }
+  }
+}

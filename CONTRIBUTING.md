@@ -54,6 +54,7 @@
    node tests/test-plugins-manager.js
    node tests/test-instances-manager.js
    node tests/test-ide-integration.js
+   node tests/test-cli-update.js
    ```
 
 5. 使用清晰的中文或英文提交信息。

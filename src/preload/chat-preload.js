@@ -95,6 +95,35 @@ contextBridge.exposeInMainWorld('kimiChat', {
     ipcRenderer.on('acp-chat:event', listener);
     return () => ipcRenderer.removeListener('acp-chat:event', listener);
   },
+  // 渲染层 → 主进程：执行本地命令（/usage、/status；非本地命令返回 not-local-command 放行给 CLI）
+  // command 封顶 100 字符、sessionId 封顶 200 字符（null 表示全局工作区）
+  // 返回 Promise<{ ok, kind?, generatedAt?, data?, code?, error? }>
+  runLocalCommand: (command, sessionId) => ipcRenderer.invoke('chat:runLocalCommand', {
+    command: String(command).slice(0, 100),
+    sessionId: sessionId == null ? null : String(sessionId).slice(0, 200),
+  }),
+  // 主进程 → 渲染层：订阅 runtime 状态变化（acp-chat:event 事件流内
+  // type === 'runtime-changed' 的事件，主进程 500ms 防抖后下发，payload 为
+  // { kind, sessionId } 变更摘要）；返回退订函数；fn 不是函数时返回空函数
+  onRuntimeChanged: (fn) => {
+    if (!isFn(fn)) return () => {};
+    const listener = (_e, payload) => {
+      if (payload && payload.type === 'runtime-changed') fn(payload);
+    };
+    ipcRenderer.on('acp-chat:event', listener);
+    return () => ipcRenderer.removeListener('acp-chat:event', listener);
+  },
+  // 渲染层 → 主进程：查询任务目录（会话任务/cron/子代理合并视图）
+  // sessionId 可选（null -> 全部会话）、封顶 200 字符
+  // 返回 Promise<{ entries, diagnostics?, error? }>
+  getTaskCatalog: (sessionId) => ipcRenderer.invoke('chat:getTaskCatalog', {
+    sessionId: sessionId == null ? null : String(sessionId).slice(0, 200),
+  }),
+  // 渲染层 → 主进程：查询子代理树（state.json agents 映射父子关系 + agents/*/wire.jsonl 步骤补绘）
+  // sessionId 必填、封顶 200 字符；返回 Promise<{ ok, sessionId?, nodes?, diagnostics?, error? }>
+  getSubagentTree: (sessionId) => ipcRenderer.invoke('chat:getSubagentTree', {
+    sessionId: sessionId == null ? null : String(sessionId).slice(0, 200),
+  }),
 });
 
 // 应用菜单面板桥接：与 preload.js 同名同构，供 menu-panel.js（chat.html 经 <script src> 挂载）消费

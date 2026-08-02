@@ -1,0 +1,18 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1785542400000}
+{"type":"turn.prompt","input":[{"type":"text","text":"统计 tests 目录下的测试文件数量"}],"time":1785549600000}
+{"type":"context.append_message","message":{"role":"user","content":[{"type":"text","text":"统计 tests 目录下的测试文件数量"}],"toolCalls":[],"id":"m1"},"time":1785549600001}
+{"type":"context.append_message","message":{"role":"assistant","content":[{"type":"text","text":"好的，我用 Glob 数一下。"},{"type":"think","think":"先用 Glob 定位 tests/**/*.js"}],"toolCalls":[{"name":"Glob"},{"name":"Agent"}],"id":"m2"},"time":1785549700000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":1200,"output":800,"inputCacheRead":300,"inputCacheCreation":50},"usageScope":"turn","time":1785549750000}
+{这不是合法JSON——main-wire坏行
+{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"m-st-1","turnId":"0","step":1},"time":1785549650000}
+{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"m-p-1","turnId":"0","step":1,"stepUuid":"m-st-1","part":{"type":"think","think":"先用 Glob 定位 tests/**/*.js"}},"time":1785549650100}
+{"type":"context.append_loop_event","event":{"type":"tool.call","uuid":"m-t-1","turnId":"0","step":1,"stepUuid":"m-st-1","toolCallId":"tool_glob1","name":"Glob","args":{"pattern":"tests/**/*.js"}},"time":1785549650200}
+{"type":"context.append_loop_event","event":{"type":"tool.result","uuid":"m-r-1","toolCallId":"tool_glob1","result":{"output":"12 个测试文件","isError":false}},"time":1785549650300}
+{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"m-se-1","turnId":"0","step":1,"finishReason":"tool_use","usage":{"inputOther":1200,"output":800,"inputCacheRead":300,"inputCacheCreation":50}},"time":1785549651000}
+{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"m-st-2","turnId":"0","step":2},"time":1785549700000}
+{"type":"context.append_loop_event","event":{"type":"tool.call","uuid":"m-t-2","turnId":"0","step":2,"stepUuid":"m-st-2","toolCallId":"tool_agentA","name":"Agent","args":{"description":"统计 tests 目录文件数","subagent_type":"coder","prompt":"Use Glob to count test files under tests/, return the number."}},"time":1785549702000}
+{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"m-se-2","turnId":"0","step":2,"finishReason":"tool_use","usage":{"inputOther":800,"output":400,"inputCacheRead":200,"inputCacheCreation":20}},"time":1785549800000}
+{"type":"context.append_loop_event","event":{"type":"step.begin","uuid":"m-st-3","turnId":"0","step":3},"time":1785549801000}
+{"type":"context.append_loop_event","event":{"type":"content.part","uuid":"m-p-3","turnId":"0","step":3,"stepUuid":"m-st-3","part":{"type":"text","text":"统计完成，共 12 个测试文件"}},"time":1785549802000}
+{"type":"context.append_loop_event","event":{"type":"tool.call","uuid":"m-t-3","turnId":"0","step":3,"stepUuid":"m-st-3","toolCallId":"tool_agentB","name":"Agent","args":{"description":"另一项后续任务","subagent_type":"reviewer","prompt":"Review the result."}},"time":1785549806000}
+{"type":"context.append_loop_event","event":{"type":"step.end","uuid":"m-se-3","turnId":"0","step":3,"finishReason":"end_turn","usage":{"inputOther":300,"output":200,"inputCacheRead":100,"inputCacheCreation":10}},"time":1785549810000}

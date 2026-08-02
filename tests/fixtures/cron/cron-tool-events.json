@@ -1,0 +1,77 @@
+{
+  "_fixtureNote": "synthetic——CLI 0.29.0 ACP 实测未观察到 Cron 工具；按 Agent 工具同款平面 tool_call 形态构造，用于解析器未知工具鲁棒性测试",
+  "events": [
+    {
+      "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+      "update": {
+        "sessionUpdate": "tool_call",
+        "toolCallId": "1:tool_a1b2c3d4e5f6a7b8c9d0e1f2",
+        "title": "CronCreate",
+        "kind": "other",
+        "status": "pending",
+        "content": [{ "type": "content", "content": { "type": "text", "text": "" } }]
+      }
+    },
+    {
+      "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+      "update": {
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "1:tool_a1b2c3d4e5f6a7b8c9d0e1f2",
+        "title": "CronCreate",
+        "kind": "other",
+        "status": "completed",
+        "rawInput": { "name": "daily-backup", "schedule": "0 2 * * *", "command": "npm run build" },
+        "content": [{ "type": "content", "content": { "type": "text", "text": "Cron job created: daily-backup" } }],
+        "rawOutput": "Cron job created: daily-backup"
+      }
+    },
+    {
+      "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+      "update": {
+        "sessionUpdate": "tool_call",
+        "toolCallId": "1:tool_b2c3d4e5f6a7b8c9d0e1f2a3",
+        "title": "CronList",
+        "kind": "other",
+        "status": "pending",
+        "content": [{ "type": "content", "content": { "type": "text", "text": "" } }]
+      }
+    },
+    {
+      "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+      "update": {
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "1:tool_b2c3d4e5f6a7b8c9d0e1f2a3",
+        "title": "CronList",
+        "kind": "other",
+        "status": "completed",
+        "rawInput": {},
+        "content": [{ "type": "content", "content": { "type": "text", "text": "[]" } }],
+        "rawOutput": "[]"
+      }
+    },
+    {
+      "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+      "update": {
+        "sessionUpdate": "tool_call",
+        "toolCallId": "1:tool_c3d4e5f6a7b8c9d0e1f2a3b4",
+        "title": "TaskOutput",
+        "kind": "other",
+        "status": "pending",
+        "content": [{ "type": "content", "content": { "type": "text", "text": "" } }]
+      }
+    },
+    {
+      "sessionId": "session_wd_kimi-code-desktop_7f3a2b9c4d1e5f6a8b0c2d4e",
+      "update": {
+        "sessionUpdate": "tool_call_update",
+        "toolCallId": "1:tool_c3d4e5f6a7b8c9d0e1f2a3b4",
+        "title": "TaskOutput",
+        "kind": "other",
+        "status": "completed",
+        "rawInput": { "task_id": "bg-42" },
+        "content": [{ "type": "content", "content": { "type": "text", "text": "exit 0" } }],
+        "rawOutput": "exit 0"
+      }
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "generated": "2026-08-02",
+  "cliBaseline": "0.29.0",
+  "probeEvidence": "scripts/acp-event-probe.js 三轮实测 (2026-08-02)",
+  "fixtures": [
+    {
+      "path": "usage/usage-record.jsonl",
+      "source": "librarian.md 第 29 行 usage.record 结构（type/model/usage.{inputOther,output,inputCacheRead,inputCacheCreation}/usageScope/time）；time 取 wire.jsonl 统一范式 epoch ms（test-session-export.js），非 ISO 字符串",
+      "consumers": ["test-usage-stats.js"]
+    },
+    {
+      "path": "usage/usage-updated-ws.json",
+      "source": "scripts/mock-kimi-server.js 108-119 行 usage() 实际 emit 结构（event:event.session.usage_updated + payload.usage）",
+      "consumers": ["test-runtime-state.js"]
+    },
+    {
+      "path": "tasks/task-events-ws.json",
+      "source": "scripts/mock-kimi-server.js 124-135 行 task.started/progress/completed 实际 emit 结构；t1 完整生命周期 + t2 仅 started（供活动任务数派生）",
+      "consumers": ["test-task-catalog.js", "test-runtime-state.js"]
+    },
+    {
+      "path": "acp/tool-call-read.json",
+      "source": "ACP 实测（CLI 0.29.0）tool_call/tool_call_update 事件结构，sessionId/toolCallId 合成",
+      "consumers": ["test-runtime-state.js"]
+    },
+    {
+      "path": "acp/tool-call-agent.json",
+      "source": "ACP 实测（CLI 0.29.0）Agent 工具事件结构；序列内无 parentId/parentToolCallId 字段（实测确认）",
+      "consumers": ["test-runtime-state.js", "test-subagent-tree.js"]
+    },
+    {
+      "path": "cron/cron-tool-events.json",
+      "source": "synthetic——CLI 0.29.0 ACP 实测未观察到 Cron 工具；按 Agent 工具同款平面 tool_call 形态构造，见文件 _fixtureNote",
+      "consumers": ["test-task-catalog.js", "test-runtime-state.js"]
+    },
+    {
+      "path": "subagents/wire-main.jsonl",
+      "source": "tests/test-session-export.js wire 行范式（test-session-export.js 15-34 行）",
+      "consumers": ["test-runtime-state.js", "test-subagent-tree.js"]
+    },
+    {
+      "path": "subagents/wire-subagent.jsonl",
+      "source": "tests/test-session-export.js wire 行范式（test-session-export.js 15-34 行）+ 追加 append_loop_event 步骤事件（step.begin/end、content.part、tool.call/result，时间与 wire-main.jsonl 的 Agent 调用对齐供 parentToolCallId 启发式匹配）",
+      "consumers": ["test-runtime-state.js", "test-subagent-tree.js"]
+    },
+    {
+      "path": "subagents/state-nested.json",
+      "source": "synthetic——会话根 state.json agents 映射范式（真实样例 wd_kimi-code-desktop 会话 277753c8，含 type/parentAgentId/labels）；3 层嵌套：main -> agent-0 -> agent-00",
+      "consumers": ["test-subagent-tree.js"]
+    },
+    {
+      "path": "subagents/state-loop.json",
+      "source": "synthetic——循环父链（agent-0 <-> agent-1），验证 '__unknown__' 未知关系组",
+      "consumers": ["test-subagent-tree.js"]
+    },
+    {
+      "path": "subagents/state-orphan.json",
+      "source": "synthetic——parentAgentId 指向不存在的 agent（ghost-agent），验证 '__unknown__' 未知关系组",
+      "consumers": ["test-subagent-tree.js"]
+    }
+  ]
+}

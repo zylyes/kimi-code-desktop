@@ -1,0 +1,15 @@
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":1200,"output":800,"inputCacheRead":300,"inputCacheCreation":50},"usageScope":"turn","time":1785549600000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":950,"output":640,"inputCacheRead":210,"inputCacheCreation":30},"usageScope":"turn","time":1785549900000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":9999,"output":6400,"inputCacheRead":2100,"inputCacheCreation":300},"usageScope":"session","time":1785549950000}
+{"type":"usage.record","model":"kimi-code/kimi-for-coding","usage":{"inputOther":2100,"output":1500,"inputCacheRead":500,"inputCacheCreation":80},"usageScope":"turn","time":1785553200000}
+{"type":"usage.record","model":"kimi-code/kimi-for-coding","usage":{"inputOther":890,"output":560,"inputCacheRead":120,"inputCacheCreation":20},"usageScope":"turn","time":1785553500000}
+{"type":"usage.record","model":"kimi-code/kimi-for-coding","usage":{"inputOther":15000,"output":9800,"inputCacheRead":3200,"inputCacheCreation":500},"usageScope":"session","time":1785553550000}
+{这不是合法JSON——坏行1
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":720,"output":480,"inputCacheRead":150,"inputCacheCreation":10},"usageScope":"turn","time":1785636000000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":1234,"output":890,"inputCacheRead":260,"inputCacheCreation":40},"usageScope":"turn","time":1785636300000}
+{"type":"usage.record","model":"kimi-code/k3","usage":{"inputOther":8100,"output":5400,"inputCacheRead":1700,"inputCacheCreation":200},"usageScope":"session","time":1785636350000}
+{"type":"usage.record","model":"kimi-code/kimi-for-coding","usage":{"inputOther":3100,"output":2100,"inputCacheRead":700,"inputCacheCreation":90},"usageScope":"turn","time":1785639600000}
+{"type":"usage.record","model":"kimi-code/kimi-for-coding","usage":{"inputOther":560,"output":330,"inputCacheRead":90,"inputCacheCreation":15},"usageScope":"turn","time":1785639900000}
+{"type":"usage.record","model":"kimi-code/kimi-for-coding","usage":{"inputOther":18800,"output":12100,"inputCacheRead":4100,"inputCacheCreation":600},"usageScope":"session","time":1785639950000}
+{这不是合法JSON——坏行2
+{"type":"usage.record","model":"kimi-code/k3","usageScope":"turn","time":1785640200000}
