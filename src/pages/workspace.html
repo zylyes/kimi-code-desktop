@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>Kimi Code Desktop · 工作区</title>
+<link rel="stylesheet" href="../styles/kimi-theme.css" />
+<link rel="stylesheet" href="../styles/workspace.css" />
+<script src="workspace.js" defer></script>
+</head>
+<body>
+  <!-- 覆盖式面板：顶部 36px 窗控区由主进程预留，本页从 y=0 正常布局，无拖拽条/窗控 -->
+  <div class="panel">
+    <header class="head">
+      <div class="head-row">
+        <h1 class="head-title">工作区</h1>
+        <button class="icon-btn collapse-btn" id="collapseBtn" type="button" aria-label="折叠工作区面板" title="折叠工作区面板">&#187;</button>
+      </div>
+      <div class="ctx" id="ctxArea" role="status" aria-live="polite"></div>
+    </header>
+    <div class="err-bar" id="errorBar" hidden></div>
+    <nav class="tabs" role="tablist" aria-label="工作区标签" id="tabList">
+      <button class="tab" id="tab-changes" type="button" role="tab" data-tab="changes" aria-controls="pane-changes" aria-selected="true">Changes</button>
+      <button class="tab" id="tab-files" type="button" role="tab" data-tab="files" aria-controls="pane-files" aria-selected="false" tabindex="-1">Files</button>
+      <button class="tab" id="tab-agents" type="button" role="tab" data-tab="agents" aria-controls="pane-agents" aria-selected="false" tabindex="-1">Agents</button>
+      <button class="tab" id="tab-tasks" type="button" role="tab" data-tab="tasks" aria-controls="pane-tasks" aria-selected="false" tabindex="-1">Tasks</button>
+    </nav>
+    <main class="content" id="content">
+      <section class="tabpane" id="pane-changes" role="tabpanel" data-pane="changes" aria-labelledby="tab-changes">
+        <div class="pane-note">当前工作树相对 Git 基线的视图</div>
+        <div class="pane-body" id="changesBody"></div>
+      </section>
+      <section class="tabpane" id="pane-files" role="tabpanel" data-pane="files" aria-labelledby="tab-files" hidden>
+        <div class="pane-body" id="filesBody"></div>
+        <div class="preview" id="previewBox" hidden>
+          <div class="preview-head">
+            <span class="preview-name mono" id="previewName"></span>
+            <button class="icon-btn preview-close" id="previewClose" type="button" aria-label="关闭预览" title="关闭预览">&#215;</button>
+          </div>
+          <div class="preview-body mono" id="previewBody"></div>
+        </div>
+      </section>
+      <section class="tabpane" id="pane-agents" role="tabpanel" data-pane="agents" aria-labelledby="tab-agents" hidden>
+        <div class="pane-note" id="agentsNote">会话快照</div>
+        <div class="pane-body" id="agentsBody"></div>
+      </section>
+      <section class="tabpane" id="pane-tasks" role="tabpanel" data-pane="tasks" aria-labelledby="tab-tasks" hidden>
+        <div class="pane-note" id="tasksNote">任务目录（只读投影）</div>
+        <div class="pane-body" id="tasksBody"></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

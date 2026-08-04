@@ -8,11 +8,22 @@
 //  - progress/observed 先到（无 started）：按 running 建快照
 //  - usage 按 `sessionId || '__global__'` 分桶，会话间不互相覆盖
 //  - 每次有效 apply 且状态实际变化后 emit('changed', { kind, sessionId })
+//  - changed 契约：getTasks()/TaskCatalog 可见字段（status/title/agentType/at/kind/
+//    source/confidence/rawKind）任一变化即 emit；at 单调（首建取事件时间戳，后续仅
+//    前移，倒退/相等保持既有值）——等价重复事件（含 at 相同）不 emit
 'use strict';
 
 const { EventEmitter } = require('events');
 
 const GLOBAL_BUCKET = '__global__';
+
+// M6 资源上限：in-memory map 条目上限（WS 持续事件不可导致无界内存）。
+// 达到上限时确定性驱逐 at 最小（最老）条目，驱逐数计入 truncation（getTruncation() 可见），
+// 不抛；既有可见字段/状态语义不变。
+const LIMITS = {
+  MAX_TASK_ENTRIES: 2000, // _tasks 条目上限（含终态墓碑）
+  MAX_USAGE_BUCKETS: 200, // _usage 会话桶数上限
+};
 
 class RuntimeState extends EventEmitter {
   constructor(opts = {}) {
@@ -22,6 +33,41 @@ class RuntimeState extends EventEmitter {
     this._usage = new Map(); // bucketKey -> { totalTokens, contextUsed, contextLimit }
     this._seq = 0; // unknown 任务合成键的单调序号
     this._lastTaskTitle = '';
+    this.truncation = { tasksEvicted: 0, usageBucketsEvicted: 0 }; // M6：上限驱逐可见
+  }
+
+  // M6 确定性驱逐：map 达到 max 且插入新键时，删除 at 最小（相等取 Map 最早插入）的条目；
+  // _usage 桶无时间戳，取 Map 最早插入桶。驱逐为内部容量管理，不触发 'changed'
+  // （changed 契约只约束事件 apply 导致的可见字段变化），驱逐数经 truncation 可见。
+  _evictTaskOldest() {
+    let oldestKey = null;
+    let oldestAt = Infinity;
+    for (const [k, e] of this._tasks) {
+      if (e.at < oldestAt) {
+        oldestAt = e.at;
+        oldestKey = k;
+      }
+    }
+    if (oldestKey !== null) {
+      this._tasks.delete(oldestKey);
+      this.truncation.tasksEvicted++;
+      return true;
+    }
+    return false;
+  }
+
+  // M6：usage 桶驱逐（Map 最早插入者），驱逐数经 truncation.usageBucketsEvicted 可见
+  _evictUsageOldest() {
+    const first = this._usage.keys().next();
+    if (first.done) return false;
+    this._usage.delete(first.value);
+    this.truncation.usageBucketsEvicted++;
+    return true;
+  }
+
+  // M6：截断/驱逐统计快照（副本，不暴露内部引用）
+  getTruncation() {
+    return { ...this.truncation };
   }
 
   // 应用 normalized 事件；非法事件静默忽略
@@ -54,8 +100,25 @@ class RuntimeState extends EventEmitter {
 
     // observed 且状态未知（null）：不降级既有状态，仅更新元信息
     const status = newStatus === null && existing ? existing.status : newStatus;
-    const title = event.title || '';
     const terminal = status === 'completed' || status === 'failed';
+
+    // 元信息降级保护：同键非终态更新中，通用回退值（空 / 'subagent'）不得覆盖已有具体值；
+    // 新事件携带具体非通用值时仍正常更新
+    let title = event.title || '';
+    let agentType = event.agentType || null;
+    if (existing) {
+      if (!title || title === 'subagent') title = existing.title;
+      if ((!agentType || agentType === 'subagent') &&
+          existing.agentType && existing.agentType !== 'subagent') {
+        agentType = existing.agentType;
+      }
+    }
+
+    // at 单调契约：首建取事件时间戳（缺失 -> _now()）；已有条目仅允许时间前移，
+    // 倒退/相等保持既有值。递增 at 会刷新 TaskCatalog 暴露的 updatedAt（可见变化，
+    // 必须 changed）；等价重复事件（at 相同）不更新不 changed；乱序老事件不抖动时间戳。
+    const eventAt = event.at != null ? event.at : (existing ? existing.at : this._now());
+    const at = existing && eventAt < existing.at ? existing.at : eventAt;
 
     const entry = {
       key,
@@ -63,20 +126,36 @@ class RuntimeState extends EventEmitter {
       taskId: event.taskId,
       title,
       status,
-      at: event.at || this._now(),
+      at,
       kind: event.kind,
-      agentType: event.agentType || null,
+      agentType,
       source: event.source,
       confidence: event.confidence,
       rawKind: event.rawKind,
       terminal,
     };
 
+    // changed 契约：任何改变 getTasks()/TaskCatalog 可见字段的事件必须 emit；
+    // key/sessionId/taskId 由键派生必然相同，故比较其余全部可见字段（含 at）。
     let changed = false;
     if (!existing) changed = true;
     else {
       if (existing.status !== status) changed = true;
       if (existing.title !== title) changed = true;
+      // agentType 具体化（通用 null/'subagent' -> 具体类型）属有意义变化；
+      // 降级保护已保证通用值不会回写，故直接比较即可避免等价重复事件误发 changed
+      if (existing.agentType !== agentType) changed = true;
+      if (existing.at !== at) changed = true;
+      if (existing.kind !== event.kind) changed = true;
+      if (existing.source !== event.source) changed = true;
+      if (existing.confidence !== event.confidence) changed = true;
+      if (existing.rawKind !== event.rawKind) changed = true;
+    }
+
+    // M6：任务条目上限——插入新键且已满时确定性驱逐 at 最小（最老）条目，驱逐经
+    // truncation.tasksEvicted 可见；既有 changed 语义不受影响
+    if (!existing && this._tasks.size >= LIMITS.MAX_TASK_ENTRIES) {
+      this._evictTaskOldest();
     }
     this._tasks.set(key, entry);
 
@@ -93,6 +172,9 @@ class RuntimeState extends EventEmitter {
     const bucketKey = event.sessionId || GLOBAL_BUCKET;
     const usage = event.usage || { totalTokens: 0, contextUsed: 0, contextLimit: 0 };
     const prev = this._usage.get(bucketKey);
+    if (!prev && this._usage.size >= LIMITS.MAX_USAGE_BUCKETS) {
+      this._evictUsageOldest(); // M6：桶数上限，驱逐最早插入桶
+    }
     const changed = !prev ||
       prev.totalTokens !== usage.totalTokens ||
       prev.contextUsed !== usage.contextUsed ||
@@ -176,7 +258,9 @@ class RuntimeState extends EventEmitter {
     this._usage.clear();
     this._seq = 0;
     this._lastTaskTitle = '';
+    this.truncation = { tasksEvicted: 0, usageBucketsEvicted: 0 };
   }
 }
 
+RuntimeState.LIMITS = LIMITS; // M6 资源上限常量（测试/调用方可读）
 module.exports = RuntimeState;

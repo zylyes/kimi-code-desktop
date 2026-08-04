@@ -20,6 +20,31 @@ const cliUpdate = require('./cli-update');
 const { UsageStats } = require('./usage-stats');
 const { fetchManagedUsage, loadOAuthToken } = require('./managed-usage');
 const { LocalCommandService } = require('./local-command-service');
+// M2 工作区面板：会话上下文解析（纯函数模块，另一车道并行开发，接口已定死，直接 require 使用）
+const sw = require('./session-workspace');
+// M3 工作区面板数据服务：git 变更/diff 与文件浏览（另一车道交付，契约定死，直接 require 使用）
+const gitService = require('./git-service.js');
+const fileBrowser = require('./file-browser.js');
+// M4 工作区投影：agents/tasks 活动投影（另一车道交付，契约 getWorkspaceProjection 定死，直接 require 使用）
+const workspaceProjection = require('./workspace-projection.js');
+// M5 P1：通知会话导航安全决策（纯函数）+ ACP elicitation 问答窗生命周期判定（纯函数）
+const notificationNav = require('./notification-nav');
+const acpQuestionWindow = require('./acp-question-window');
+const { ACP_ELICITATION_QID, buildElicitationQuestionPayload, isWindowInitCurrent, canSettleAcpElicitation } = acpQuestionWindow;
+// P1-2：overlay 覆盖期间 Workspace context 待同步标志（极小纯函数模块）
+const overlayContextSync = require('./overlay-context-sync');
+// M6：overlay 关闭时 Workspace 面板的安全恢复状态机（stale 时隐藏态重置 +
+// renderer ack + 单次挂回，杜绝旧 DOM 一帧暴露；纯逻辑模块）
+const workspaceRestore = require('./workspace-restore');
+// M5 P1（最后一项）：普通 ACP 审批窗 respond 准入（窗口绑定 request identity，纯函数）
+const acpPermissionWindowHelper = require('./acp-permission-window');
+// M6：Workspace 面板 IPC/导航/日志广播纯决策 helper（plain-object 校验、视图导航与
+// sender 准入、server:log 广播门）
+const workspaceGuard = require('./workspace-ipc-guard');
+// M6 高危项：sessionDir 本体校验（lstat 不跟随，必须真实目录且非 symlink/junction/
+// reparse point；普通文件与 lstat 失败一律拒绝）——workspaceBoundSessionContext 实际调用
+const sessionDirGuard = require('./session-dir-guard');
+const { pathToFileURL } = require('url');
 
 const APP_NAME = 'Kimi Code Desktop';
 // 让 Windows 通知显示应用名，而非 electron.app 默认 ID
@@ -51,6 +76,10 @@ let knownServerBase = null;
 let knownServerToken = null;
 // 启动世代计数器（用于旧进程回调检测）
 let serverGeneration = 0;
+// M5 P1：连接/导航 epoch（通知目标失效代）——实例切换、服务启动/停止、连接身份
+// 变更（token 轮换等）时递增。通知创建时捕获 epoch+base，点击时必须仍相同；
+// 独立单调，绝不复用/递增 serverGeneration（后者同时守卫 CLI/WS 回调，不得错用）
+let navEpoch = 0;
 // 重启互斥锁
 let restartPromise = null;
 // 待恢复的会话 ID（由 resumeSession 设置，startKimiServer 消费）
@@ -73,6 +102,20 @@ let wsActiveQuestions = new Map(); // question_id -> { session_id, resolved }
 // 问答窗口（同一时刻仅一个）
 let questionWindow = null;
 let questionWindowQuestionId = null;
+// M5-5：问答窗 owner 隔离——'ws'=官方 WS 问答窗，'acp'=ACP elicitation 窗；
+// WS answered/dismissed 与 WS 生命周期清理只作用于 'ws' 窗，不误伤 ACP 窗
+let questionWindowOwner = null;
+// P1-1：当前问答窗绑定的请求身份 epoch（仅 owner==='acp' 时设置，= 创建时的 gen）。
+// 用于 createQuestionWindow 的"遗留窗口替换"判定：窗口 epoch 不等于当前请求身份
+// epoch → 该窗属于已结算/已失效的旧请求 → 可关闭替换；相等 → 窗口属于在途请求
+// （防御性冲突，按取消收尾）。WS 窗恒为 null。
+let questionWindowEpoch = null;
+// P1-C：当前问答窗绑定的 settle（仅 owner==='acp' 时设置，= 创建时的 acpSettle）。
+// 与 questionWindowEpoch 组成窗口创建时捕获的不可变 request identity：三个
+// question IPC 的 ACP 准入必须同时匹配窗口捕获的 windowEpoch/windowSettle 与
+// 当前请求身份（identity.epoch/settle）才允许结算——绝不以全局当前 settle 替代
+// （旧/遗留窗口即使 QID 正确也结算不了新 pending）。WS 窗恒为 null。
+let questionWindowSettle = null;
 // 运行时状态层（Phase 1：WS/ACP 事件统一入口，托盘快照消费方）
 const { normalizeWsEvent, normalizeAcpToolCall, normalizeAcpCatalogEvent } = require('./runtime-event-normalizer');
 const RuntimeState = require('./runtime-state');
@@ -105,7 +148,8 @@ const logFile = () => path.join(userDataDir(), 'app.log');
 const pidFile = () => path.join(userDataDir(), 'child.pid');
 
 function readJSON(p, fallback) {
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return fallback; }
+  // strip UTF-8 BOM：记事本等编辑器保存会带 \uFEFF，JSON.parse 不容忍会静默回退 fallback
+  try { return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch { return fallback; }
 }
 function writeJSON(p, obj) {
   try { fs.writeFileSync(p, JSON.stringify(obj, null, 2), 'utf8'); } catch { /* ignore */ }
@@ -132,8 +176,14 @@ function ensureString(v) {
 function logLine(msg) {
   const sanitized = sanitizeLog(msg);
   try { fs.appendFileSync(logFile(), `[${new Date().toISOString()}] ${sanitized}\n`); } catch { /* ignore */ }
+  // M6：server:log 广播门——主 Web（HTTP(S) 的 kimi web）不接收日志广播（避免内部路径/
+  // 诊断信息泄露到 Web 页面）；仅受控本地 file 页面（loading 等）保留所需日志
   if (mainWindow && !mainWindow.isDestroyed()) {
-    try { mainWindow.webContents.send('server:log', sanitized); } catch { /* ignore */ }
+    let broadcast = false;
+    try { broadcast = workspaceGuard.shouldBroadcastServerLog(mainWindow.webContents.getURL()); } catch { /* 解析失败按不发送 */ }
+    if (broadcast) {
+      try { mainWindow.webContents.send('server:log', sanitized); } catch { /* ignore */ }
+    }
   }
   return sanitized;
 }
@@ -148,6 +198,8 @@ function loadConfig() {
     theme: 'system', zoomFactor: 1,
     closeToTray: true, minimizeToTray: true, alwaysOnTop: false,
     launchAtLogin: false, notificationsEnabled: true, globalHotkeyEnabled: true,
+    // 工作区面板（M2）：feature flag 默认关，关闭时完全不创建面板视图
+    workspacePanelEnabled: false, workspacePanelCollapsed: false,
   }, readJSON(configFile(), {}));
 }
 
@@ -348,8 +400,11 @@ async function connectToInstance(host, port) {
   }
   knownServerBase = `http://${host}:${port}`;
   knownServerToken = token;
+  // M5 P1：实例切换 = 通知目标失效（旧通知只能聚焦，不得恢复导航资格）
+  navEpoch++;
   // 废弃旧 WS 订阅并清理，loadMain 会以新地址+token 重建订阅
   wsGeneration++;
+  invalidateNavRecheck(); // M5：服务切换使旧导航重查失效
   cleanupWsPermanent();
   loadMain(`${knownServerBase}/#token=${encodeURIComponent(token)}`);
   logLine(`已切换到实例 ${host}:${port}`);
@@ -511,6 +566,8 @@ function forceKill(pid) {
 async function stopKimi() {
   const proc = kimiProc;
   const pid = kimiChildPid;
+  // M5 P1：服务停止 = 通知目标失效（旧通知点击只能聚焦）
+  navEpoch++;
   // 永久废弃当前 WebSocket 订阅，阻止重连
   wsGeneration++;
   cleanupWsPermanent();
@@ -586,6 +643,9 @@ function startKimiServer() {
   knownServerBase = null;
   knownServerToken = null;
   serverGeneration++;
+  // M5 P1：服务启动/切换 = 通知目标失效（旧通知只能聚焦）
+  navEpoch++;
+  invalidateNavRecheck(); // M5：服务启动/切换使旧导航重查失效
   // 清理旧 WebSocket 连接和重连定时器，递增 generation 使旧回调失效
   wsGeneration++;
   cleanupWsPermanent();
@@ -694,6 +754,8 @@ function startKimiServer() {
   child.on('exit', (code) => {
     if (gen !== serverGeneration) return;
     logLine(`CLI 进程已退出 (code=${code})`);
+    // M5 P1：服务意外停止 = 通知目标失效
+    navEpoch++;
     // 服务意外停止时不再允许旧订阅持续重连。
     wsGeneration++;
     cleanupWsPermanent();
@@ -840,12 +902,16 @@ function cleanupWsPermanent() {
     if (!q.resolved) { q.resolved = true; }
   }
   wsActiveQuestions.clear();
-  // 关闭问答窗口
-  if (questionWindow && !questionWindow.isDestroyed()) {
+  // 关闭问答窗口（仅 WS 问答窗；ACP elicitation 窗由 ACP 路径管理，
+  // 不受 WS 订阅生命周期影响——owner 隔离）
+  if (questionWindow && questionWindowOwner === 'ws' && !questionWindow.isDestroyed()) {
     try { questionWindow.close(); } catch { /* ignore */ }
   }
-  questionWindow = null;
-  questionWindowQuestionId = null;
+  if (questionWindowOwner === 'ws') {
+    questionWindow = null;
+    questionWindowQuestionId = null;
+    questionWindowOwner = null;
+  }
   // 待处理计数随订阅一并失效
   usageState.pendingApprovals = 0;
   usageState.pendingQuestions = 0;
@@ -983,13 +1049,9 @@ function handleQuestionRequested(sessionId, payload, gen) {
   // 校验 payload 格式
   if (!sessionId || typeof sessionId !== 'string' || !payload || !payload.question_id ||
       !payload.questions || !Array.isArray(payload.questions)) {
-    // 格式不合法，无 question_id 无法去重，回退到通知+聚焦 Web UI
+    // 格式不合法，无 question_id 无法去重：仅通知（点击只聚焦，绝不导航——
+    // M5 P1：WS question 无论合法与否均只通知/聚焦，不携带 sessionId）
     showDesktopNotification('问题请求', '收到新的问题请求');
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
     return;
   }
 
@@ -1004,20 +1066,17 @@ function handleQuestionRequested(sessionId, payload, gen) {
   wsActiveQuestions.set(questionId, { session_id: sessionId, resolved: false });
   bumpPendingQuestions(1);
 
-  // 窗口已聚焦时回退到 Web UI（已缓存，不释放）
+  // M5：无论主窗是否聚焦，绝不再从该 WS 路径调用/创建本地 questionWindow——
+  // 官方 Web UI 的问答流由 Web UI 自行呈现（createQuestionWindow 仅保留给
+  // ACP elicitation/permission 路径）。主窗聚焦时仅记录 Web UI 接手；
+  // 失焦时只显示原生通知，通知点击才聚焦/导航，事件到达时强制抢焦点
   if (mainWindowFocused) {
-    logLine(`主窗口聚焦，问答请求回退 Web UI: question_id=${questionId}`);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-      mainWindow.flashFrame(false);
-    }
+    logLine(`主窗口聚焦，问答请求由 Web UI 接手: question_id=${questionId}`);
     return;
   }
-
-  // 合法 payload 一律走问答窗口（单题/多题/多选/自定义/纯文本均可）
-  createQuestionWindow(sessionId, payload, gen);
+  logLine(`主窗口失焦，问答请求转原生通知: question_id=${questionId}`);
+  // M5 P1：只通知/聚焦，绝不把 sessionId 传给会话导航
+  showDesktopNotification('问题请求', '收到新的问题请求，点击查看');
 }
 
 function bumpPendingQuestions(delta) {
@@ -1159,6 +1218,7 @@ function applyAppThemeClassTo(contents) {
 function applyAppThemeEverywhere() {
   for (const w of BrowserWindow.getAllWindows()) applyAppThemeClassTo(w.webContents);
   if (overlayView && !overlayView.webContents.isDestroyed()) applyAppThemeClassTo(overlayView.webContents);
+  if (workspaceView && !workspaceView.webContents.isDestroyed()) applyAppThemeClassTo(workspaceView.webContents);
   for (const w of BrowserWindow.getAllWindows()) applyTitlebarOverlay(w);
 }
 
@@ -1189,13 +1249,39 @@ app.on('browser-window-created', (_e, win) => {
 });
 
 // ---------- 问答窗口 ----------
-function createQuestionWindow(sessionId, payload, gen) {
+// owner：'ws' | 'acp'（M5-5 隔离标记）。WS answered/dismissed 与 WS 生命周期清理
+// 只作用于 'ws' 窗；ACP elicitation 传 'acp'，其窗口行为由 ACP 路径管理。
+// P1-A：acpSettle 为该窗创建时捕获的 ACP elicitation settle（仅 owner==='acp'
+// 传入）。本窗所有失败 cleanup（创建失败/did-finish-load 销毁/init 失败/load
+// 失败）只 retire/settle 捕获的 acpSettle——win.close() 可能已同步触发 closed
+// guard 结算并 pump 出下一项 elicitation（新身份已建立），绝不能再读取全局
+// 当前身份结算，否则误伤同步 pump 出的新请求。
+function createQuestionWindow(sessionId, payload, gen, owner, acpSettle) {
   const questionId = payload.question_id;
-  // 同一时刻仅一个问答窗口：已打开时新问题走通知+聚焦回退（缓存保留，Web UI 可答）
+  // 同一时刻仅一个问答窗口：已打开时新问题走通知+聚焦回退（缓存保留，Web UI 可答）；
+  // M5 P1：ACP caller 路径必须立刻 settle 当前请求为取消，绝不让
+  // acpPermissionPending 或队列永久卡住
   if (questionWindow && !questionWindow.isDestroyed()) {
-    showDesktopNotification('问题请求', '收到新的问题，请在 Kimi 中查看');
-    focusMainWindow();
-    return;
+    if (owner === 'acp') {
+      // P1-1：pump 串行保证"在途请求的窗口"不会被并发触发本路径——此时在途窗口
+      // 只可能是"已结算/已失效的遗留 elicitation 窗"（窗口绑定的 epoch 不等于
+      // 当前请求身份 epoch：E1 settle 同步 pump E2 时，win1 仍存活但 E2 身份
+      // 已建立，epoch 已变）。遗留窗关闭替换为新窗，保证连续两个 elicitation 时
+      // 第二个窗口正常创建/init/可结算；若防御性命中"窗口仍属于在途请求"
+      // （epoch 匹配），按取消收尾。
+      if (questionWindowOwner === 'acp' && questionWindowEpoch !== acpElicitationIdentity.currentEpoch()) {
+        logLine('[acp] 替换已结算的 elicitation 遗留窗口');
+        try { questionWindow.close(); } catch { /* ignore */ }
+        // 继续走下方创建流程（不 return）
+      } else {
+        settleAcpElicitationCancelled('问答窗已在途');
+        return;
+      }
+    } else {
+      showDesktopNotification('问题请求', '收到新的问题，请在 Kimi 中查看');
+      focusMainWindow();
+      return;
+    }
   }
 
   let win = null;
@@ -1221,6 +1307,13 @@ function createQuestionWindow(sessionId, payload, gen) {
     });
   } catch (err) {
     logLine(`问答窗口创建失败: ${err.message}`);
+    // M5 P1：构造失败时 ACP caller 立刻结算取消（绝不落入 WS 回退/对话框路径）。
+    // P1-A：只结算本窗捕获的自身 settle——创建失败时 closed guard 未挂，
+    // 身份即本请求，retire 命中后 settle 同步 pump 的新请求不受后续触碰影响
+    if (owner === 'acp') {
+      settleAcpElicitationCancelled('问答窗创建失败', acpSettle);
+      return;
+    }
     fallbackQuestionWindowFailure(sessionId, payload, gen);
     return;
   }
@@ -1228,27 +1321,57 @@ function createQuestionWindow(sessionId, payload, gen) {
 
   questionWindow = win;
   questionWindowQuestionId = questionId;
-  logLine(`打开问答窗口: question_id=${questionId}`);
+  questionWindowOwner = owner === 'acp' ? 'acp' : 'ws';
+  questionWindowEpoch = owner === 'acp' ? gen : null;
+  // P1-C：窗口创建时捕获 settle（与 questionWindowEpoch 构成不可变 request
+  // identity，供三个 question IPC 的 ACP 准入与结算使用）；closed 清理按
+  // questionWindow === win 判定，已替换新窗时旧窗 closed 不伤及新窗状态
+  questionWindowSettle = owner === 'acp' ? acpSettle : null;
+  logLine(`打开问答窗口: question_id=${questionId}, owner=${questionWindowOwner}`);
 
   win.on('closed', () => {
     if (questionWindow === win) {
       questionWindow = null;
       questionWindowQuestionId = null;
+      questionWindowOwner = null;
+      questionWindowEpoch = null;
+      questionWindowSettle = null;
     }
   });
   win.webContents.on('did-finish-load', () => {
-    if (gen !== wsGeneration || win.isDestroyed()) return;
+    // M5 P1：窗口有效性用 owner 绑定的独立 epoch 判定——ACP 窗绑定
+    // acpElicitationIdentity 的 epoch（每次新请求/收尾递增），绝不使用 wsGeneration；
+    // did-finish-load 初始化失败时 ACP caller 必须立刻结算取消。
+    // P1-A：结算只针对本窗捕获的 acpSettle——窗口可能已被用户关窗/load 失败
+    // close 触发 closed guard 结算并同步 pump 出新请求，此时用全局当前身份
+    // 结算会误伤新请求；retire 捕获的旧 settle 不匹配新身份，幂等安全
+    if (win.isDestroyed()) {
+      if (owner === 'acp') settleAcpElicitationCancelled('问答窗初始化前已销毁', acpSettle);
+      return;
+    }
+    if (!isWindowInitCurrent(owner, gen, wsGeneration, acpElicitationIdentity.currentEpoch())) return;
     try {
       win.webContents.send('question:init', {
         question_id: questionId,
         session_id: sessionId,
         questions: payload.questions,
       });
-    } catch { /* ignore */ }
+    } catch {
+      if (owner === 'acp') settleAcpElicitationCancelled('问答窗初始化失败', acpSettle);
+    }
   });
   win.loadFile(path.join(__dirname, '..', 'pages', 'question.html')).catch((err) => {
     logLine(`问答窗口加载失败: ${err.message}`);
     if (!win.isDestroyed()) win.close();
+    // M5 P1：加载失败时 ACP caller 立刻结算取消（wsActiveQuestions 不含 ACP 题，
+    // 旧代码在该路径对 ACP 静默，会让 acpPermissionPending 永久卡住）。
+    // P1-A：win.close() 已同步触发 closed guard（retire 捕获的 settle → 结算 →
+    // 可能同步 pump 出新请求）；此处只对捕获的 acpSettle 二次 retire（未命中则
+    // 幂等），绝不调用读取全局当前身份的结算，避免误伤 pump 出的新请求
+    if (owner === 'acp') {
+      settleAcpElicitationCancelled('问答窗加载失败', acpSettle);
+      return;
+    }
     // 仅在问题仍未处理时回退（用户可能已手动关窗）
     const qs = wsActiveQuestions.get(questionId);
     if (qs && !qs.resolved) fallbackQuestionWindowFailure(sessionId, payload, gen);
@@ -1366,7 +1489,18 @@ function showQuestionDialogFallback(sessionId, questionId, q, gen) {
 }
 
 // ---------- 问答窗口 IPC ----------
-ipcMain.handle('question:submit', async (_e, payload) => {
+// M5 P1：问答窗 IPC 必须来自当前 questionWindow（旧/遗留窗口不得结算后续
+// elicitation）；且 ACP 分支要求 settle 身份仍匹配当前在途请求
+function isQuestionWindowSender(e) {
+  return !!(e && e.sender && questionWindow && !questionWindow.isDestroyed()
+    && e.sender === questionWindow.webContents);
+}
+
+ipcMain.handle('question:submit', async (e, payload) => {
+  if (!isQuestionWindowSender(e)) {
+    logLine('问答提交来自非当前问答窗，已忽略');
+    return { ok: false, error: '非当前问答窗' };
+  }
   const p = payload && typeof payload === 'object' ? payload : {};
   const questionId = typeof p.question_id === 'string' ? p.question_id : '';
   const sessionId = typeof p.session_id === 'string' ? p.session_id : '';
@@ -1375,27 +1509,52 @@ ipcMain.handle('question:submit', async (_e, payload) => {
       Array.isArray(answers) || Object.keys(answers).length === 0) {
     return { ok: false, message: '提交数据不完整' };
   }
-  // ACP Elicitation 桥接：问答窗回答直接回执 settle，不走 HTTP
-  if (acpPermissionPending && acpPermissionPending.kind === 'elicitation') {
+  // ACP Elicitation 桥接：问答窗回答直接回执 settle，不走 HTTP。
+  // P1-4/P1-B/P1-C：分支准入显式校验 sender/owner/窗口 QID/payload QID/窗口
+  // 创建时捕获的 request identity（windowEpoch/windowSettle）与当前请求身份
+  // （identity.epoch/settle）一致/pending.settle 与 windowSettle 一致（旧窗口、
+  // 旧 epoch、旧 settle、owner 错配、错误 question ID、身份错配一律不得结算
+  // 当前或后续 ACP 请求）；准入前捕获 pending 引用，准入后只使用窗口捕获的
+  // windowSettle 退休/结算，绝不再读全局当前 settle/pending。
+  // P1-1：settle() 会同步 pump 队列下一项（下一项可能又是 elicitation，立即建立
+  // 新身份）——必须先 retire() 原子失效当前请求身份再结算捕获的旧 settle，返回
+  // 后绝不再触碰身份字段；延时关窗只针对 settle 前捕获的旧窗口且必须是当前
+  // 窗口（settle 同步创建的新窗不受影响）
+  const pendingRef = acpPermissionPending;
+  if (canSettleAcpElicitation({
+    senderIsCurrentWindow: isQuestionWindowSender(e),
+    owner: questionWindowOwner,
+    questionId: questionWindowQuestionId,
+    payloadQuestionId: questionId,
+    pending: pendingRef,
+    windowEpoch: questionWindowEpoch,
+    windowSettle: questionWindowSettle,
+    identity: acpElicitationIdentity,
+  })) {
     const firstKey = Object.keys(answers)[0];
     const ans = firstKey ? answers[firstKey] : null;
-    if (ans && ans.kind === 'single' && typeof ans.option_id === 'string') {
-      logLine(`[acp] ACP elicitation 回答: optionId=${ans.option_id}`);
-      acpPermissionPending.settle({ outcome: 'selected', optionId: ans.option_id });
-    } else {
-      logLine('[acp] ACP elicitation 回答异常（非 single 或无 option_id），按取消处理');
-      acpPermissionPending.settle({ outcome: 'cancelled' });
-    }
-    // 窗口已展示完成态，不再接收 dismiss 通知
-    if (questionWindowQuestionId === ACP_ELICITATION_QID) questionWindowQuestionId = null;
-    // 延时关窗，让渲染层显示提交成功提示
-    if (questionWindow && !questionWindow.isDestroyed()) {
-      const win = questionWindow;
+    const outcome = (ans && ans.kind === 'single' && typeof ans.option_id === 'string')
+      ? { outcome: 'selected', optionId: ans.option_id }
+      : { outcome: 'cancelled' };
+    logLine(`[acp] ACP elicitation 回答: ${outcome.outcome}${outcome.optionId ? ` optionId=${outcome.optionId}` : ''}`);
+    const settlingWindow = questionWindow;
+    const retired = acpElicitationIdentity.retire(pendingRef, questionWindowSettle);
+    if (retired) pendingRef.settle(outcome);
+    // 延时关窗，让渲染层显示提交成功提示；questionWindowQuestionId 保持
+    // ACP_ELICITATION_QID 直到窗口关闭——期间任何遗留 IPC 均被下方守卫拒绝
+    if (settlingWindow && !settlingWindow.isDestroyed()) {
+      const win = settlingWindow;
       setTimeout(() => {
-        if (win && !win.isDestroyed()) win.close();
+        if (win && !win.isDestroyed() && questionWindow === win) win.close();
       }, 1500);
     }
     return { ok: true };
+  }
+  // 遗留 ACP elicitation 窗（已 settle 待关闭或 payload QID 校验不通过）：
+  // 不得走 WS 提交路径
+  if (questionWindowQuestionId === ACP_ELICITATION_QID) {
+    logLine('[acp] elicitation 窗提交被拒绝（已结算或 payload QID 校验失败）');
+    return { ok: false, error: 'elicitation 已结算或 QID 校验失败' };
   }
 
   // ---- WS 问答路径（原逻辑，保留不变） ----
@@ -1431,17 +1590,44 @@ ipcMain.handle('question:submit', async (_e, payload) => {
   return { ok: true };
 });
 
-ipcMain.handle('question:fallback', (_e, payload) => {
+ipcMain.handle('question:fallback', (e, payload) => {
+  if (!isQuestionWindowSender(e)) {
+    logLine('问答回退来自非当前问答窗，已忽略');
+    return { ok: false, error: '非当前问答窗' };
+  }
   const p = payload && typeof payload === 'object' ? payload : {};
   const questionId = typeof p.question_id === 'string' ? p.question_id : '';
   logLine(`问答回退 Web UI: question_id=${questionId}`);
 
-  // ACP elicitation 无 Web UI 可回退 → 按取消处理
-  if (acpPermissionPending && acpPermissionPending.kind === 'elicitation') {
+  // ACP elicitation 无 Web UI 可回退 → 按取消处理（P1-4/P1-B/P1-C 准入校验：
+  // sender/owner/窗口 QID/payload QID/窗口捕获 identity 与当前身份一致/
+  // pending.settle 与 windowSettle 一致才结算 + P1-1 先 retire 失效身份再结算；
+  // 遗留窗口不得结算后续请求；准入前捕获 pending 引用，准入后只使用窗口捕获的
+  // windowSettle 退休/结算，绝不再读全局当前 settle/pending）
+  const pendingRef = acpPermissionPending;
+  if (canSettleAcpElicitation({
+    senderIsCurrentWindow: isQuestionWindowSender(e),
+    owner: questionWindowOwner,
+    questionId: questionWindowQuestionId,
+    payloadQuestionId: questionId,
+    pending: pendingRef,
+    windowEpoch: questionWindowEpoch,
+    windowSettle: questionWindowSettle,
+    identity: acpElicitationIdentity,
+  })) {
     logLine('[acp] ACP elicitation 回退，按取消处理');
-    acpPermissionPending.settle({ outcome: 'cancelled' });
-    if (questionWindow && !questionWindow.isDestroyed()) questionWindow.close();
+    const settlingWindow = questionWindow;
+    const retired = acpElicitationIdentity.retire(pendingRef, questionWindowSettle);
+    if (retired) pendingRef.settle({ outcome: 'cancelled' });
+    // 只关闭 settle 前捕获的旧窗口（settle 同步 pump 的新窗口不受影响）
+    if (settlingWindow && !settlingWindow.isDestroyed()) settlingWindow.close();
     return { ok: true };
+  }
+  // 遗留 ACP elicitation 窗（已 settle 待关闭或 payload QID 校验不通过）：
+  // 拒绝走 WS 回退路径
+  if (questionWindowQuestionId === ACP_ELICITATION_QID) {
+    logLine('[acp] elicitation 窗回退被拒绝（已结算或 payload QID 校验失败）');
+    return { ok: false, error: 'elicitation 已结算或 QID 校验失败' };
   }
 
   // 回退到 Web UI 回答：释放本地状态、聚焦主窗口、关窗
@@ -1455,17 +1641,44 @@ ipcMain.handle('question:fallback', (_e, payload) => {
   return { ok: true };
 });
 
-ipcMain.handle('question:cancel', (_e, payload) => {
+ipcMain.handle('question:cancel', (e, payload) => {
+  if (!isQuestionWindowSender(e)) {
+    logLine('问答取消来自非当前问答窗，已忽略');
+    return { ok: false, error: '非当前问答窗' };
+  }
   const p = payload && typeof payload === 'object' ? payload : {};
   const questionId = typeof p.question_id === 'string' ? p.question_id : '';
   logLine(`问答取消: question_id=${questionId}`);
 
-  // ACP elicitation 取消：桥接 settle cancelled
-  if (acpPermissionPending && acpPermissionPending.kind === 'elicitation') {
+  // ACP elicitation 取消：桥接 settle cancelled（P1-4/P1-B/P1-C 准入校验：
+  // sender/owner/窗口 QID/payload QID/窗口捕获 identity 与当前身份一致/
+  // pending.settle 与 windowSettle 一致才结算 + P1-1 先 retire 失效身份再结算；
+  // 准入前捕获 pending 引用，准入后只使用窗口捕获的 windowSettle 退休/结算，
+  // 绝不再读全局当前 settle/pending）
+  const pendingRef = acpPermissionPending;
+  if (canSettleAcpElicitation({
+    senderIsCurrentWindow: isQuestionWindowSender(e),
+    owner: questionWindowOwner,
+    questionId: questionWindowQuestionId,
+    payloadQuestionId: questionId,
+    pending: pendingRef,
+    windowEpoch: questionWindowEpoch,
+    windowSettle: questionWindowSettle,
+    identity: acpElicitationIdentity,
+  })) {
     logLine('[acp] ACP elicitation 取消');
-    acpPermissionPending.settle({ outcome: 'cancelled' });
-    if (questionWindow && !questionWindow.isDestroyed()) questionWindow.close();
+    const settlingWindow = questionWindow;
+    const retired = acpElicitationIdentity.retire(pendingRef, questionWindowSettle);
+    if (retired) pendingRef.settle({ outcome: 'cancelled' });
+    // 只关闭 settle 前捕获的旧窗口（settle 同步 pump 的新窗口不受影响）
+    if (settlingWindow && !settlingWindow.isDestroyed()) settlingWindow.close();
     return { ok: true };
+  }
+  // 遗留 ACP elicitation 窗（已 settle 待关闭或 payload QID 校验不通过）：
+  // 拒绝走 WS 取消路径
+  if (questionWindowQuestionId === ACP_ELICITATION_QID) {
+    logLine('[acp] elicitation 窗取消被拒绝（已结算或 payload QID 校验失败）');
+    return { ok: false, error: 'elicitation 已结算或 QID 校验失败' };
   }
 
   // 取消：关窗并释放缓存，服务器重放可再次触发
@@ -1546,12 +1759,25 @@ function startWsSubscription() {
       const event = raw && (raw.event || raw.type);
       if (!event) return;
 
+      // 统一官方 WS → RuntimeState 路由：normalizer 已覆盖 task.*（task.started/progress、
+      // task.completed、task.done→completed）与 subagent.spawned/started（→task.observed
+      // running），在进入具体通知/托盘分支前统一 apply；后续分支不再各自 apply，
+      // 保证每条 WS 消息只进入 RuntimeState 一次
+      const normalized = normalizeWsEvent(raw);
+      if (normalized) {
+        runtimeState.apply(normalized);
+        scheduleTrayStatus();
+      }
+
       // 处理审批请求 — 保持为通知，不自动审批
       if (event === 'event.approval.requested' || event === 'approval.requested') {
         usageState.pendingApprovals++;
         scheduleTrayStatus();
         if (mainWindowFocused) return;
-        showDesktopNotification('审批请求', '有新的审批请求等待处理');
+        // M5 P1：所有提供的 sessionId 来源（raw/payload/data）都合法且一致时
+        // 才携带可导航 ID；冲突/非法非空值/缺失来源 → 仅聚焦
+        showDesktopNotification('审批请求', '有新的审批请求等待处理',
+          notificationNav.approvalNavSessionId(raw, sw.isValidSessionId));
         return;
       }
 
@@ -1559,25 +1785,6 @@ function startWsSubscription() {
       if (event === 'event.approval.resolved' || event === 'approval.resolved' ||
           event === 'event.approval.expired' || event === 'approval.expired') {
         usageState.pendingApprovals = Math.max(0, usageState.pendingApprovals - 1);
-        scheduleTrayStatus();
-        return;
-      }
-
-      // 会话用量更新
-      if (event === 'event.session.usage_updated' || event === 'session.usage_updated') {
-        runtimeState.apply(normalizeWsEvent(raw));
-        scheduleTrayStatus();
-        return;
-      }
-
-      // 任务开始/进度
-      if (event === 'event.task.started' || event === 'task.started') {
-        runtimeState.apply(normalizeWsEvent(raw));
-        scheduleTrayStatus();
-        return;
-      }
-      if (event === 'event.task.progress' || event === 'task.progress') {
-        runtimeState.apply(normalizeWsEvent(raw));
         scheduleTrayStatus();
         return;
       }
@@ -1602,8 +1809,10 @@ function startWsSubscription() {
           bumpPendingQuestions(-1);
           logLine(`问题已释放: question_id=${qid}`);
         }
-        // 问答窗口正在展示该问题时，通知渲染层并延时关窗
-        if (qid && questionWindowQuestionId === qid && questionWindow && !questionWindow.isDestroyed()) {
+        // 问答窗口正在展示该问题时，通知渲染层并延时关窗（M5-5：仅 WS 问答窗；
+        // ACP elicitation 窗不受 WS answered/dismissed 影响）
+        if (qid && questionWindowOwner === 'ws' && questionWindowQuestionId === qid
+            && questionWindow && !questionWindow.isDestroyed()) {
           const reason = event.indexOf('answered') >= 0 ? 'answered' : 'dismissed';
           try { questionWindow.webContents.send('question:dismiss', { reason }); } catch { /* ignore */ }
           const win = questionWindow;
@@ -1630,18 +1839,21 @@ function startWsSubscription() {
       }
 
       // 处理任务完成类事件（仅精确匹配完成事件，不匹配 usage_updated/started/progress/任意 task.*）
+      // RuntimeState 已由上方统一路由 apply（normalizer 将 task.done/completed 映射 completed；
+      // SubagentStop/session.completed 不识别 -> 不进 RuntimeState，仅通知）
       const completionEvents = [
         'event.task.completed', 'task.completed', 'task.done',
         'event.session.completed', 'session.completed',
         'SubagentStop', 'event.subagent_stop',
       ];
       if (completionEvents.includes(event)) {
-        if (event === 'event.task.completed' || event === 'task.completed') {
-          runtimeState.apply(normalizeWsEvent(raw));
-          scheduleTrayStatus();
-        }
         if (mainWindowFocused) return;
-        showDesktopNotification('任务完成', '任务已完成');
+        // M5 P1：完成通知要求 normalizer 的 sessionId 合法，且与所有 raw
+        // sessionId 来源一致（同取首个字段不算验证）；冲突/非法/缺失 → 仅聚焦
+        showDesktopNotification('任务完成', '任务已完成',
+          notificationNav.completionNavSessionId(raw,
+            normalized && typeof normalized.sessionId === 'string' ? normalized.sessionId : null,
+            sw.isValidSessionId));
         return;
       }
     } catch {
@@ -1670,15 +1882,49 @@ function startWsSubscription() {
   });
 }
 
-function showDesktopNotification(title, body) {
+// 通知点击的可选会话导航：由当前可信 knownServerBase/token 构造 /sessions/<id>#token=
+// 目标 URL（决策见 notification-nav.decideNotificationNav）——sessionId 必须合法、
+// 通知创建时的连接/导航 epoch 与 base 仍与当前一致（A→B→A/服务重启/身份变更
+// 使旧通知只能聚焦）、当前持有可信 token、尚未位于目标会话；绝不接受事件提供 URL。
+function navigateNotificationToSession(sessionId, epoch, base) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  let currentUrl = null;
+  try { currentUrl = mainWindow.webContents.getURL(); } catch { /* 解析失败按可导航处理 */ }
+  const decision = notificationNav.decideNotificationNav({
+    sessionId,
+    epoch,
+    base,
+    currentEpoch: navEpoch,
+    currentBase: knownServerBase,
+    currentToken: knownServerToken,
+    currentUrl,
+    isValidSessionId: sw.isValidSessionId,
+    parseSessionIdFromUrl: sw.parseSessionIdFromUrl,
+  });
+  if (!decision.navigate) return;
+  mainWindow.loadURL(decision.targetUrl).catch((err) => {
+    logLine(`通知导航失败: ${err.message}`);
+  });
+  logLine(`通知点击导航到会话: ${sessionId}`);
+}
+
+// sessionId 为可选会话上下文：非空且合法时，点击通知除聚焦外还会按上述安全契约
+// 导航到目标会话；未提供/非法时仅聚焦（保持既有调用行为不变）
+function showDesktopNotification(title, body, sessionId) {
   if (loadConfig().notificationsEnabled === false) return;
   try {
+    // M5 P1：捕获创建时的连接/导航 epoch 与 base，点击时校验未发生实例切换/
+    // 服务重启/连接身份变更（独立 navEpoch，非 serverGeneration）
+    const notifEpoch = navEpoch;
+    const notifBase = knownServerBase;
     const notif = new Notification({ title, body, icon: path.join(__dirname, '..', '..', 'assets', 'icon.png') });
     notif.on('click', () => {
       // 与托盘点击同一入口：窗口被销毁（mainWindow 为 null）时自动重建并拉起服务
       showMainWindow();
       // 取消任务栏闪烁
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.flashFrame(false);
+      // M5 P1：可选会话上下文导航（仅聚焦或按安全契约导航，见 notification-nav）
+      navigateNotificationToSession(sessionId, notifEpoch, notifBase);
     });
     notif.show();
     // 通知闪烁前重新确认窗口未聚焦（窗口可能在消息到达后被聚焦）
@@ -1711,6 +1957,11 @@ function loadMain(url) {
   });
   // 启动 WebSocket 订阅
   startWsSubscription();
+  // M2：flag 开启且上次未折叠时恢复工作区面板（showWorkspacePanel 内部有 flag 复检与 overlay 暂缓处理）；
+  // flag 关闭时完全不创建面板视图（行为等同现状）
+  if (loadConfig().workspacePanelEnabled === true && loadConfig().workspacePanelCollapsed !== true) {
+    showWorkspacePanel();
+  }
 }
 
 function showSetup(reason, tab) {
@@ -1759,6 +2010,12 @@ function showOverlay(kind, file, query) {
   if (overlayView) closeOverlay(); // 已有覆盖层（含不同 kind）先销毁重建
   ensureOverlayView();
   if (!overlayView) return;
+  // z-order 约束：overlay 显示时暂隐工作区面板（不销毁，closeOverlay 恢复）
+  if (workspaceVisible && workspaceView) {
+    // M6：若安全恢复在途（等 ack 未挂回），overlay 再次打开必须取消——绝不重挂
+    workspaceRestorer.cancel('overlay 再次打开');
+    try { mainWindow.contentView.removeChildView(workspaceView); } catch { /* ignore */ }
+  }
   overlayView.webContents.loadFile(path.join(__dirname, '..', 'pages', file), query ? { query } : undefined).catch((err) => {
     logLine(`加载 ${file} 失败: ${err.message}`);
   });
@@ -1779,6 +2036,26 @@ function closeOverlay() {
   }
   // WebContentsView 的 webContents 不会随移除自动销毁，需显式 close 释放页面资源
   try { view.webContents.close(); } catch { /* ignore */ }
+  // overlay 关闭后恢复工作区面板（覆盖「被 overlay 暂隐」与「overlay 可见时暂缓挂载」两种情况）
+  const restorable = !!(workspaceVisible && workspaceView && mainWindow && !mainWindow.isDestroyed());
+  workspacePendingShow = false;
+  // P1-2/M6：drain overlay 期间积压的 context 待同步标志（恰好一次、绝不残留；
+  // collapsed/视图销毁时不补发但复位——页面下次加载会自行同步）
+  const drained = overlayContextSync.drainContextAfterOverlay(workspaceContextStale, restorable);
+  workspaceContextStale = drained.pending;
+  if (!restorable) {
+    workspaceRestorer.cancel(); // 面板折叠/视图销毁/窗口销毁：取消在途恢复，绝不重挂失效视图
+  } else if (drained.send) {
+    // M6：context 已在 overlay 期间合并——保有旧 DOM 的 view 绝不直接挂回（否则用户
+    // 先看到旧会话 diff/files/projection 一帧）。隐藏态先发带 restoreId 的 context
+    // （页面同步清空旧 DOM + 新 context 落地后回执），收到 ack 才单次挂回；
+    // ack 超时走受控 reload，load 失败 fail-closed 不挂回（详见 workspace-restore.js）
+    workspaceRestorer.begin(workspaceView);
+  } else {
+    mountWorkspaceViewOnce(workspaceView); // 无积压：零重载快速恢复（M2 以来行为不变）
+  }
+  // preserve focus：overlay 关闭后主 Web 默认获得焦点；面板挂回（含异步 ack 挂回）
+  // 均不抢焦点
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.focus();
   }
@@ -1793,6 +2070,207 @@ function foregroundContents() {
   if (overlayView && !overlayView.webContents.isDestroyed()) return overlayView.webContents;
   if (mainWindow && !mainWindow.isDestroyed()) return mainWindow.webContents;
   return null;
+}
+
+// ---------- 工作区面板（M2：右侧覆盖式侧栏，固定宽度）----------
+// 覆盖式 WebContentsView：盖在主窗口内容区右缘，不做拖拽调宽、不并排。
+// z-order：overlay（sessions/setup）> Workspace > BrowserWindow.webContents；
+// overlay 显示时面板暂隐，overlay 关闭后恢复。面板生命周期仅管理自身视图与可见性，
+// 绝不停主进程共享的 WS/托盘/通知/runtimeState。
+const WORKSPACE_PANEL_WIDTH = 360; // 固定宽度
+const WORKSPACE_TOP_OFFSET = 36;   // 顶部预留：窗控高 32 + 4px 间隙，避开右上角窗控/菜单区
+// M6：Workspace 视图只允许精确本地 src/pages/workspace.html——预期 file URL 由
+// pathToFileURL 生成（与 Electron loadFile 生成的 URL 同形态），导航/sender 准入均
+// 与它做精确比对；任何偏离即拒绝/销毁面板视图
+const workspacePageUrl = pathToFileURL(path.join(__dirname, '..', 'pages', 'workspace.html')).href;
+let workspaceView = null;          // 面板 WebContentsView（懒创建）
+let workspaceVisible = false;      // 面板逻辑可见（含被 overlay 暂隐/暂缓的待恢复状态）
+let workspaceExplicitSessionId = null; // 用户在面板中显式选定的会话（workspace:selectCandidate 置位）
+let workspacePendingShow = false;  // overlay 可见时暂缓挂载标记（closeOverlay 恢复）
+let workspaceLastNavFingerprint = null; // 最近一次主窗口导航的授权状态指纹（变化检测，见 sw.navFingerprint）
+// P1-2：overlay 覆盖期间"context 已失效待同步"标志——overlay 暂隐面板时
+// pushWorkspaceEvent 丢弃 context 事件，置位本标志；overlay 关闭后恰好补发一次
+// （M6 起经 workspaceRestorer 安全恢复：隐藏态重置 + ack + 单次挂回，页面据此
+// 清空旧 contextKey/DOM）。非 context 事件不积压。collapsed（面板未挂载）时
+// 补发跳过但标志复位（页面下次加载自行同步）。
+let workspaceContextStale = false;
+
+// M6：面板视图单次挂回唯一出口（快速恢复与安全恢复共用）——全部存活/可见性校验
+// 集中于此；绝不抢焦点（overlay 关闭后焦点保留主 Web，closeOverlay 已 focus 主内容）
+function mountWorkspaceViewOnce(view) {
+  workspacePendingShow = false;
+  if (!workspaceVisible || workspaceView !== view) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (view.webContents.isDestroyed()) return;
+  try { mainWindow.contentView.addChildView(view); } catch (err) { logLine(`工作区面板挂载失败: ${err.message}`); }
+  layoutWorkspaceView();
+}
+
+// M6：overlay 关闭安全恢复状态机实例（契约见 workspace-restore.js）：
+// stale → 隐藏态发 {kind:'context', restoreId} → 页面清 DOM + 新 context 定型回执
+// → ack 匹配后单次挂回；ack 超时 → 受控 reload 后再等 ack；load 失败 fail-closed
+// 不挂回；reload 后 ack 仍超时 → 旧 DOM 已销毁，兜底挂回
+const workspaceRestorer = workspaceRestore.createWorkspaceRestore({
+  sendContext: (view, restoreId) => {
+    view.webContents.send('workspace:event', { kind: 'context', restoreId });
+  },
+  reload: (view) => view.webContents.loadFile(path.join(__dirname, '..', 'pages', 'workspace.html')),
+  mount: (view) => mountWorkspaceViewOnce(view),
+  isViewUsable: (view) => !!view && workspaceView === view && !view.webContents.isDestroyed(),
+  log: (msg) => logLine(msg),
+});
+
+// 面板 webContents：视图存活则返回，否则 null（定向推送前检查）
+function workspaceContents() {
+  if (workspaceView && !workspaceView.webContents.isDestroyed()) return workspaceView.webContents;
+  return null;
+}
+
+// 懒创建面板视图：webPreferences 同覆盖层范式（contextIsolation/sandbox:false 等），
+// 仅 preload 换 workspace-preload.js
+function ensureWorkspaceView() {
+  if (workspaceView || !mainWindow || mainWindow.isDestroyed()) return;
+  workspaceView = new WebContentsView({
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'preload', 'workspace-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false,
+      partition: 'persist:kimi-code',
+      // 与主窗口相同的标记，preload 据此注入拖拽条/菜单按钮
+      additionalArguments: ['--kcd-main-window'],
+    },
+  });
+  // M6：面板是受控本地页，没有任何新窗场景——一律拒绝 window.open（不交外部浏览器）
+  workspaceView.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // M6：视图导航隔离——只允许精确本地 workspace.html；will-navigate/will-redirect
+  // 阻止偏离导航，did-navigate/did-navigate-in-page 发现 URL 已偏离时安全销毁面板
+  //（hideWorkspacePanel 移除子视图并 close webContents）。正常 loadFile 的目标就是
+  // workspacePageUrl，精确比对放行，不误伤面板生命周期。
+  const guardViewNavigation = (url) => {
+    if (workspaceGuard.decideWorkspaceNavigation(url, workspacePageUrl) === 'allow') return;
+    logLine(`工作区面板导航被拒绝: ${url}`);
+    hideWorkspacePanel({ destroy: true });
+  };
+  const view = workspaceView;
+  view.webContents.on('will-navigate', (e, url) => {
+    if (workspaceGuard.decideWorkspaceNavigation(url, workspacePageUrl) !== 'allow') {
+      e.preventDefault();
+      guardViewNavigation(url);
+    }
+  });
+  view.webContents.on('will-redirect', (e, url) => {
+    if (workspaceGuard.decideWorkspaceNavigation(url, workspacePageUrl) !== 'allow') {
+      e.preventDefault();
+      guardViewNavigation(url);
+    }
+  });
+  view.webContents.on('did-navigate', (e, url) => guardViewNavigation(url));
+  view.webContents.on('did-navigate-in-page', (e, url) => guardViewNavigation(url));
+  // 面板本地页主题类下发（WebContentsView 不触发 browser-window-created，单独挂；
+  // 挂在视图自身 webContents 上，随 close 自动清理）
+  view.webContents.on('did-finish-load', () => applyAppThemeClassTo(view.webContents));
+}
+
+// 面板 bounds：固定宽 360，右侧覆盖内容区，顶部从 36 起避开窗控/菜单区
+function layoutWorkspaceView() {
+  if (!workspaceView || !mainWindow || mainWindow.isDestroyed()) return;
+  const [w, h] = mainWindow.getContentSize();
+  const bounds = {
+    x: w - WORKSPACE_PANEL_WIDTH,
+    y: WORKSPACE_TOP_OFFSET,
+    width: WORKSPACE_PANEL_WIDTH,
+    height: Math.max(0, h - WORKSPACE_TOP_OFFSET),
+  };
+  workspaceView.setBounds(bounds);
+  logLine(`工作区面板布局: content=${w}x${h} bounds=${bounds.x},${bounds.y} ${bounds.width}x${bounds.height}`);
+}
+
+// 显示面板：flag 关闭时直接返回（完全不创建视图，行为等同现状）；
+// overlay 可见时先不加（记录 pending，closeOverlay 恢复）；页面照常加载，恢复时零延迟
+function showWorkspacePanel() {
+  if (loadConfig().workspacePanelEnabled !== true) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  workspaceVisible = true;
+  ensureWorkspaceView();
+  if (!workspaceView) { workspaceVisible = false; return; }
+  if (overlayView && !overlayView.webContents.isDestroyed()) {
+    workspacePendingShow = true;
+  } else if (!workspaceRestorer.isPending()) {
+    // M6：安全恢复在途（等 ack）时绝不抢先挂回——挂回由 restorer 在页面
+    // 清空旧 DOM + 新 context 定型后完成（loadMain 紧跟 closeOverlay 的场景）
+    try { mainWindow.contentView.addChildView(workspaceView); } catch (err) { logLine(`工作区面板挂载失败: ${err.message}`); }
+    layoutWorkspaceView();
+  }
+  workspaceView.webContents.loadFile(path.join(__dirname, '..', 'pages', 'workspace.html')).then(() => {
+    logLine('工作区面板已显示');
+  }).catch((err) => {
+    logLine(`加载 workspace.html 失败: ${err.message}`);
+  });
+}
+
+// 隐藏面板：先移除子视图并仅释放面板自有资源（视图 webContents 上的监听随 close 自动清，
+// mainWindow 上的挂点均为幂等守卫只挂一次）→ 再 close webContents；焦点显式回主窗口内容
+function hideWorkspacePanel({ destroy = true } = {}) {
+  // M6：折叠/销毁即取消在途恢复——destroy 后旧 view 失效，迟到 ack/超时绝不重挂
+  workspaceRestorer.cancel('面板隐藏');
+  workspaceVisible = false;
+  workspacePendingShow = false;
+  if (workspaceView && mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.contentView.removeChildView(workspaceView); } catch { /* ignore */ }
+  }
+  if (destroy && workspaceView) {
+    // WebContentsView 的 webContents 不会随移除自动销毁，需显式 close 释放页面资源
+    try { workspaceView.webContents.close(); } catch { /* ignore */ }
+    workspaceView = null;
+    // M4：面板销毁时清活动推送防抖 timer（不再向已销毁面板推送）
+    if (workspaceActivityTimer) {
+      clearTimeout(workspaceActivityTimer);
+      workspaceActivityTimer = null;
+    }
+    // P1-2：面板销毁（collapsed）时清 context 待同步标志——页面不存在，
+    // 下次加载会自行同步，标志残留只会导致多余推送
+    workspaceContextStale = false;
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.focus();
+  }
+}
+
+// 菜单勾选切换：可见→隐藏，否则显示；折叠态持久化到 config.json
+function toggleWorkspacePanel() {
+  if (workspaceVisible) {
+    hideWorkspacePanel();
+  } else {
+    showWorkspacePanel();
+  }
+  const c = loadConfig();
+  c.workspacePanelCollapsed = !workspaceVisible;
+  writeJSON(configFile(), c);
+}
+
+// 定向推送面板事件（workspace:event 仅发往面板自身 webContents）。
+// M5 P1：overlay（sessions/setup）覆盖时 workspaceView 已从主窗口内容树移除
+// （z-order 暂隐，showOverlay 的 removeChildView），此时面板不可见，不得推送
+// context/refresh/activities 等任何事件；授权状态重算（syncWorkspaceNavigationState）
+// 与未验证 URL 有界重查（maybeStartNavRecheck）不依赖本函数，overlay 期间照常执行。
+// P1-2：overlay 期间丢弃的 {kind:'context'} 记入 workspaceContextStale（多次 context
+// 合并为一次），overlay 关闭、面板重挂后恰好补发一次，保证页面清空旧 contextKey/DOM；
+// 非 context 事件不积压（不置位）。
+// collapsed 情形（workspaceView 为 null）由 workspaceContents() 天然拦截，不受影响。
+function pushWorkspaceEvent(payload) {
+  if (overlayView && !overlayView.webContents.isDestroyed()) {
+    workspaceContextStale = overlayContextSync.noteContextWhileOverlay(workspaceContextStale, payload);
+    return;
+  }
+  // M6：安全恢复在途（view 仍隐藏、等 ack 挂回）时不推常规事件——在途的带
+  // restoreId context 重置本就会拉到最新状态；恢复失败则 view 不可见，推送无意义
+  if (workspaceRestorer.isPending()) return;
+  try {
+    const wc = workspaceContents();
+    if (wc) wc.send('workspace:event', payload);
+  } catch { /* ignore */ }
 }
 
 // ---------- 会话启动器 ----------
@@ -2004,6 +2482,29 @@ const localCommandService = new LocalCommandService({
 });
 // runtime 状态变化 → chat 窗广播（500ms 防抖，复用 sendAcpEvent 通道）
 let runtimeChangedTimer = null;
+// M4 workspace 活动推送：独立 1s 防抖（与 500ms runtime-changed 广播互不干扰、独立 timer）。
+// 过滤语义：仅当 workspace 面板可见、且 sessionId 为字符串非空、与 workspaceBoundSessionContext()
+// 的 sessionId 相同才推 {kind:'activities', sessionId}；sessionId 缺失（undefined/null）时不推。
+// 不得影响共享 WS、既有 ACP chat event 或 runtimeState 本身
+let workspaceActivityTimer = null;
+
+// 活动调度统一入口：runtimeState changed 与 ACP 目录观察（taskCatalog.observe 命中）共用。
+// 调度时仅校验活动归属会话是否与当前 bound 会话一致；timer 到期时仍校验视图存活
+// （pushWorkspaceEvent 自带），面板销毁/窗口关闭由 hideWorkspacePanel 与 mainWindow
+// 'closed' 清理 timer
+function scheduleWorkspaceActivities(sessionId) {
+  if (workspaceVisible && typeof sessionId === 'string' && sessionId.length > 0) {
+    const bound = workspaceBoundSessionContext();
+    if (bound && bound.sessionId === sessionId) {
+      if (workspaceActivityTimer) clearTimeout(workspaceActivityTimer);
+      workspaceActivityTimer = setTimeout(() => {
+        workspaceActivityTimer = null;
+        pushWorkspaceEvent({ kind: 'activities', sessionId: bound.sessionId });
+      }, 1000);
+    }
+  }
+}
+
 runtimeState.on('changed', (payload) => {
   if (runtimeChangedTimer) clearTimeout(runtimeChangedTimer);
   runtimeChangedTimer = setTimeout(() => {
@@ -2015,15 +2516,30 @@ runtimeState.on('changed', (payload) => {
     };
     sendAcpEvent({ type: 'runtime-changed', payload: { ...payload, counts } });
   }, 500);
+
+  // M4：workspace 活动推送（独立 1s 防抖）——面板可见 + payload 携带 sessionId 且
+  // 与当前 bound 会话一致才排程（过滤语义见 scheduleWorkspaceActivities）
+  scheduleWorkspaceActivities(payload.sessionId);
 });
 
 // ---------- ACP 权限审批窗 ----------
 // session/request_permission 的原生审批：一次一个窗串行处理，并发请求防御性排队；
 // 窗口创建/加载失败回退原生对话框，再失败按取消处理
 let acpPermissionWindow = null;
+// M5 P1（最后一项）：审批窗创建时捕获的不可变 request identity——窗口只允许
+// 结算其创建时绑定的同一请求：respond 准入要求当前 pending 的 settle/params 与
+// 窗口捕获的 windowSettle/windowParams 严格相等（引用级），且窗口仍为当前窗。
+// close/dispose/cancel/窗口替换一律清空；旧窗延迟 IPC 无法命中新 pending。
+let acpPermissionWindowSettle = null;
+let acpPermissionWindowParams = null;
 let acpPermissionPending = null; // 当前在途 { settle, params }
 let acpPermissionQueue = [];     // 防御性 FIFO 队列
-const ACP_ELICITATION_QID = 'acp-elicitation'; // ACP 问答窗 question_id
+// M5 P1 + P1-1：ACP elicitation 请求身份（epoch + settle 绑定，见
+// ElicitationIdentity）。settle() 会同步 pump 队列下一项——所有收尾路径必须先
+// retire() 原子失效当前身份再结算捕获的旧 settle，返回后绝不再触碰身份字段
+// （防覆盖 settle 同步创建的新请求身份；连续两个 elicitation 时第二个的
+// init 必须仍有效且可结算）。绝不以 wsGeneration 作为 ACP 窗有效性依据。
+const acpElicitationIdentity = new acpQuestionWindow.ElicitationIdentity();
 
 // 从 toolCall 防御性提取可读详情：execute 优先命令行，edit/write 优先文件路径，
 // 否则取 rawInput 的美化 JSON；统一截断 2000 字符
@@ -2116,20 +2632,63 @@ function closeAcpPermissionWindow() {
   if (acpPermissionWindow && !acpPermissionWindow.isDestroyed()) {
     try { acpPermissionWindow.close(); } catch { /* ignore */ }
   }
+  // 同步置空窗口与捕获身份：旧窗 delayed closed 事件按 acpPermissionWindow === win
+  // 判定不会误伤新窗状态；旧窗延迟 respond 因 windowSettle 已清空/不匹配被拒绝
   acpPermissionWindow = null;
+  acpPermissionWindowSettle = null;
+  acpPermissionWindowParams = null;
 }
 
-// 清理在途 + 排队的权限审批（一律按 cancelled 收尾）并关闭权限窗
-function cancelAllAcpPermissions(reason) {
-  if (acpPermissionPending) {
-    logLine(`[acp] 权限审批按取消收尾（${reason}）`);
-    acpPermissionPending.settle({ outcome: 'cancelled' });
+// M5 P1：关闭 owner='acp' 的问答窗并清理其身份（disposeAcpClient/
+// cancelAllAcpPermissions 必须调用，不能留下 elicitation 窗口）
+function closeAcpQuestionWindow() {
+  if (questionWindow && questionWindowOwner === 'acp' && !questionWindow.isDestroyed()) {
+    try { questionWindow.close(); } catch { /* ignore */ }
   }
+  if (questionWindowOwner === 'acp') {
+    questionWindow = null;
+    questionWindowQuestionId = null;
+    questionWindowOwner = null;
+    questionWindowEpoch = null;
+    questionWindowSettle = null;
+  }
+}
+
+// M5 P1 + P1-1 + P1-A：ACP elicitation 安全收尾——仅当在途请求仍是当前
+// elicitation（settle 身份一致）才结算取消。任何 createQuestionWindow 构造/加载/
+// init 失败、权限清理都必须走这里，绝不让 acpPermissionPending 或队列永久卡住。
+// P1-1：必须先 retire() 原子失效当前请求身份再结算捕获的旧 settle——settle 可能
+// 同步 pump 下一个 elicitation 并建立新身份；返回后绝不再清空/递增身份字段。
+// P1-A：窗口级 cleanup 必须传该窗创建时捕获的 expectedSettle（不传则回退全局
+// 当前身份，仅供无窗口绑定的全局收尾路径使用）——win.close() 同步触发 closed
+// guard 结算并 pump 出新请求后，旧 cleanup 以捕获的旧 settle 二次 retire 幂等
+// 安全，绝不误伤新请求身份。
+function settleAcpElicitationCancelled(reason, expectedSettle) {
+  logLine(`[acp] ACP elicitation 按取消收尾（${reason}）`);
+  acpQuestionWindow.settleWindowElicitationCancelled(
+    acpElicitationIdentity,
+    acpPermissionPending,
+    expectedSettle || acpElicitationIdentity.settle,
+  );
+}
+
+// 清理在途 + 排队的权限审批（一律按 cancelled 收尾）并关闭权限窗与 ACP 问答窗
+function cancelAllAcpPermissions(reason) {
+  // P1-1：先清队列 + 原子失效 elicitation 身份，再结算在途请求——settle 的同步
+  // pump 看到队列已空不会拉起新请求（否则新请求会既漏结算又被误关窗）；身份失效
+  // 后旧 elicitation 窗的 closed guard（retire 以旧 settle 校验）不会二次结算
+  const pending = acpPermissionPending;
   const queued = acpPermissionQueue;
   acpPermissionQueue = [];
+  acpElicitationIdentity.retire(acpPermissionPending, acpElicitationIdentity.settle);
+  if (pending) {
+    logLine(`[acp] 权限审批按取消收尾（${reason}）`);
+    pending.settle({ outcome: 'cancelled' });
+  }
   for (const item of queued) {
     try { item.resolve({ outcome: { outcome: 'cancelled' } }); } catch { /* ignore */ }
   }
+  closeAcpQuestionWindow();
   closeAcpPermissionWindow();
 }
 
@@ -2200,6 +2759,13 @@ function openAcpPermissionWindow(payload, settle) {
   // ExitPlanMode 时窗高 680（计划全文需更多空间），普通审批保持 480
   const isExitPlanMode = payload && typeof payload === 'object' && payload.toolTitle === 'ExitPlanMode';
   const windowHeight = isExitPlanMode ? 680 : 480;
+  // M5 P1（最后一项）：窗口创建时捕获不可变 request identity（settle 引用 +
+  // params 引用）。settle 是 pump 中按请求创建的闭包，每请求唯一；respond 只
+  // 允许结算与窗口捕获身份严格匹配的请求——旧窗延迟 IPC（即使 optionId 与新
+  // 请求重合）也命中不了新 pending。
+  const windowSettle = settle;
+  const windowParams = (acpPermissionPending && acpPermissionPending.settle === settle)
+    ? acpPermissionPending.params : null;
   let win = null;
   try {
     win = new BrowserWindow({
@@ -2229,62 +2795,84 @@ function openAcpPermissionWindow(payload, settle) {
   }
   applyFrameless(win);
   acpPermissionWindow = win;
+  acpPermissionWindowSettle = windowSettle;
+  acpPermissionWindowParams = windowParams;
   let fellBack = false; // 加载失败回退对话框时，关窗不再按取消收尾
   win.on('closed', () => {
-    if (acpPermissionWindow === win) acpPermissionWindow = null;
-    // 关窗 / Esc = 取消
+    // 定向清理：仅当仍是当前窗才清空（已替换新窗时旧窗 closed 不伤及新窗状态）
+    if (acpPermissionWindow === win) {
+      acpPermissionWindow = null;
+      acpPermissionWindowSettle = null;
+      acpPermissionWindowParams = null;
+    }
+    // 关窗 / Esc = 取消（settle 幂等，旧窗 delayed closed 不二次结算新请求）
     if (!fellBack) settle({ outcome: 'cancelled' });
   });
   win.webContents.on('did-finish-load', () => {
     if (win.isDestroyed()) return;
+    // 仅在窗口仍为当前审批窗时下发（窗口已替换/清理后旧窗不 send init）
+    if (acpPermissionWindow !== win) return;
     // 仅在仍为当前在途审批时下发（防御时序竞争）
-    if (!acpPermissionPending || acpPermissionPending.settle !== settle) return;
+    if (!acpPermissionPending || acpPermissionPending.settle !== windowSettle) return;
     try { win.webContents.send('acp-permission:init', payload); } catch { /* ignore */ }
   });
   win.loadFile(path.join(__dirname, '..', 'pages', 'permission.html')).catch((err) => {
     logLine(`权限窗口加载失败: ${err.message}`);
+    // M5 P1（最后一个）：关闭失败窗之前捕获并验证该窗口创建时的 request identity
+    //（windowSettle/windowParams）仍是当前有效请求。closed handler 会同步清空全局
+    // acpPermissionWindow/捕获身份——close 之后再判断 `acpPermissionWindow === win`
+    // 恒不成立（旧缺陷：fallback 不执行 → acpPermissionPending 永久在途、FIFO pump
+    // 卡死）。关闭后只能用捕获的 identity 执行 fallback 或取消。
+    const loadFailPlan = acpPermissionWindowHelper.planPermissionLoadFail({
+      windowIsCurrent: acpPermissionWindow === win,
+      pending: acpPermissionPending,
+      windowSettle,
+      windowParams,
+    });
     fellBack = true;
     if (!win.isDestroyed()) win.close();
-    // 仅在审批仍在途时回退（用户可能已关窗完成决策）
-    if (acpPermissionPending && acpPermissionPending.settle === settle) {
-      fallbackAcpPermissionDialog(payload, settle);
+    // 关闭后只用捕获身份：仍为当前有效请求 → fallback（settle 幂等，closed handler
+    // 因 fellBack 跳过结算，一次失败最多结算一次）；窗口已替换/identity 不匹配/
+    // dispose 后失效 → skip——不 fallback、不结算，绝不触碰同步 pump 出的新请求。
+    if (loadFailPlan.action === 'fallback') {
+      fallbackAcpPermissionDialog(payload, loadFailPlan.pending.settle);
     }
   });
 }
 
 // ACP Elicitation 问答窗（复用 question.html，适配其 normalize 字段）
+// M5 P1 + P1-1：窗口有效性绑定独立 epoch（acpElicitationIdentity，非 wsGeneration）；
+// settle 身份记录于身份状态机，旧/遗留窗口不得结算后续 elicitation
 function openAcpElicitationWindow(parsed, params, settle, permPayload) {
-  const questionPayload = {
-    question_id: ACP_ELICITATION_QID,
-    session_id: params.sessionId || '',
-    questions: parsed.questions.map(function (q) {
-      return {
-        id: q.key,
-        question: q.text,
-        options: q.options.map(function (o) {
-          return { id: o.optionId, label: o.name, description: '' };
-        }),
-      };
-    }),
-  };
+  const epoch = acpElicitationIdentity.begin(settle);
+  const questionPayload = buildElicitationQuestionPayload(parsed, params.sessionId || '');
 
-  // 复用 createQuestionWindow，传 wsGeneration 以通过 gen 守卫
-  createQuestionWindow(params.sessionId || '', questionPayload, wsGeneration);
+  // P1-A：把捕获的 settle 传入 createQuestionWindow——窗口创建/加载/init 失败、
+  // 初始化前已销毁等 cleanup 只结算该 settle（绝不读全局当前身份，防误伤
+  // win.close() 同步 pump 出的新请求）
+  createQuestionWindow(params.sessionId || '', questionPayload, epoch, 'acp', settle);
 
-  // 问答窗关闭时若 ACP 尚未结算，按取消收尾（防御关窗/加载失败场景）
+  // 问答窗关闭时若 ACP 尚未结算，按取消收尾（防御关窗/加载失败场景）。
+  // P1-1：guard 以闭包捕获的旧 settle 为准 retire——settle 同步 pump 出的新请求
+  // 已更换身份时，旧窗口关闭绝不误伤新请求；retire 命中才结算（先失效后结算，
+  // 结算只针对捕获的旧 settle）
   if (questionWindow && !questionWindow.isDestroyed()) {
     const win = questionWindow;
     // 注意：createQuestionWindow 已挂载一个 closed 事件清空 questionWindow，
     // 此处的 on('closed') 在其之后执行，仍能访问 settle 的幂等 guard
     win.on('closed', function acpCloseGuard() {
-      if (acpPermissionPending && acpPermissionPending.kind === 'elicitation' && acpPermissionPending.settle === settle) {
-        settle({ outcome: 'cancelled' });
+      const retired = acpElicitationIdentity.retire(acpPermissionPending, settle);
+      if (retired) {
+        logLine('[acp] ACP elicitation 窗口关闭，按取消收尾');
+        retired({ outcome: 'cancelled' });
       }
     });
   }
 }
 
-// 权限窗不可用时的回退：原生对话框（按钮 = 各 option.name + 拒绝），再失败按取消
+// 权限窗不可用时的回退：原生对话框（按钮 = 各 option.name + 拒绝），再失败按取消。
+// 走 helper 的可注入执行器：对话框不可用（同步抛/非 Promise）时安全取消捕获请求
+// 并让队列继续，绝不悬挂；settle 幂等保证一次失败最多结算一次。
 function fallbackAcpPermissionDialog(payload, settle) {
   const buttons = payload.options.map((o) => (o.name.length > 60 ? `${o.name.slice(0, 57)}...` : o.name));
   buttons.push('拒绝');
@@ -2300,54 +2888,45 @@ function fallbackAcpPermissionDialog(payload, settle) {
   };
   logLine(`显示权限审批对话框: options=${payload.options.length}`);
   const parentWin = acpChatWindow && !acpChatWindow.isDestroyed() ? acpChatWindow : null;
-  const shown = parentWin ? dialog.showMessageBox(parentWin, opts) : dialog.showMessageBox(opts);
-  shown.then((result) => {
-    const idx = result && typeof result.response === 'number' ? result.response : -1;
-    if (idx >= 0 && idx < payload.options.length) {
-      settle({ outcome: 'selected', optionId: payload.options[idx].optionId });
-    } else {
-      settle({ outcome: 'cancelled' });
-    }
-  }).catch((err) => {
-    logLine(`权限审批对话框失败: ${err.message}`);
-    settle({ outcome: 'cancelled' });
+  acpPermissionWindowHelper.runPermissionFallbackDialog({
+    options: payload.options,
+    settle,
+    showDialog: () => (parentWin ? dialog.showMessageBox(parentWin, opts) : dialog.showMessageBox(opts)),
+    log: logLine,
   });
 }
 
-ipcMain.handle('acp-permission:respond', (_e, raw) => {
-  if (!acpPermissionPending) {
-    logLine('[acp] 收到陈旧的权限审批响应，已忽略');
-    return { ok: false, error: '无在途审批' };
+// M5 P1（最后一项）：respond 准入绑定窗口创建时捕获的 request identity——
+// 只有"窗口仍为当前审批窗 + sender 为 acpPermissionWindow.webContents + 当前
+// pending 的 settle/params 与窗口捕获 identity 严格相等"才允许结算；准入后
+// 只结算捕获的 pendingRef（decidePermissionRespond 返回的同一请求），绝不读取
+// 全局当前 pending。dispose/cancel/close/窗口替换后旧审批窗的延迟 IPC（即使
+// optionId 与新请求重合）一律拒绝，不影响新 pending。
+ipcMain.handle('acp-permission:respond', (e, raw) => {
+  const win = acpPermissionWindow;
+  const decision = acpPermissionWindowHelper.decidePermissionRespond({
+    windowActive: !!(win && !win.isDestroyed() && acpPermissionWindow === win),
+    senderIsCurrentWindow: !!(win && !win.isDestroyed() && e.sender === win.webContents),
+    windowSettle: acpPermissionWindowSettle,
+    windowParams: acpPermissionWindowParams,
+    pending: acpPermissionPending,
+    raw,
+  });
+  if (decision.action === 'reject') {
+    logLine(`[acp] 权限审批响应被拒绝（${decision.error}）`);
+    return { ok: false, error: decision.error };
   }
-  // 向后兼容：旧形态为裸字符串 optionId，新形态为 { optionId, feedback? }
-  let optionId, feedback;
-  if (raw !== null && typeof raw === 'object') {
-    optionId = typeof raw.optionId === 'string' ? raw.optionId : null;
-    feedback = typeof raw.feedback === 'string' ? raw.feedback.slice(0, 2000) : '';
+  // 准入后只结算捕获的 pendingRef（decidePermissionRespond 校验通过的同一请求）
+  const pendingRef = decision.pending;
+  if (decision.action === 'selected') {
+    pendingRef.settle({ outcome: 'selected', optionId: decision.optionId });
   } else {
-    optionId = raw;
-    feedback = '';
+    pendingRef.settle({ outcome: 'cancelled' });
   }
-  if (optionId === null) {
-    acpPermissionPending.settle({ outcome: 'cancelled' });
-    return { ok: true };
-  }
-  // optionId 必须在当前请求的可选项内（与 acp-client 的校验一致，防伪造/防事件误报）
-  const validIds = (Array.isArray(acpPermissionPending.params && acpPermissionPending.params.options)
-    ? acpPermissionPending.params.options : [])
-    .filter((o) => o && typeof o.optionId === 'string')
-    .map((o) => o.optionId);
-  if (typeof optionId !== 'string' || !validIds.includes(optionId)) {
-    logLine('[acp] 权限审批响应 optionId 非法（不在可选项内），按取消处理');
-    acpPermissionPending.settle({ outcome: 'cancelled' });
-    return { ok: true };
-  }
-  const theSettle = acpPermissionPending.settle;
-  theSettle({ outcome: 'selected', optionId });
   // 反馈回传：ACP request_permission 响应无文本通道，反馈经 session/prompt 等效送达
   // （客户端侧实现，与 TUI 反馈语义对应）
-  if (feedback && acpClient) {
-    const fb = feedback.slice(0, 2000);
+  if (decision.feedback && acpClient) {
+    const fb = decision.feedback.slice(0, 2000);
     acpClient.prompt(fb, []).catch((promptErr) => {
       logLine(`[acp] 反馈 prompt 发送失败: ${promptErr && promptErr.message ? promptErr.message : String(promptErr)}`);
     });
@@ -2512,7 +3091,12 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
         },
       });
       runtimeState.apply(normalizeAcpToolCall(client.sessionId || null, update));
-      taskCatalog.observe(normalizeAcpCatalogEvent(client.sessionId || null, update));
+      // M4：ACP 目录观察（cron/tasktool）命中时调度 workspace 活动——cron 活动不伪装为
+      // RuntimeState task，由 TaskCatalog 契约 observe(event)=>boolean 判定是否接收
+      const catalogEvent = normalizeAcpCatalogEvent(client.sessionId || null, update);
+      if (catalogEvent && taskCatalog.observe(catalogEvent) === true) {
+        scheduleWorkspaceActivities(catalogEvent.sessionId);
+      }
     } else if (kind === 'tool_call_update') {
       const ev = { type: 'tool-call-update', toolCallId: ensureString(update.toolCallId).slice(0, 100) };
       if (typeof update.status === 'string') ev.status = update.status.slice(0, 40);
@@ -2520,7 +3104,11 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
       if (out) ev.output = out;
       sendAcpEvent(ev);
       runtimeState.apply(normalizeAcpToolCall(client.sessionId || null, update));
-      taskCatalog.observe(normalizeAcpCatalogEvent(client.sessionId || null, update));
+      // M4：同 tool_call 分支——目录观察命中时调度 workspace 活动
+      const catalogEvent = normalizeAcpCatalogEvent(client.sessionId || null, update);
+      if (catalogEvent && taskCatalog.observe(catalogEvent) === true) {
+        scheduleWorkspaceActivities(catalogEvent.sessionId);
+      }
     }
     // 其它 sessionUpdate 类型暂不处理
   });
@@ -3038,6 +3626,8 @@ async function rotateToken() {
     return;
   }
   knownServerToken = newToken;
+  // M5 P1：连接身份变更（token 轮换）= 通知目标失效（旧通知只能聚焦）
+  navEpoch++;
   // 废弃旧 WS 订阅并清理，loadMain 会以新 token 重建订阅
   wsGeneration++;
   cleanupWsPermanent();
@@ -3085,7 +3675,8 @@ function buildTrayMenu(statusLabel) {
     { label: '打开会话启动器', click: showSessionLauncher },
     { label: '用量统计', click: () => { showUsagePanel(); } },
     { label: '新建对话', click: () => { newConversationInPlace(); } },
-    { label: '默认模型', submenu: buildModelSubmenu() },
+    // M5-2：明确托盘默认模型项仅为默认配置，会话内切换请到 Web UI 操作
+    { label: '默认模型（默认配置；会话内切换请在 Web UI 操作）', submenu: buildModelSubmenu() },
     { label: '多实例', submenu: buildInstancesSubmenu() },
     { label: '设置…', click: () => { showMainWindow(); showSetup('manual'); } },
     { type: 'separator' },
@@ -3272,14 +3863,42 @@ function createWindow() {
       overlayView = null;
       overlayKind = null;
     }
+    // 工作区面板同覆盖层：显式关闭其 webContents 防泄漏，再清引用与面板状态
+    if (workspaceView) {
+      try { workspaceView.webContents.close(); } catch { /* ignore */ }
+      workspaceView = null;
+    }
+    workspaceVisible = false;
+    workspacePendingShow = false;
+    workspaceExplicitSessionId = null;
+    workspaceLastNavFingerprint = null;
+    workspaceContextStale = false; // P1-2：窗口销毁，待同步标志无意义
+    workspaceRestorer.cancel(); // M6：窗口销毁，取消在途恢复（timer/ack 全部失效）
+    // M5：窗口销毁使旧导航重查失效
+    invalidateNavRecheck();
+    // M4：窗口销毁时清活动推送防抖 timer
+    if (workspaceActivityTimer) {
+      clearTimeout(workspaceActivityTimer);
+      workspaceActivityTimer = null;
+    }
   });
 
-  // 窗口聚焦状态跟踪
-  mainWindow.on('focus', () => { mainWindowFocused = true; });
+  // 窗口聚焦状态跟踪；聚焦时先同步导航授权状态（不依赖面板可见性）再推送事件：
+  // 面板隐藏期间的索引/验证状态可能已更新（explicit A → URL B 未验证 → 索引更新
+  // B 已验证 → focus 重算指纹并清 explicit，避免离开 B 到非会话 URL 后回退重绑 A）；
+  // 指纹变化 → context（UI 重取身份，身份变立即重载 / 未变 3s 防抖）；
+  // 指纹未变 → refresh（UI 维持 3s 防抖刷新，不做身份重取）
+  mainWindow.on('focus', () => {
+    mainWindowFocused = true;
+    const url = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.getURL() : '';
+    const nav = syncWorkspaceNavigationState(url);
+    if (workspaceVisible) pushWorkspaceEvent(nav.changed ? { kind: 'context' } : { kind: 'refresh' });
+  });
   mainWindow.on('blur', () => { mainWindowFocused = false; });
 
-  // 窗口尺寸变化时同步覆盖层 bounds（覆盖层存在才处理）
+  // 窗口尺寸变化时同步覆盖层 bounds（覆盖层存在才处理）；面板可见时同步重排面板 bounds
   mainWindow.on('resize', () => {
+    if (workspaceVisible && workspaceView) layoutWorkspaceView();
     if (!overlayView || !mainWindow || mainWindow.isDestroyed()) return;
     const [w, h] = mainWindow.getContentSize();
     overlayView.setBounds({ x: 0, y: 0, width: w, height: h });
@@ -3369,7 +3988,12 @@ function createWindow() {
   });
   // SPA 路由切换（did-navigate-in-page，含 hash 变化，频率受路由变化次数限制）补注入一次：
   // 与 menu-panel.js 自愈重挂构成双保险，防 Vue 重渲染把按钮节点移除后丢失
-  mainWindow.webContents.on('did-navigate-in-page', injectMenuPanel);
+  mainWindow.webContents.on('did-navigate-in-page', (e, url) => {
+    injectMenuPanel();
+    // M5：与全量导航一致的 Workspace 状态同步/重查（含未验证 sessionId 的
+    // 有界索引重查；不依赖面板可见性，仅事件推送受可见性限制）
+    handleWebNavigation(url);
+  });
 
   // 窗控区颜色同步：导航/加载完成时刷新悬浮窗控配色（离开 Web UI 页时清掉采样色，
   // 本地页恒为 windowBackground()；Web UI 页等 preload 采样上报后再换成页面实际颜色）
@@ -3382,7 +4006,12 @@ function createWindow() {
       applyTitlebarOverlay(mainWindow);
     } catch { /* ignore */ }
   };
-  mainWindow.webContents.on('did-navigate', syncTitlebarColor);
+  // M5：full did-navigate 也接入与 SPA 导航一致的 Workspace 状态同步/重查，
+  // 避免通知会话跳转（loadURL /sessions/<id>）后面板不刷新授权状态
+  mainWindow.webContents.on('did-navigate', (e, url) => {
+    syncTitlebarColor();
+    handleWebNavigation(url);
+  });
   mainWindow.webContents.on('did-navigate-in-page', syncTitlebarColor);
   mainWindow.webContents.on('did-finish-load', syncTitlebarColor);
 
@@ -3496,6 +4125,13 @@ function buildMenu() {
       label: '视图',
       submenu: [
         { label: '用量统计', click: showUsagePanel },
+        // 工作区面板入口：feature flag 关闭时隐藏（flag 默认 false，且不创建面板视图）
+        {
+          label: '工作区面板', type: 'checkbox',
+          checked: workspaceVisible,
+          visible: loadConfig().workspacePanelEnabled === true,
+          click: toggleWorkspacePanel,
+        },
         {
           label: '显示/隐藏窗口', accelerator: 'CmdOrCtrl+Shift+Space',
           click: toggleMainWindow,
@@ -3713,6 +4349,369 @@ ipcMain.handle('config:addProviderCatalog', async (_e, args) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+// ---------- 工作区面板 IPC（M2/M3/M6）----------
+// 面板专属通道：仅接受来自面板视图 webContents 的调用（sender 校验，其余一律拒绝）。
+// M6 收紧：同时要求 senderFrame 为 sender 的主 frame（拒绝 iframe/子 frame 发起）与
+// 当前视图 URL 精确等于预期 workspace.html（偏离预期时视图已先被导航守卫销毁，
+// 此处为纵深防御第二道闸）
+function isWorkspaceSender(e) {
+  try {
+    if (!e || !e.sender || !workspaceView) return false;
+    const wc = workspaceView.webContents;
+    if (wc.isDestroyed()) return false;
+    return workspaceGuard.isWorkspaceSenderDecision({
+      senderMatchesView: e.sender === wc,
+      senderFrameIsMainFrame: !!(e.senderFrame && e.senderFrame === e.sender.mainFrame),
+      currentUrl: wc.getURL(),
+      expectedUrl: workspacePageUrl,
+    });
+  } catch {
+    return false;
+  }
+}
+
+// 读取本地会话索引（getAllSessions 容错非数组）；导航授权维护、上下文解析与显式选择共用
+function workspaceIndexEntries() {
+  try {
+    const all = getAllSessions();
+    if (Array.isArray(all)) return all;
+  } catch { /* 索引读取失败按空处理 */ }
+  return [];
+}
+
+// 同步主窗口导航授权状态（did-navigate-in-page / mainWindow focus 共用，不依赖面板可见性：
+// 面板隐藏时也必须跟随，否则隐藏期间的 verified URL 导航不会清除 explicit 绑定——高危授权竞态）：
+// 1) 用 workspaceIndexEntries() + sw.computeNavStateUpdate 重算授权状态指纹
+//    （指纹含 trusted/untrusted origin 维度：可信↔非可信、127.0.0.1↔localhost、
+//    HTTP↔HTTPS、knownServerBase 变化但 sessionId 相同均产生 changed，面板不会保留旧 DOM）；
+// 2) 指纹变化时：更新 workspaceLastNavFingerprint；仅当 URL 属于可信 Web origin 且
+//    会话已在本地索引 verified 时清 workspaceExplicitSessionId（可信导航覆盖显式选择，
+//    explicit 仅作可信 Web 非会话页回退）；
+// 3) 返回 { changed:boolean }；事件推送与否由调用方结合 workspaceVisible 决定，
+//    本函数绝不自行依赖 workspaceVisible
+function syncWorkspaceNavigationState(url) {
+  const u = sw.computeNavStateUpdate({
+    url,
+    indexEntries: workspaceIndexEntries(),
+    prevFingerprint: workspaceLastNavFingerprint,
+    explicitSessionId: workspaceExplicitSessionId,
+    knownServerBase, // M6 会话 origin 规则：离开可信 Web origin 时 explicit 不得存续
+  });
+  workspaceLastNavFingerprint = u.fingerprint;
+  if (u.clearExplicit) workspaceExplicitSessionId = null;
+  return { changed: u.changed };
+}
+
+// ---------- M5：Web URL 未验证 sessionId 的本地索引重查（有界退避）----------
+// 触发场景：通知点击导航 / create-in-dir 深链接 / 任何全量或 SPA 导航到达
+// /sessions/<id>，而该 id 尚未在本地索引 verified（索引由 CLI 异步落盘，导航时
+// 可能尚未更新）。重查只读本地 session_index（workspaceIndexEntries），禁止 ACP、
+// 全量扫描与无限轮询；退避序列 100/250/500/1000/2000ms，总生命周期 ≈3.85s。
+// 每次 tick 逐项校验：窗口存在、同一导航 epoch、当前 URL 仍是同一 sessionId、
+// 当前 origin 属于当前 knownServerBase、server generation/base 未变。
+// 命中 verified 后仅调用一次 syncWorkspaceNavigationState（面板隐藏也必须更新
+// 授权状态），面板可见才推 context。
+const NAV_RECHECK_DELAYS = [100, 250, 500, 1000, 2000];
+let navRecheckTimer = null;
+let navRecheckEpoch = 0;        // 任何导航/服务切换/窗口销毁递增，使旧重查失效
+let navRecheckSessionId = null; // 在途重查的目标 sessionId（单实例标记）
+let navRecheckGen = 0;
+let navRecheckBase = null;
+let navRecheckStep = 0;
+
+// 失效旧重查：导航（did-navigate / did-navigate-in-page）、服务切换、窗口销毁调用
+function invalidateNavRecheck() {
+  navRecheckEpoch++;
+  if (navRecheckTimer) {
+    clearTimeout(navRecheckTimer);
+    navRecheckTimer = null;
+  }
+  navRecheckSessionId = null;
+  navRecheckStep = 0;
+}
+
+// 当前 URL origin 是否属于当前 knownServerBase（M6 起与 sw.isTrustedWebOrigin 同一规则：
+// 严格 origin 相等；knownServerBase 不可用/URL 非法一律 false）
+function isKnownServerOrigin(url) {
+  return sw.isTrustedWebOrigin(url, knownServerBase);
+}
+
+// 对当前 Web URL 的合法且未验证 sessionId 启动单实例有界索引重查
+function maybeStartNavRecheck(url) {
+  const id = sw.parseSessionIdFromUrl(url);
+  if (!id) return;
+  // M6：只有可信 Web URL 才可能成为 bound context——非可信 origin（file/外部/未知/
+  // host 别名/协议·端口不匹配）不启动索引重查（重查只服务于可信会话绑定，与
+  // resolveContext 的 origin 规则统一，不保留绕过 origin 的上下文入口）
+  if (!isKnownServerOrigin(url)) return;
+  // 已 verified 无需重查
+  if (sw.resolveBySessionId(id, workspaceIndexEntries()).status === 'verified') return;
+  // 单实例：已有在途重查则跳过（导航路径已先 invalidate，此处为防御）
+  if (navRecheckTimer) return;
+  navRecheckEpoch++;
+  const epoch = navRecheckEpoch;
+  navRecheckSessionId = id;
+  navRecheckGen = serverGeneration;
+  navRecheckBase = knownServerBase;
+  navRecheckStep = 0;
+  logLine(`启动 Web URL 会话索引重查: ${id}`);
+  scheduleNavRecheckTick(epoch);
+}
+
+function scheduleNavRecheckTick(epoch) {
+  if (epoch !== navRecheckEpoch) return;
+  const delay = NAV_RECHECK_DELAYS[navRecheckStep++];
+  if (delay === undefined) {
+    // 退避序列耗尽：静默结束，不残留任何状态
+    navRecheckTimer = null;
+    navRecheckSessionId = null;
+    logLine('Web URL 会话索引重查超时结束');
+    return;
+  }
+  navRecheckTimer = setTimeout(() => {
+    navRecheckTimer = null;
+    if (epoch !== navRecheckEpoch) return;
+    const sid = navRecheckSessionId;
+    // 逐项校验（任一失败即静默终止）
+    if (!mainWindow || mainWindow.isDestroyed()) { navRecheckSessionId = null; return; }
+    if (navRecheckGen !== serverGeneration || navRecheckBase !== knownServerBase) { navRecheckSessionId = null; return; }
+    let currentUrl;
+    try { currentUrl = mainWindow.webContents.getURL(); } catch { navRecheckSessionId = null; return; }
+    if (sw.parseSessionIdFromUrl(currentUrl) !== sid) { navRecheckSessionId = null; return; }
+    if (!isKnownServerOrigin(currentUrl)) { navRecheckSessionId = null; return; }
+    // 重查本地索引（只读 session_index，非 ACP/全量扫描）
+    if (sw.resolveBySessionId(sid, workspaceIndexEntries()).status === 'verified') {
+      navRecheckSessionId = null;
+      logLine(`Web URL 会话已索引 verified: ${sid}`);
+      // 命中后仅调用一次状态同步（无条件更新授权状态），面板可见才推 context
+      const nav = syncWorkspaceNavigationState(currentUrl);
+      if (nav.changed && workspaceVisible) pushWorkspaceEvent({ kind: 'context' });
+      return;
+    }
+    scheduleNavRecheckTick(epoch);
+  }, delay);
+}
+
+// 导航统一入口（全量 did-navigate 与 SPA did-navigate-in-page 共用，与 focus 的
+// 状态同步语义一致）：旧重查失效 → Workspace 授权状态同步（不依赖面板可见性）→
+// 状态变化且面板可见才推 context → 未验证 sessionId 启动有界索引重查
+function handleWebNavigation(url) {
+  invalidateNavRecheck();
+  const nav = syncWorkspaceNavigationState(url);
+  if (nav.changed && workspaceVisible) pushWorkspaceEvent({ kind: 'context' });
+  maybeStartNavRecheck(url);
+}
+
+// 解析当前面板会话上下文（workspace:getContext 与 bound 守卫共用同一解析逻辑）：
+// mainWindow.getURL + getAllSessions（容错非数组）+ sw.resolveContext + workspaceExplicitSessionId。
+// M6 会话 origin 规则：传入 knownServerBase——非可信 origin（file:// 本地页/外部/未知/
+// host 别名/协议·端口不匹配）一律 unbound 不 fallback explicit 不展示候选；
+// explicit 仅在可信 Web 非会话页回退
+function resolveWorkspaceContext() {
+  const url = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.getURL() : '';
+  return sw.resolveContext({
+    url,
+    indexEntries: workspaceIndexEntries(),
+    explicitSessionId: workspaceExplicitSessionId,
+    knownServerBase,
+  });
+}
+
+// bound 上下文守卫（M3 数据 IPC 前置，M6 收紧）：不再仅信任索引 workDir——
+// 一律建立在 workspaceBoundSessionContext() 之上，即经过 sessionsRoot containment、
+// realpath 与 basename===sessionId 验证的会话上下文才提供 workDir 供 Git/Files/Diff 使用
+function workspaceBoundWorkDir() {
+  const bound = workspaceBoundSessionContext();
+  if (!bound) return null;
+  return { workDir: bound.workDir, sessionId: bound.sessionId };
+}
+
+// bound 会话上下文守卫（M4 projection 前置，M6 起同时是 M3 数据 IPC 的唯一 workDir 来源）：
+// 仅 state==='bound' 且带 sessionId/sessionDir/workDir 才返回 { sessionId, sessionDir, workDir }；
+// 防御校验（任一失败返回 null，workspaceBoundWorkDir() 建立在它之上——M6：Changes/Files/Diff
+// 不得仅信任索引 workDir，投影守卫同样走本函数）：
+//  - 本体校验（M6 高危项，任何 realpath/授权之前）：sessionDir 必须 lstat 为真实目录且非
+//    symbolic link / junction / reparse point；普通文件、symlink、junction、lstat 失败一律 unbound；
+//  - sessionDir 必须位于 KIMI_CODE_HOME/sessions 之内——严格 containment：
+//    rel==='..' 或 rel.startsWith('..'+sep)（'..foo' 这类名字不是逃逸，不得误拒）
+//    或 path.isAbsolute(rel) 或 rel===''（等于根本身）均拒绝；
+//  - 目录存在时 realpath 规范化后二次校验（防符号链接别名逃逸）；
+//  - basename(canonical sessionDir) 必须严格等于 sessionId（防 symlink 指向其他会话目录）；
+function workspaceBoundSessionContext() {
+  try {
+    const ctx = resolveWorkspaceContext();
+    if (!ctx || ctx.state !== 'bound') return null;
+    const { sessionId, sessionDir, workDir } = ctx;
+    if (typeof sessionId !== 'string' || sessionId.length === 0) return null;
+    if (typeof sessionDir !== 'string' || sessionDir.length === 0) return null;
+    if (typeof workDir !== 'string' || workDir.length === 0) return null;
+    // M6 高危项：任何 realpath / 授权前先 lstat 本体——必须实际目录且非
+    // symbolic link / reparse point；普通文件、symlink、junction、lstat 失败全部 unbound
+    if (!sessionDirGuard.isRealDirectoryBody(sessionDir)) return null;
+    const sessionsRoot = path.join(getKimiHomeDir(), 'sessions');
+    const insideRoot = (dir) => {
+      const rel = path.relative(sessionsRoot, dir);
+      return rel !== ''
+        && rel !== '..'
+        && !rel.startsWith('..' + path.sep)
+        && !path.isAbsolute(rel);
+    };
+    if (!insideRoot(sessionDir)) return null;
+    // 目录存在时 realpath 规范化后二次校验（不存在/不可解析 → ENOENT 归为校验失败）
+    let real;
+    try {
+      real = fs.realpathSync(sessionDir);
+    } catch {
+      return null;
+    }
+    if (!insideRoot(real)) return null;
+    // canonical sessionDir 的 basename 必须严格等于 sessionId
+    if (path.basename(real) !== sessionId) return null;
+    return { sessionId, sessionDir, workDir };
+  } catch { /* 解析/校验失败按未绑定处理 */ }
+  return null;
+}
+
+// 当前会话上下文：bound（url/explicit 命中索引）/ candidates / unbound
+ipcMain.handle('workspace:getContext', (e) => {
+  if (!isWorkspaceSender(e)) return { state: 'unbound', confidence: 'low' };
+  try {
+    return resolveWorkspaceContext();
+  } catch (err) {
+    logLine(`workspace:getContext 失败: ${err.message}`);
+    return { state: 'unbound', confidence: 'low' };
+  }
+});
+
+// 面板折叠态：无参→查询 { collapsed }；带 { collapsed:boolean }（plain object + 字段白名单，
+// M6）→按 toggle 显隐逻辑处理、持久化到 config.json（M2-3 验收：开/关/折叠持久化），并返回新态
+ipcMain.handle('workspace:panelState', (e, arg) => {
+  if (!isWorkspaceSender(e)) return { collapsed: true };
+  const v = workspaceGuard.validatePanelState(arg);
+  if (v.ok && v.value && v.value.collapsed === true) {
+    if (workspaceVisible) hideWorkspacePanel();
+  } else if (v.ok && v.value && v.value.collapsed === false) {
+    if (!workspaceVisible) showWorkspacePanel();
+  }
+  // v.ok 且 value 为 null（查询/空对象）→ 无状态变更；v.ok 为 false（bad-arg）→ 保持现状
+  if (v.ok && v.value) {
+    const c = loadConfig();
+    c.workspacePanelCollapsed = !workspaceVisible;
+    writeJSON(configFile(), c);
+  }
+  return { collapsed: !workspaceVisible };
+});
+
+// 显式绑定会话：仅本地索引命中（resolveBySessionId verified）且当前主窗口 URL 属于
+// 可信 Web origin（M6：与 resolveContext 的 origin 规则统一，非可信页不得建立显式绑定
+// 入口，防上下文入口残留）才置 explicitSessionId，选择后向面板推送 context 刷新事件；
+// 输入必须为 plain object 且 sessionId 为 ≤128 字符串（M6）
+ipcMain.handle('workspace:selectCandidate', (e, arg) => {
+  if (!isWorkspaceSender(e)) return { ok: false, reason: 'rejected' };
+  const v = workspaceGuard.validateSelectCandidate(arg);
+  if (!v.ok) return { ok: false, reason: v.reason };
+  try {
+    // M6：explicit 只在可信 Web 下可设置——当前主窗口在 file:// 本地页/外部/未知
+    // origin（host 别名/协议·端口不匹配）时拒绝，与 resolveContext 的 origin 规则
+    // 统一（不保留绕过 origin 的另一条上下文入口）
+    const mainUrl = mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.getURL() : '';
+    if (!isKnownServerOrigin(mainUrl)) {
+      return { ok: false, reason: 'untrusted-origin' };
+    }
+    const r = sw.resolveBySessionId(v.value.sessionId, workspaceIndexEntries());
+    if (r.status !== 'verified') {
+      return { ok: false, reason: '会话不在本地索引中（verified 失败）' };
+    }
+    workspaceExplicitSessionId = v.value.sessionId;
+    pushWorkspaceEvent({ kind: 'context' });
+    return { ok: true };
+  } catch (err) {
+    logLine(`workspace:selectCandidate 失败: ${err.message}`);
+    return { ok: false, reason: workspaceGuard.ERROR_REASON };
+  }
+});
+
+// 工作区 Git 变更（M3）：仅 bound 会话可读（M6：workDir 来自经 containment/realpath/
+// basename 验证的会话上下文）；敏感目录在结果上附加 sensitive:true（渲染层展示提示）
+ipcMain.handle('workspace:changes', async (e) => {
+  if (!isWorkspaceSender(e)) return { ok: false, reason: 'rejected' };
+  const bound = workspaceBoundWorkDir();
+  if (!bound) return { ok: false, reason: 'unbound' };
+  try {
+    const result = await gitService.getChanges(bound.workDir);
+    if (isSensitiveWorkDir(bound.workDir)) return { ...result, sensitive: true };
+    return result;
+  } catch (err) {
+    logLine(`workspace:changes 失败: ${err.message}`);
+    return { ok: false, reason: workspaceGuard.ERROR_REASON };
+  }
+});
+
+// 文件浏览（M3）：action 'list'→目录条目 / 'read'→文件预览；输入为 plain object 且
+// 字段白名单 {action, relPath}（M6）：relPath 必须是字符串且 ≤512，未知 action 同样拒绝
+//（bad-arg，固定 reason；详细错误仅本地日志）
+ipcMain.handle('workspace:files', async (e, arg) => {
+  if (!isWorkspaceSender(e)) return { ok: false, reason: 'rejected' };
+  const bound = workspaceBoundWorkDir();
+  if (!bound) return { ok: false, reason: 'unbound' };
+  const v = workspaceGuard.validateFilesArg(arg);
+  if (!v.ok) return { ok: false, reason: v.reason };
+  try {
+    if (v.value.action === 'list') return await fileBrowser.listDir(bound.workDir, v.value.relPath);
+    return await fileBrowser.readFilePreview(bound.workDir, v.value.relPath);
+  } catch (err) {
+    logLine(`workspace:files 失败: ${err.message}`);
+    return { ok: false, reason: workspaceGuard.ERROR_REASON };
+  }
+});
+
+// diff 预览（M3）：snapshotId + entryId 直传 gitService；输入为 plain object 且字段
+// 白名单 {snapshotId, entryId}（M6）：snapshotId 为 ≤128 字符串、entryId 为整数 ≥0 或
+// ≤15 位数字串（与 git-service.toEntryId 口径对齐）；服务内部另有 stale-snapshot/路径防护
+ipcMain.handle('workspace:diff', async (e, arg) => {
+  if (!isWorkspaceSender(e)) return { ok: false, reason: 'rejected' };
+  const bound = workspaceBoundWorkDir();
+  if (!bound) return { ok: false, reason: 'unbound' };
+  const v = workspaceGuard.validateDiffArg(arg);
+  if (!v.ok) return { ok: false, reason: v.reason };
+  try {
+    return await gitService.getDiffPreview(bound.workDir, v.value.snapshotId, v.value.entryId);
+  } catch (err) {
+    logLine(`workspace:diff 失败: ${err.message}`);
+    return { ok: false, reason: workspaceGuard.ERROR_REASON };
+  }
+});
+
+// 会话活动投影（M4）：仅 bound 会话可查；无 bound 上下文 → 契约空态
+//（{ok:false, reason:'unbound', agents:[], tasks:[], diagnostics:{}, capturedAt}）；
+// bound → workspaceProjection.getWorkspaceProjection({sessionId, sessionDir, taskCatalog})，
+// 异常兜底同样返回安全空态（固定 reason，详细错误仅本地日志）
+ipcMain.handle('workspace:projection', async (e) => {
+  if (!isWorkspaceSender(e)) return { ok: false, reason: 'rejected', agents: [], tasks: [], diagnostics: {}, capturedAt: Date.now() };
+  const bound = workspaceBoundSessionContext();
+  if (!bound) return { ok: false, reason: 'unbound', agents: [], tasks: [], diagnostics: {}, capturedAt: Date.now() };
+  try {
+    return await workspaceProjection.getWorkspaceProjection({
+      sessionId: bound.sessionId,
+      sessionDir: bound.sessionDir,
+      taskCatalog,
+    });
+  } catch (err) {
+    logLine(`workspace:projection 失败: ${err.message}`);
+    return { ok: false, reason: workspaceGuard.ERROR_REASON, agents: [], tasks: [], diagnostics: {}, capturedAt: Date.now() };
+  }
+});
+
+// overlay 关闭安全恢复回执（M6）：面板 refreshContext 定型（旧 DOM 已清 + 新 context
+// 已落地）后回传 restoreId；仅匹配在途恢复（id + 当前 view 引用）才单次挂回，
+// 迟到/错 id/视图已替换的回执一律忽略。sender 准入同其余 workspace:* 通道
+ipcMain.on('workspace:contextRestored', (e, arg) => {
+  if (!isWorkspaceSender(e)) return;
+  const v = workspaceGuard.validateContextRestored(arg);
+  if (!v.ok) return;
+  workspaceRestorer.handleAck(workspaceView, v.value.restoreId);
 });
 
 // ---------- Skills 管理 IPC ----------
@@ -4015,7 +5014,8 @@ function buildMenuDefinition() {
     {
       title: '模型',
       items: [
-        { id: 'models', label: `默认模型：${currentModel}`, submenu: modelItems },
+        // M5-2：明确菜单面板默认模型项仅为默认配置，会话内切换请到 Web UI 操作
+        { id: 'models', label: `默认模型：${currentModel}（默认配置；会话内切换请在 Web UI 操作）`, submenu: modelItems },
       ],
     },
     {

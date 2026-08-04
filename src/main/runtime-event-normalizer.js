@@ -19,6 +19,18 @@ function pickNum(obj, keys) {
   return null;
 }
 
+// 按候选键依次取字符串值（防御 info 字段漂移）；空串/非字符串 -> 继续下一候选，全空 -> null
+function pickStr(obj, keys) {
+  if (!obj || typeof obj !== 'object') return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (v === undefined || v === null) continue;
+    const s = typeof v === 'string' ? v : String(v);
+    if (s.trim() !== '') return s;
+  }
+  return null;
+}
+
 // 从 WS usage payload 提取 { totalTokens, contextUsed, contextLimit }
 // 兼容 usage 嵌套对象/平铺、total_tokens/totalTokens、input+output 兜底
 function extractUsage(payload) {
@@ -57,11 +69,50 @@ function normalizeWsEvent(raw) {
     case 'task.completed':
     case 'task.done': kind = 'task.completed'; status = 'completed'; break;
     case 'session.usage_updated': kind = 'usage.updated'; break;
-    default: return null; // 无法识别
+    default: {
+      // agent.created / agent.status.updated：未实测且无法辨别主/子 agent，
+      // 保守返回 null，不伪造生命周期事件；子代理活动统一由 subagent.spawned/started 覆盖。
+      if (name === 'subagent.spawned' || name === 'subagent.started') break; // 下方单独处理
+      return null; // 无法识别
+    }
   }
 
-  const sessionId = raw.session_id || raw.sessionId || payload.session_id || null;
-  const taskId = payload.task_id || payload.taskId || null;
+  // 已实测（CLI 0.31.1）：subagent.spawned（payload 含 agentId/callerAgentId/description/
+  // parentAgentId/parentToolCallId/runInBackground/sessionId/subagentId/subagentName）与
+  // subagent.started（payload 仅 sessionId/subagentId）-> task.observed(running)，
+  // agentType 非 null 使 RuntimeState.getActiveCounts 计入 agents 类。
+  // 不虚构 completed/failed：未实测对应终止事件，running 态只做 runtime 活动触发 /
+  // Tasks-Catalog 低延迟补充，终止态以磁盘 subagent-tree 快照为事实源。
+  if (name === 'subagent.spawned' || name === 'subagent.started') {
+    const subagentId = pickStr(payload, ['subagentId']);
+    if (!subagentId) return null; // 无身份 -> 无法形成可观测任务
+    const sessionId = pickStr(raw, ['session_id', 'sessionId'])
+      || pickStr(payload, ['session_id', 'sessionId']);
+    const subagentName = pickStr(payload, ['subagentName']);
+    const description = pickStr(payload, ['description']);
+    return {
+      source: 'ws',
+      kind: 'task.observed',
+      sessionId,
+      taskId: subagentId,
+      at: Date.now(), // WS 无时间戳 -> 函数内取
+      title: description || subagentName || 'subagent',
+      status: 'running',
+      usage: null,
+      agentType: subagentName || 'subagent',
+      confidence: 'high',
+      rawKind: rawKind || name,
+    };
+  }
+
+  // M1 实测：task.started payload 顶层为 { agentId, info:object, sessionId, type }，
+  // task_id 不在顶层，且 info 内字段会漂移 -> 防御性多候选取值。
+  const info = payload.info && typeof payload.info === 'object' ? payload.info : {};
+  const sessionId = pickStr(raw, ['session_id', 'sessionId'])
+    || pickStr(payload, ['session_id', 'sessionId'])
+    || pickStr(info, ['session_id', 'sessionId']);
+  const taskId = pickStr(payload, ['task_id', 'taskId'])
+    || pickStr(info, ['task_id', 'taskId', 'id', 'toolCallId']);
 
   const ev = {
     source: 'ws',
@@ -79,7 +130,7 @@ function normalizeWsEvent(raw) {
   if (kind === 'usage.updated') {
     ev.usage = extractUsage(payload);
   } else {
-    ev.title = payload.title || '';
+    ev.title = pickStr(payload, ['title']) || pickStr(info, ['title', 'description']) || '';
   }
   return ev;
 }
@@ -132,12 +183,33 @@ function extractCronShortFields(rawInput) {
   return detail;
 }
 
-// CronList 列表项：防御性解析 rawOutput JSON 数组（每项仅保留短字段）；解析失败回落 rawInput 摘要
+// M6：CronList rawOutput 规范化硬上限（导出供测试与调用方知情）。
+// CRON_LIST_RAW_MAX_CHARS：JSON.parse 前的字符（UTF-16 code unit）长度硬上限——
+//   超长 rawOutput 一律不解析，防超长 JSON.parse 的瞬时 CPU/内存峰值；
+// CRON_LIST_MAX_ITEMS：解析成功后数组条目数硬上限——超量视为不可信/可能截断的列表，
+//   整体跳过该 list 事件（不生成 list snapshot，避免破坏/误删现有 cron 观察）。
+const LIMITS = {
+  CRON_LIST_RAW_MAX_CHARS: 256 * 1024,
+  CRON_LIST_MAX_ITEMS: 500,
+};
+
+// CronList 列表项：防御性解析 rawOutput JSON 数组（每项仅保留短字段）。
+// 解析失败 / rawOutput 超长 / 数组条目超量 -> 回落 rawInput 摘要（非数组 detail，
+// TaskCatalog 对非数组 detail 不产生任何 list upsert，为安全 no-op，不清空既有 cron）。
 function parseCronList(rawInput, rawOutput) {
   if (typeof rawOutput === 'string' && rawOutput.trim()) {
+    if (rawOutput.length > LIMITS.CRON_LIST_RAW_MAX_CHARS) {
+      // M6：解析前硬上限——不 JSON.parse，回落摘要 = 无 list snapshot（不破坏现有 cron）
+      return extractCronShortFields(rawInput);
+    }
     try {
       const parsed = JSON.parse(rawOutput);
       if (Array.isArray(parsed)) {
+        if (parsed.length > LIMITS.CRON_LIST_MAX_ITEMS) {
+          // M6：条目超量——不截断映射（不完整截断数组不可作为完整 CronList snapshot），
+          // 整体跳过整个 list 事件，回落摘要 no-op。
+          return extractCronShortFields(rawInput);
+        }
         return parsed
           .filter((it) => it && typeof it === 'object')
           .map((it) => extractCronShortFields(it));
@@ -237,4 +309,4 @@ function normalizeDiskTask(sessionId, taskJson) {
   };
 }
 
-module.exports = { normalizeWsEvent, normalizeAcpToolCall, normalizeAcpCatalogEvent, normalizeDiskTask };
+module.exports = { normalizeWsEvent, normalizeAcpToolCall, normalizeAcpCatalogEvent, normalizeDiskTask, LIMITS };

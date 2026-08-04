@@ -34,3 +34,11 @@
 - Task/TaskOutput/TaskStop/CronCreate/CronList/CronDelete/Agent 全部是 **Agent 内置工具**（agent tool registry，profiles.ts 默认含），非 ACP RPC；对 ACP 客户端仅以 tool_call 通知呈现（toolCallId=`${turnId}:${rawId}`）。agent/rpc/rpcService.ts 的 getTaskOutput/getTasks 是内部 RPC（kap-server），非 ACP。
 - **ACP 无子代理身份**：SessionUpdate 无 parent/child 字段（_meta 是保留扩展点）；kimi adapter 用 isFromMainAgent（agentId===undefined||'main'）过滤，子代理事件不推送。内部 metadata：registerAgent 记 {type:'main'|'sub',parentAgentId,forkedFrom,labels}；子代理再派生子代理时 labels 带 parentAgentId+swarmItem（subagentMetadata.ts）；hook 命令 SubagentStart/SubagentStop。
 - 状态条计数（footer.ts + session-event-handler.ts syncBackgroundTaskBadge）：`[N task running]`=当前**非终态**（跳过 completed/failed/timed_out/killed/lost）的 bash 后台任务数；`[N agent running]`=同类后台子代理数；两个徽章独立。
+
+## 官方事实（2026-08-04，Node/Windows symlink/junction TOCTOU 研究）
+
+- **O_NOFOLLOW 在 Windows 不可用**：libuv `deps/uv/include/uv/win.h` 硬编码 `UV_FS_O_NOFOLLOW 0`（静默忽略）；`src/node_constants.cc` 用 `#ifdef O_NOFOLLOW` 导出 → win32 上 `fs.constants.O_NOFOLLOW` 为 undefined；fs.md flags 章节明确 Windows 仅可用 O_APPEND/O_CREAT/O_EXCL/O_RDONLY/O_RDWR/O_TRUNC/O_WRONLY/UV_FS_O_FILEMAP。
+- **Windows 上 lstat 与 readdir 都能识别 junction**：libuv win/fs.c 的 lstat 用 `CreateFileW+FILE_FLAG_OPEN_REPARSE_POINT` 打开（不跟随），任何 reparse point（含 junction）置 `S_IFLNK` → `lstat().isSymbolicLink()` 对 junction 返回 true；scandir 同理 `UV__DT_LINK` → `readdir withFileTypes` 的 `Dirent.isSymbolicLink()` 对 junction 也 true。
+- **Windows 上 st_ino 有效**：`statbuf->st_ino = stat_info.FileId.QuadPart`（NTFS 文件 ID，需 bigint:true 拿全 64 位）→ lstat 与 open 后 fstat 的 (st_dev, st_ino) 对比可做"打开后验证"，连 rename 替换（非 symlink）也能发现。
+- **fs.realpath 全家不支持 fd**：path 仅 {string|Buffer|URL}，文档注明 "Only paths that can be converted to UTF-8 strings are supported"；FileHandle 无 realpath 方法（有 stat）。支持 fd 的是 fs.readFile/writeFile/fstat 等（参数类型 {string|Buffer|URL|integer}）。
+- **Node 纯 JS 层无原子防 reparse 跟随手段**（无 O_NOFOLLOW、无 openat、无 FILE_FLAG_DISALLOW_PATH_REDIRECTS 暴露）；Windows 最强原子手段是 CreateFile3 的 `FILE_FLAG_DISALLOW_PATH_REDIRECTS`（路径被重定向即 ERROR_PATH_REDIRECTED），Node 不暴露，需 native 模块。现实模式 = lstat 检查 + open 后 fstat 对比（可验证关闭的 TOCTOU）。

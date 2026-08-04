@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.8.0] - 2026-08-04
+
+### 新功能
+
+- **Web Shell + Workspace 面板（受控开启）**：新增 `workspace.html`/`workspace.js`/`workspace-preload.js`/`workspace.css` 工作区面板，经 `workspacePanelEnabled` 配置开关控制（默认 `false`，关闭时完全不创建面板，行为等同 v1.7 基线）。
+- **工作区集成模块**：`session-workspace.js`（会话工作区解析）、`workspace-projection.js`（工作区投影）、`workspace-restore.js`（工作区恢复）、`file-browser.js`（文件浏览器）、`git-service.js`（Git 服务封装）、`overlay-context-sync.js`（覆盖层上下文同步）。
+- **安全门禁**：`session-dir-guard.js`（会话目录守卫）、`workspace-ipc-guard.js`（工作区 IPC 白名单/参数校验）。
+- **ACP 窗口重构**：`acp-permission-window.js`（审批窗独立模块化）、`acp-question-window.js`（问答窗独立模块化）、`notification-nav.js`（通知导航）。
+- **探测与审计工具**：`scripts/capability-audit.js`（REST/AsyncAPI/WS 能力审计）、`scripts/nav-probe.js`、`scripts/workspace-integration-probe.js`；`scripts/ws-event-probe.js` 扩展。
+
+### 改进
+
+- `main.js` +1336 行接线工作区/窗口/安全模块。
+- `runtime-state.js`/`task-catalog.js`/`subagent-tree.js` 扩展（M6 需求）。
+
+### 其他
+
+- 新增 12 套单元测试（workspace/file-browser/git-service/安全门禁等），全量 29/29 通过。
+- 新增文档：`WEB_SHELL_ENHANCEMENT_PLAN.md`、`web-shell-capability-audit.md`、`web-ui-integration-boundary.md`、`regression/release-workspace-m6.md` 等。
+- 无破坏性变更。
+
 ## [1.7.0] - 2026-07-27
 
 ### 改进
