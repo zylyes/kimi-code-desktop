@@ -1,8 +1,8 @@
 // CLI 0.29.x 回归脚本：在真实 CLI 0.29.0 上自动执行 14 组回归中的可自动化组。
 // 纯 Node，只用内置模块（不依赖 electron/ws）。
 // 本脚本覆盖：①启动 ⑦会话管理 ⑧配置读写 ⑨登录形态 ⑪双 schema ⑫Windows 前置 ⑬doctor tui 与 server kill ⑭启动参数与代理
-// ②③④⑤⑥⑩ 为人工/Electron 组，由 scripts/dev-verify.js 与人工核对覆盖，不在本脚本范围。
-// 用法：node scripts/regression-0.29.js
+// ②③④⑤⑥⑩ 为人工/Electron 组，由 scripts/archive/dev-verify.js 与人工核对覆盖，不在本脚本范围。
+// 用法：node scripts/archive/regression-0.29.js
 // 退出码：存在 FAIL 时为 1，否则 0。
 const fs = require('fs');
 const os = require('os');
@@ -10,7 +10,7 @@ const path = require('path');
 const http = require('http');
 const { spawn, execFile } = require('child_process');
 
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+const PROJECT_ROOT = path.resolve(__dirname, '../..');
 const URL_RE = /https?:\/\/(?:127\.0\.0\.1|localhost|\[?::1\]?):\d+/;
 
 const results = []; // { group, status, lines }

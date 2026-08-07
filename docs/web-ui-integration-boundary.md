@@ -61,7 +61,7 @@
 - 全量 26 个 `tests/test-*.js` 通过。
 - 专项单测：`test-acp-permission-window.js` 11/11、`test-acp-question-window.js` 12/12、`test-notification-nav.js` 13/13、`test-overlay-context-sync.js` 6/6。
 - Workspace selfcheck 61/61。
-- Electron integration probe（`scripts/workspace-integration-probe.js`）通过。
+- Electron integration probe（`scripts/dev/workspace-integration-probe.js`）通过。
 
 ## 仍需 M6/人工验证
 

@@ -1,5 +1,5 @@
 // Kimi Code Desktop — ACP（Agent Client Protocol）客户端模块
-// 由 scripts/acp-probe.js 探测脚本产品化而来：与 `kimi acp` 子进程通过 stdio
+// 由 ACP 探测脚本产品化而来：与 `kimi acp` 子进程通过 stdio
 // JSON-RPC 2.0 通信，ndjson 分帧首发 initialize，20s 无响应则改试 Content-Length(LSP) 分帧。
 // 纯 Node CommonJS，无第三方依赖，不 require electron（供 Electron 主进程与单元测试共用）。
 // 权限决策：未设 handler 时对 agent 的权限请求一律先 emit('permission') 再自动回
@@ -9,14 +9,14 @@
 // 其余 server→client 请求回 JSON-RPC 错误 -32601。
 // 与 probe 的差异：不 process.exit、不设全局兜底超时，任何内部异常只通过
 // logFn / 'error' 事件暴露（'error' 无监听时降级为日志，避免 EventEmitter throw）。
-// 会话恢复 / 配置 / 取消（第三次探测实测，详见 docs/acp-probe3-output.txt）：
+// 会话恢复 / 配置 / 取消（第三次探测实测）：
 // session/load 恢复既有会话（result 仅含 configOptions，无 sessionId 回显）；
 // session/set_config_option 切换配置项（value 为纯字符串，失败为 JSON-RPC 错误）；
 // session/cancel 为无 id 通知，发出后进行中的 prompt 以 { stopReason: 'cancelled' } 返回。
-// 图片输入（第四次探测实测，详见 docs/acp-probe4-output.txt）：prompt(text, images) 的
+// 图片输入（第四次探测实测）：prompt(text, images) 的
 // images 可选，元素 { mimeType, data(base64) }，mimeType 白名单 / 解码后 ≤10MB / ≤4 张；
 // 有图时 session/prompt 的 prompt 字段为 [{ type:'image', data, mimeType }…, { type:'text', text }]。
-// 第五次探测补齐（CLI 0.29.0 实测，详见 docs/acp-research.md 与 docs/acp-probe5*-output.txt）：
+// 第五次探测补齐（CLI 0.29.0 实测）：
 // session/list 枚举磁盘会话（字段 sessionId/cwd/title/updatedAt，当前单页全量、cursor 透传预留）；
 // session/resume 轻量恢复（result 仅 configOptions，不回放历史，与 load 二选一）；
 // session/set_model / session/set_mode（参数名 modelId/modeId，0.29.0 报错文案不可信——

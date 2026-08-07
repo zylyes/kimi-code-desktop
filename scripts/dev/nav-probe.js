@@ -1,8 +1,8 @@
-// scripts/nav-probe.js —— 一次性 Electron 探测脚本（研究工具，不进打包）
+// scripts/dev/nav-probe.js —— 一次性 Electron 探测脚本（研究工具，不进打包）
 // 回答两个问题：
 //   ① kimi web 的会话 URL 形态（会话标识在 pathname / search / hash 哪一段）
 //   ② SPA 会话切换能否被主进程 did-navigate-in-page 捕获
-// 用法：npx electron scripts/nav-probe.js <port>   （项目 devDependencies 已有 electron）
+// 用法：npx electron scripts/dev/nav-probe.js <port>   （项目 devDependencies 已有 electron）
 // 说明：只建会话、不发 prompt，不消耗额度；测试会话标题 kcd-nav-probe 保留在磁盘可手动归档。
 // 安全：所有 URL 输出均脱敏（hash 段整体替换为 #token=***，字符串中的 token 值一律抹掉），绝不打印 token。
 const { app, BrowserWindow } = require('electron');
@@ -14,7 +14,7 @@ const path = require('path');
 // ---------- 参数与基础 ----------
 const port = Number(process.argv[2]);
 if (!Number.isInteger(port) || port <= 0) {
-  console.error('用法: npx electron scripts/nav-probe.js <port>');
+  console.error('用法: npx electron scripts/dev/nav-probe.js <port>');
   process.exit(2);
 }
 const base = `http://127.0.0.1:${port}`;

@@ -1,21 +1,21 @@
-// scripts/workspace-integration-probe.js —— M3/M4/M6-1 真实集成探针（一次性探测脚本，不进打包）
+// scripts/dev/workspace-integration-probe.js —— M3/M4/M6-1 真实集成探针（一次性探测脚本，不进打包）
 //
 // 目标：自动验证完整链 —— Workspace WebContentsView → preload window.workspace →
 // sender 校验 IPC → verified session workDir → git-service / file-browser → 回传数据；
 // 并验证 M6-1 feature flag 关闭路径（workspacePanelEnabled:false 时不创建/加载面板）。
 //
 // 用法：
-//  - 默认 / --flag-on：npx electron scripts/workspace-integration-probe.js
+//  - 默认 / --flag-on：npx electron scripts/dev/workspace-integration-probe.js
 //    （flag 开启路径，行为与既有 M3/M4 探针一致）
-//  - --flag-off：npx electron scripts/workspace-integration-probe.js --flag-off
+//  - --flag-off：npx electron scripts/dev/workspace-integration-probe.js --flag-off
 //    （flag 关闭路径，见下）
-//  - --all：npx electron scripts/workspace-integration-probe.js --all
+//  - --all：npx electron scripts/dev/workspace-integration-probe.js --all
 //    （顺序 spawn 两个独立子进程先 flag-off 后 flag-on，任一失败非零退出；
 //      两实例各自独立 userData/隔离 config，互不污染）
 // 行为（flag 开启 / 默认）：
 //  - 启动前隔离 userData（os.tmpdir()/kcd-workspace-integration-probe）并写入无 BOM config
 //    （{mode:'auto',autoStartCli:true,workspacePanelEnabled:true,workspacePanelCollapsed:false,theme:'system'}）
-//    → require('../src/main/main.js') 启动真实主进程（真实 CLI + 真实 Web UI + 真实面板）
+//    → require('../../src/main/main.js') 启动真实主进程（真实 CLI + 真实 Web UI + 真实面板）
 //  - 从 ~/.kimi-code/session_index.jsonl 找 workDir 归一化后等于本项目目录的最新会话
 //  - 主窗口导航 /sessions/<id>（保留原 hash token 段维持认证；打印一律移除 hash），
 //    在面板 webContents 上经 window.workspace 桥逐项断言
@@ -108,10 +108,10 @@ fs.writeFileSync(
 );
 
 // 启动真实主进程（顶层注册生命周期，whenReady 回调先于本脚本执行）
-require('../src/main/main.js');
+require('../../src/main/main.js');
 
 // ---------- 目标工作区与目标会话 ----------
-const targetWorkDir = path.resolve(__dirname, '..');
+const targetWorkDir = path.resolve(__dirname, '../..');
 
 function resolveTargetSession() {
   const indexPath = path.join(os.homedir(), '.kimi-code', 'session_index.jsonl');

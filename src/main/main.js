@@ -3069,7 +3069,7 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
       sendAcpEvent({ type: 'config-options', configOptions: update.configOptions });
     } else if (kind === 'plan') {
       // plan 推送：计划条目整体替换（字段按 ACP 规范防御性清洗；0.29.0 因 mode 切换
-      // 缺陷未实测到推送形态，见 docs/acp-research.md ⑦）
+      // 缺陷未实测到推送形态）
       const entries = (Array.isArray(update.entries) ? update.entries : [])
         .slice(0, 100)
         .map((e) => ({
@@ -3116,7 +3116,7 @@ ipcMain.handle('acp-chat:start', async (_e, opts) => {
     logLine('[acp] 收到权限请求（交由审批窗处理）');
   });
   // -32000 Authentication required（第五次探测实测形态）：转发渲染层引导登录
-  // （terminal 型 authMethods，需跑 kimi login 设备码流程，详见 docs/acp-research.md ④）
+  // （terminal 型 authMethods，需跑 kimi login 设备码流程）
   client.on('authRequired', (info) => {
     logLine(`[acp] agent 要求认证（-32000，触发方法: ${info && info.method ? info.method : '未知'}）`);
     sendAcpEvent({ type: 'auth-required' });

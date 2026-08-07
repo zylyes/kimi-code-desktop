@@ -7,6 +7,7 @@
 ## 重要决策
 
 - CLI 最新版本以 `https://code.kimi.com/kimi-code/latest.json` 为主动检查源，失败回退 `/latest`；`~/.kimi-code/updates/latest.json` 仅是 CLI 本地缓存（桌面端只读），远端失败时只能标注为辅助信息，不能据此宣称"已是最新"。
+- scripts/ 按用途三层组织：`scripts/build/`（打包脚本）、`scripts/dev/`（开发工具与探测验证）、`scripts/archive/`（过时探测/回归脚本）；docs/ 同样以 `docs/archive/` 存放历史文档（kimi-docs HTML 镜像、regression-0.29.md 等）。2026-08-07 清理：删除一次性探测脚本（acp-probe.js/3/4/5/5b、probe-one-page.js、probe-panels.js、screenshot-one.js、screenshot-pages.js）、`docs/acp-probe5*-output.txt`、`docs/acp-research.md`、根目录 `make_icon.py`（均无运行时引用；ACP 协议结论保留在 src 注释与 ROADMAP 中）。
 - CLI 更新网络请求由 `src/main/main.js` 注入 Electron `net.fetch` 给纯 Node 模块 `src/main/cli-update.js`，以兼顾系统代理/证书处理与单元测试可注入性。
 - 更新检查 IPC 不变式：`ok:true` 表示远端版本已严格校验；`ok:false` 不携带 `latest` 或 `updateAvailable`，可携带 `cachedLatest`/`cachedCheckedAt`。
 - 产品定位为 `kimi web` 的 Electron 套壳增强：官方 Web UI 负责对话、流式渲染、工具卡、上传、Slash Commands、模式与消息队列；不建设独立原生聊天应用或第二套会话运行时，ACP 仅在 REST/WebSocket/本地数据无法满足的必要场景补缺。
@@ -29,5 +30,5 @@
 
 - Web Shell 增强计划（`docs/plan/web-shell-enhancement/`）M1–M6 自动门禁完成；M6-1/M6-5 按用户指示跳过（Windows 原生手测与签名证书配置未做）。
 - `release/v1.7.0` 仅为未签名内部测试包（Setup/Portable/主 EXE/elevate.exe 均 `NotSigned`），不得称为正式发布候选；发布/回滚流程见 `docs/release-workspace-m6.md`，回归矩阵见 `docs/regression-workspace-m6.md`。
-- 探测/验证脚本：`scripts/capability-audit.js`、`scripts/ws-event-probe.js`、`scripts/nav-probe.js`（传端口、token 读 `~/.kimi-code/server.token`）；`scripts/workspace-integration-probe.js` 为真实 WebContentsView → preload → IPC → Git/Files/投影集成验证（不发 prompt）。
+- 探测/验证脚本：`scripts/dev/capability-audit.js`、`scripts/dev/ws-event-probe.js`、`scripts/dev/nav-probe.js`（传端口、token 读 `~/.kimi-code/server.token`）；`scripts/dev/workspace-integration-probe.js` 为真实 WebContentsView → preload → IPC → Git/Files/投影集成验证（不发 prompt）。
 - 官方能力审计报告：`docs/web-shell-capability-audit.md`（CLI 0.31.1 实测，2026-08-03）。

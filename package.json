@@ -1,6 +1,6 @@
 {
   "name": "kimi-code-desktop",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Kimi Code 网页版桌面套壳 — 自动启动 kimi web 并嵌入桌面窗口",
   "main": "src/main/main.js",
   "author": "zyl",
@@ -8,11 +8,11 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "mock": "node scripts/mock-kimi-server.js",
+    "mock": "node scripts/dev/mock-kimi-server.js",
     "pack": "electron-builder --dir",
     "dist": "npm run pack:versioned",
-    "pack:versioned": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pack-versioned.ps1",
-    "pack:versioned:ca": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pack-versioned.ps1 -UseSystemCA"
+    "pack:versioned": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/pack-versioned.ps1",
+    "pack:versioned:ca": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build/pack-versioned.ps1 -UseSystemCA"
   },
   "devDependencies": {
     "electron": "^38.0.0",

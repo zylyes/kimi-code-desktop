@@ -10,7 +10,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $PSCommandPath
-$RootDir   = Split-Path -Parent $ScriptDir
+# 本脚本位于 scripts/build/，项目根为向上两级
+$RootDir   = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 $PackageJson = Join-Path $RootDir "package.json"
 
 if (-not (Test-Path -LiteralPath $PackageJson)) {

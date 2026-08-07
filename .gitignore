@@ -27,3 +27,11 @@ Thumbs.db
 
 # Deepwork session state
 .slim/deepwork/
+
+# electron-builder 调试/中间产物
+builder-debug.yml
+*.blockmap
+
+# 探测输出（防止再次误提交）
+docs/*-output.txt
+scripts/*-output.txt

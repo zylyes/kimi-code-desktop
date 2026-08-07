@@ -1,5 +1,5 @@
 // 能力探测：对运行中的 kimi web 实例做 /openapi.json、/asyncapi.json 登记与已知端点存在性探测（一次性研究工具，不进打包）
-// 用法：node scripts/capability-audit.js <port>
+// 用法：node scripts/dev/capability-audit.js <port>
 // 输出：结构化 JSON 到 stdout（单次 console.log）；绝不打印 token / 响应体业务内容（只登记路径、方法、键名、状态码）
 // 退出码：0 = 探测流程完成（端点不存在不算失败）；1 = openapi.json 完全拿不到（连接失败/非 200/结构不合法）；2 = 用法错误
 // 注意：所有请求 15s 超时；单个端点失败不中断后续探测；登记路径仅含结构信息，不含业务内容
@@ -10,7 +10,7 @@ const path = require('path');
 
 const port = Number(process.argv[2]);
 if (!Number.isInteger(port) || port <= 0) {
-  console.error('用法: node scripts/capability-audit.js <port>');
+  console.error('用法: node scripts/dev/capability-audit.js <port>');
   process.exit(2);
 }
 const base = `http://127.0.0.1:${port}`;

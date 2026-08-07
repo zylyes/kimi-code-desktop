@@ -1,4 +1,4 @@
-# Kimi Code Desktop v1.8.0
+# Kimi Code Desktop v1.8.1
 
 > Kimi Code 网页版的原生桌面体验。一键启动 Kimi Code 本地服务，无需浏览器——ACP 原生聊天、图形化设置、会话管理、全局热键、无边框窗口，全部开箱即用。
 
@@ -41,7 +41,7 @@
 17. **托盘用量/任务进度显示**（v0.5.0）：订阅 WS `event.session.usage_updated` 与 `event.task.started/progress/completed` 事件，托盘 tooltip 与菜单状态项实时展示 token 用量、上下文占用百分比与任务运行计数，更新带 500ms 防抖。
 18. **编辑器协议接管**（v0.5.0）：外部链接白名单新增 `vscode`、`vscode-insiders`、`cursor`、`windsurf`、`zed`、`sublime`、`atom`、`jetbrains` 等编辑器协议，走系统默认程序打开，Web UI 的 Open in Editor 类按钮可用。
 19. **全局热键**（v0.5.0）：`Ctrl+Shift+Space` 全局显示/隐藏窗口，即使应用不在前台也可快速唤回。
-20. **mock 验证基建**（v0.5.0）：新增 `scripts/mock-kimi-server.js`（默认端口 58999，固定 token `mock-token`），自动覆盖 client_hello/订阅/问答/审批/用量/任务事件验证，`npm run mock` 一键启动。
+20. **mock 验证基建**（v0.5.0）：新增 `scripts/dev/mock-kimi-server.js`（默认端口 58999，固定 token `mock-token`），自动覆盖 client_hello/订阅/问答/审批/用量/任务事件验证，`npm run mock` 一键启动。
 21. **测试钩子**（v0.5.0）：支持 `KIMI_DESKTOP_TEST_BASE`、`KIMI_DESKTOP_TEST_TOKEN` 环境变量覆盖服务地址与 token，便于对接 mock 服务做自动化测试。
 22. **图形化设置中心**（v0.6.0）：设置页（setup.html）新增标签页导航，集成 config.toml / 权限规则 / 供应商管理 / MCP 服务器四大配置面板。
 23. **config.toml GUI 编辑**（v0.6.0）：支持编辑 `default_model`、`default_permission_mode`（manual/yolo/auto）、`default_plan_mode`、`telemetry` 开关，以及 `[thinking]` / `[loop_control]` 参数；保存前自动调用 `kimi doctor` 校验，失败时回滚原文件。
@@ -207,16 +207,20 @@ src/
   styles/
     kimi-theme.css         全应用共享设计令牌样式表（亮/暗双主题）
 scripts/                   工具脚本
-  mock-kimi-server.js      Mock Kimi 服务端
-  pack-versioned.ps1       版本化打包脚本
-  acp-probe.js/3.js/4.js  ACP 协议探测（内部）
-  regression-0.29.js      CLI 0.29 回归测试
-  ws-event-probe.js       WebSocket 事件探测
-  probe-panels.js          页面元素探针 dump + 窗控变色逐帧测量
-tests/                     单元测试（12 个测试脚本，全部通过）
+  build/                   打包构建
+    pack-versioned.ps1     版本化打包脚本（npm run pack:versioned）
+  dev/                     开发工具与探测验证
+    mock-kimi-server.js    Mock Kimi 服务端（npm run mock）
+    capability-audit.js    kimi web 能力审计（/openapi.json、/asyncapi.json）
+    ws-event-probe.js      WebSocket 事件探测
+    nav-probe.js           会话 URL 形态探测
+    workspace-integration-probe.js  Workspace 面板集成探针
+  archive/                 已归档的过时探测/回归脚本（不参与日常开发）
+tests/                     单元测试（29 个测试脚本，逐个运行 tests/test-*.js）
 docs/                      文档
-  ROADMAP.md                路线图
-  kimi-docs/                Kimi Code 参考文档（API/CLI/配置/ACP）
+  ROADMAP.md               路线图
+  kimi-docs-md/            Kimi Code 参考文档（API/CLI/配置/ACP，离线 Markdown 版）
+  archive/                 已归档历史文档（kimi-docs HTML 镜像、0.29 回归矩阵）
 CHANGELOG.md               版本变更历史
 RELEASE_NOTES.md           发行版说明
 

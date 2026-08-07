@@ -1,6 +1,6 @@
 // 临时验证脚本：以独立 userData 启动并存实例（不影响正在运行的正式实例），
 // 周期性截取所有窗口到 %TEMP%/kcd-live/，并在 Web UI 就绪后实测「新建对话」按钮点击。
-// 用法：npx electron scripts/dev-verify.js
+// 用法：npx electron scripts/archive/dev-verify.js
 // 环境变量 KCD_VERIFY_TICKS 可延长运行拍数（默认 8 拍，每拍 5s；长跑用于配合 ws-event-probe 截获弹窗）
 const path = require('path');
 const os = require('os');
@@ -11,7 +11,7 @@ const MAX_TICKS = Math.max(8, Number(process.env.KCD_VERIFY_TICKS) || 8);
 
 app.setPath('userData', path.join(os.tmpdir(), 'kcd-dev-userdata'));
 app.setName('kcd-dev-verify');
-require('../src/main/main.js');
+require('../../src/main/main.js');
 
 const outDir = path.join(os.tmpdir(), 'kcd-live');
 fs.mkdirSync(outDir, { recursive: true });

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.1] - 2026-08-07
+
+### 其他
+
+- **脚本目录重组**：`scripts/` 拆分为 `scripts/build/`（打包构建）、`scripts/dev/`（开发工具与探测验证）、`scripts/archive/`（过时探测/回归脚本归档），删除一批过时探针脚本；`npm run mock` / `npm run pack:versioned` 命令保持不变，内部路径同步更新。
+- **文档归档清理**：`docs/kimi-docs/`（HTML 镜像）与 `docs/regression-0.29.md` 移入 `docs/archive/`，删除过时 ACP 探测输出与中间调研文档；`docs/kimi-docs-md/` 离线 Markdown 参考文档保留。
+- **文档同步**：README / CONTRIBUTING / 能力审计与回归文档中的脚本路径与目录结构说明更新；`src/main/acp-client.js`、`src/main/main.js` 注释移除对已删除探测文档的引用。
+- **忽略规则补充**：.gitignore 新增 electron-builder 调试中间产物（builder-debug.yml、*.blockmap）与探测输出忽略规则。
+- 无新功能、无破坏性变更。
+
 ## [1.8.0] - 2026-08-04
 
 ### 新功能

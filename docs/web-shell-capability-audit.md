@@ -5,7 +5,7 @@
 | 文档性质 | Web Shell 增强计划 M1 正式交付物（能力审计报告），后续 M3/M4/M5 数据源决策的唯一依据 |
 | 实测日期 | 2026-08-03 |
 | 被测实例 | CLI 0.31.1（本地 HTTP 服务，`http://127.0.0.1:58997`，Windows 桌面宿主） |
-| 探测工具 | `scripts/capability-audit.js 58997`（exit 0）、`scripts/ws-event-probe.js 58997`（exit 0） |
+| 探测工具 | `scripts/dev/capability-audit.js 58997`（exit 0）、`scripts/dev/ws-event-probe.js 58997`（exit 0） |
 | 探测数据源 | `C:\Users\zyl\AppData\Local\Temp\opencode\capability-audit-result.json`、`C:\Users\zyl\AppData\Local\Temp\opencode\ws-probe-result.log` |
 | 来源计划 | `docs/WEB_SHELL_ENHANCEMENT_PLAN.md` v1.2（定稿，M1-1~M1-5、§3.2、§4.2、§8.3） |
 
@@ -185,7 +185,7 @@
 
 ## 3. WS 事件普查（28 种实测事件）
 
-来源：`ws-probe-result.log`（`scripts/ws-event-probe.js 58997`，exit 0；审批/问答探测 PASS）。观测方式：活跃会话（`session_d98864c1-1a3c-490c-a04c-aa537d1b4b2e`）期间全程记录事件名与 payload 键，观察窗口约 120s（Task 子代理观测段）。
+来源：`ws-probe-result.log`（`scripts/dev/ws-event-probe.js 58997`，exit 0；审批/问答探测 PASS）。观测方式：活跃会话（`session_d98864c1-1a3c-490c-a04c-aa537d1b4b2e`）期间全程记录事件名与 payload 键，观察窗口约 120s（Task 子代理观测段）。
 
 ### 3.1 事件总表（28 种，按日志顺序）
 
@@ -265,7 +265,7 @@
 
 ### 3.5 会话切换可探测性（M1-5，nav-probe 实测）
 
-来源：`scripts/nav-probe.js 58997`（`npx electron`，exit 0；实测日期 2026-08-03；探测输出 `nav-probe-result.log`）。只建会话不发 prompt，不消耗额度。
+来源：`scripts/dev/nav-probe.js 58997`（`npx electron`，exit 0；实测日期 2026-08-03；探测输出 `nav-probe-result.log`）。只建会话不发 prompt，不消耗额度。
 
 | 探测项 | 实测结论 | 证据 |
 | --- | --- | --- |
@@ -313,8 +313,8 @@
 
 | 脚本 | 命令 | 退出码 | 探测内容 |
 | --- | --- | --- | --- |
-| `scripts/capability-audit.js` | `node scripts/capability-audit.js 58997` | 0 | `/openapi.json` 全量登记（76 端点，含方法/类别分组）、`serverCapsCheck`（archive/delete/models 对账）、`/asyncapi.json`（channel/operations/messages）、已知端点探测（`probes`: models=200 / sessions=200 / usage=404） |
-| `scripts/ws-event-probe.js` | `node scripts/ws-event-probe.js 58997` | 0 | 活跃会话 WS 事件普查：创建测试会话 → 等待桌面端发现 → 依次发送 bash 提示词（审批）、AskUserQuestion 提示词（问答）、Task 子代理提示词（子代理/任务观察）→ 全程记录事件名/payload 键/次数 → 与 normalizer 白名单对比 |
+| `scripts/dev/capability-audit.js` | `node scripts/dev/capability-audit.js 58997` | 0 | `/openapi.json` 全量登记（76 端点，含方法/类别分组）、`serverCapsCheck`（archive/delete/models 对账）、`/asyncapi.json`（channel/operations/messages）、已知端点探测（`probes`: models=200 / sessions=200 / usage=404） |
+| `scripts/dev/ws-event-probe.js` | `node scripts/dev/ws-event-probe.js 58997` | 0 | 活跃会话 WS 事件普查：创建测试会话 → 等待桌面端发现 → 依次发送 bash 提示词（审批）、AskUserQuestion 提示词（问答）、Task 子代理提示词（子代理/任务观察）→ 全程记录事件名/payload 键/次数 → 与 normalizer 白名单对比 |
 
 探测输出落盘：`capability-audit-result.json`、`ws-probe-result.log`（`C:\Users\zyl\AppData\Local\Temp\opencode\`）。
 

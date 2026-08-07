@@ -5,7 +5,7 @@
 //       REST 作答 → 发 Task 子代理提示词 → 观察 task.* / agent 相关事件（最长 120s，超时不算失败）。
 //       全程普查记录 WS 事件（次数 + payload/envelope 键类型摘要 + 至多 2 条样本，不含任何文本值，
 //       不打印 token/敏感内容），结尾输出与 normalizer 白名单的对比报告。
-// 用法：node scripts/ws-event-probe.js <port>
+// 用法：node scripts/dev/ws-event-probe.js <port>
 // 注意：会消耗少量额度（三个短提示词）；测试会话保留在磁盘（标题 kcd-regression-probe，可手动归档）。
 const http = require('http');
 const fs = require('fs');
@@ -15,7 +15,7 @@ const WebSocket = require('ws');
 
 const port = Number(process.argv[2]);
 if (!Number.isInteger(port) || port <= 0) {
-  console.error('用法: node scripts/ws-event-probe.js <port>');
+  console.error('用法: node scripts/dev/ws-event-probe.js <port>');
   process.exit(2);
 }
 const base = `http://127.0.0.1:${port}`;

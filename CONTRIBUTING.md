@@ -68,7 +68,7 @@ src/main/     — Electron 主进程（窗口管理、IPC、ACP 协议）
 src/pages/    — 原生 HTML/JS 页面
 src/preload/  — Context Bridge 桥接层
 src/styles/   — 共享设计令牌（kimi-theme.css）
-scripts/      — 开发工具脚本
+scripts/      — 工具脚本（build/ 打包、dev/ 开发探测、archive/ 归档）
 tests/        — 单元测试
 docs/         — 调研文档
 ```
