@@ -1755,6 +1755,20 @@ function startWsSubscription() {
     if (gen !== wsGeneration) return;
     try {
       const raw = JSON.parse(data.toString('utf8'));
+      // 0.36.0 起服务端每 10s 发应用层心跳 {"type":"ping"}，20s 内未收到 pong 即以
+      // code=1001 "heartbeat timeout" 关闭连接（实测 2026-08-13，CLI 0.36.0；0.31.1 无此行为）。
+      // 回应格式实测：{"type":"pong","nonce":<ping.payload.nonce>}（顶层 pong + nonce 即可维持连接）。
+      if (raw && raw.type === 'ping') {
+        try {
+          const nonce = (raw.payload && raw.payload.nonce) || raw.nonce || '';
+          if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+            wsClient.send(JSON.stringify({ type: 'pong', nonce }));
+          }
+        } catch (err) {
+          logLine(`WS 心跳回应失败: ${err.message}`);
+        }
+        return;
+      }
       // 容错解析 event envelope
       const event = raw && (raw.event || raw.type);
       if (!event) return;
@@ -1999,6 +2013,18 @@ function ensureOverlayView() {
   overlayView.setBounds({ x: 0, y: 0, width: w, height: h });
   // 与主窗口相同的新窗策略：外部链接交系统浏览器，拒绝弹新窗
   overlayView.webContents.setWindowOpenHandler(handleWindowOpen);
+  // 覆盖层渲染进程崩溃复位：不清空 overlayView 会导致 ensureOverlayView 早退、
+  // 之后每次打开设置都在已死 webContents 上 loadFile 而永久静默失败（点击无反应）。
+  overlayView.webContents.on('render-process-gone', (_e, details) => {
+    logLine(`覆盖层渲染进程异常退出: ${(details && details.reason) || 'unknown'}，复位覆盖层状态`);
+    if (overlayView) {
+      const dead = overlayView;
+      overlayView = null;
+      overlayKind = null;
+      try { mainWindow.contentView.removeChildView(dead); } catch { /* ignore */ }
+      try { dead.webContents.close(); } catch { /* ignore */ }
+    }
+  });
   // 覆盖层本地页主题类下发（WebContentsView 不触发 browser-window-created，单独挂）
   const view = overlayView;
   view.webContents.on('did-finish-load', () => applyAppThemeClassTo(view.webContents));
@@ -2016,11 +2042,20 @@ function showOverlay(kind, file, query) {
     workspaceRestorer.cancel('overlay 再次打开');
     try { mainWindow.contentView.removeChildView(workspaceView); } catch { /* ignore */ }
   }
-  overlayView.webContents.loadFile(path.join(__dirname, '..', 'pages', file), query ? { query } : undefined).catch((err) => {
-    logLine(`加载 ${file} 失败: ${err.message}`);
-  });
-  overlayKind = kind;
-  overlayView.webContents.focus();
+  overlayView.webContents.loadFile(path.join(__dirname, '..', 'pages', file), query ? { query } : undefined)
+    .then(() => {
+      overlayKind = kind;
+      overlayView.webContents.focus();
+    })
+    .catch((err) => {
+      // 覆盖层加载失败（含渲染进程已死导致的 reject）：销毁坏视图并降级整页加载，
+      // 不再静默吞掉——否则「点设置毫无反应」且 overlayView 悬挂。backToSession
+      // 可从整页状态恢复 Web UI（见 app:backToSession）。
+      logLine(`加载 ${file} 失败: ${err.message}，降级整页加载`);
+      closeOverlay();
+      mainWindow.loadFile(path.join(__dirname, '..', 'pages', file), query ? { query } : undefined)
+        .catch((err2) => logLine(`整页加载 ${file} 也失败: ${err2.message}`));
+    });
   // 覆盖层可视顶栏为本地页 .app-topbar（bg 同 windowBackground()）：刷新悬浮窗控配色，防采样色成补丁
   applyTitlebarOverlay(mainWindow);
 }
@@ -3502,7 +3537,7 @@ async function fetchModels() {
   }
   if (models.length === 0) {
     // 回退：内置候选（去重去空）
-    models = [...new Set([getCurrentDefaultModel(), 'kimi-for-coding', 'kimi-for-coding-highspeed'].filter(Boolean))];
+    models = [...new Set([getCurrentDefaultModel(), 'kimi-for-coding', 'kimi-for-coding-highspeed', 'k3', 'k3-256k'].filter(Boolean))];
   }
   // 确保当前默认模型始终在列表首位附近
   const current = getCurrentDefaultModel();

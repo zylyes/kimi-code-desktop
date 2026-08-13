@@ -709,12 +709,8 @@
       </div>
       <div class="section-title">循环控制</div>
       <div class="form-row">
-        <label>单次最大迭代数（loop_control.max_iterations）</label>
+        <label>单轮最大步数（loop_control.max_steps_per_turn）</label>
         <input type="text" class="input" id="cfgMaxIterations" placeholder="例如 50" spellcheck="false" />
-      </div>
-      <div class="form-row">
-        <label>最大工具调用深度（loop_control.max_tool_depth）</label>
-        <input type="text" class="input" id="cfgMaxToolDepth" placeholder="例如 10" spellcheck="false" />
       </div>
       <div class="form-row">
         <label>单步最大重试次数（loop_control.max_retries_per_step）</label>
@@ -1136,7 +1132,12 @@
     // 「返回会话」仅在手动打开设置页（reason=manual）时展示
     const backToSessionBtn = $('backToSession');
     if (reasonKey === 'manual') backToSessionBtn.classList.remove('hidden');
-    backToSessionBtn.addEventListener('click', () => window.kimiDesktop.backToSession());
+    backToSessionBtn.addEventListener('click', () => {
+      // 桥缺失（preload 未生效/被拦截）时静默，避免未捕获异常中断整页脚本
+      if (window.kimiDesktop && typeof window.kimiDesktop.backToSession === 'function') {
+        window.kimiDesktop.backToSession();
+      }
+    });
 
     const modeAuto = $('modeAuto');
     const modeManual = $('modeManual');
@@ -1583,7 +1584,6 @@
     const cfgThinkingKeep = $('cfgThinkingKeep');
     const cfgThinkingBudget = $('cfgThinkingBudget');
     const cfgMaxIterations = $('cfgMaxIterations');
-    const cfgMaxToolDepth = $('cfgMaxToolDepth');
     const cfgMaxRetriesPerStep = $('cfgMaxRetriesPerStep');
     const cfgReservedContextSize = $('cfgReservedContextSize');
     const cfgToolsEnabled = $('cfgToolsEnabled');
@@ -1680,8 +1680,11 @@
         cfgThinkingEffort.value = (d.thinking && d.thinking.effort) || '';
         cfgThinkingKeep.value = (d.thinking && d.thinking.keep != null) ? String(d.thinking.keep) : '';
         cfgThinkingBudget.value = (d.thinking && d.thinking.budget != null) ? String(d.thinking.budget) : '';
-        cfgMaxIterations.value = (d.loop_control && d.loop_control.max_iterations != null) ? String(d.loop_control.max_iterations) : '';
-        cfgMaxToolDepth.value = (d.loop_control && d.loop_control.max_tool_depth != null) ? String(d.loop_control.max_tool_depth) : '';
+        // 迁移读取：优先新键 max_steps_per_turn；旧键 max_iterations 有值时用旧值填充显示（不改磁盘）
+        const stepsPerTurn = d.loop_control && d.loop_control.max_steps_per_turn != null
+          ? d.loop_control.max_steps_per_turn
+          : (d.loop_control && d.loop_control.max_iterations != null ? d.loop_control.max_iterations : null);
+        cfgMaxIterations.value = (stepsPerTurn != null) ? String(stepsPerTurn) : '';
         cfgMaxRetriesPerStep.value = (d.loop_control && d.loop_control.max_retries_per_step != null) ? String(d.loop_control.max_retries_per_step) : '';
         cfgReservedContextSize.value = (d.loop_control && d.loop_control.reserved_context_size != null) ? String(d.loop_control.reserved_context_size) : '';
         cfgToolsEnabled.value = (d.tools && d.tools.enabled && d.tools.enabled.length > 0) ? d.tools.enabled.join('\n') : '';
@@ -1741,17 +1744,17 @@
       }
 
       // loop_control 表
-      const maxIter = numOrNull(cfgMaxIterations.value);
-      const maxDepth = numOrNull(cfgMaxToolDepth.value);
+      const maxSteps = numOrNull(cfgMaxIterations.value);
       const maxRetries = numOrNull(cfgMaxRetriesPerStep.value);
       const reservedCtx = numOrNull(cfgReservedContextSize.value);
-      const hasLoop = maxIter != null || maxDepth != null || maxRetries != null || reservedCtx != null;
+      const hasLoop = maxSteps != null || maxRetries != null || reservedCtx != null;
       if (hasLoop) {
         payload.loop_control = { ...(payload.loop_control || {}) };
-        if (maxIter != null) payload.loop_control.max_iterations = maxIter;
-        else delete payload.loop_control.max_iterations;
-        if (maxDepth != null) payload.loop_control.max_tool_depth = maxDepth;
-        else delete payload.loop_control.max_tool_depth;
+        if (maxSteps != null) payload.loop_control.max_steps_per_turn = maxSteps;
+        else delete payload.loop_control.max_steps_per_turn;
+        // 清理旧键（不破坏其他键）
+        delete payload.loop_control.max_iterations;
+        delete payload.loop_control.max_tool_depth;
         if (maxRetries != null) payload.loop_control.max_retries_per_step = maxRetries;
         else delete payload.loop_control.max_retries_per_step;
         if (reservedCtx != null) payload.loop_control.reserved_context_size = reservedCtx;
