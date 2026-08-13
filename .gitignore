@@ -5,6 +5,9 @@ dist/
 
 # 缓存 & 工具
 .qoder/
+.mimosa/
+.opencode/
+.zcode/
 *.log
 *.tmp
 *.bak

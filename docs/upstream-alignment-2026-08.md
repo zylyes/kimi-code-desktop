@@ -50,6 +50,11 @@
 - **已消失**：`.app-topbar-actions`（☰ 菜单挂载点）——fixed 兜底定位实测正常（x≈1230, y=0, 38×48）。
 - **结论**：无需大改。
 
+### 3.4 shutdown 端点 404（实测根因 + 修复）
+
+- **根因实测**：上游安全设计——`/api/v1/shutdown` 仅 loopback 绑定挂载；`--host 0.0.0.0` 时 `/openapi.json` 中无此路径、恒 404（loopback 绑定时带 token 返回 200）。
+- **修复**：`/openapi.json` 能力探测新增 `shutdown` 项；`stopKimi` 在探测到端点未挂载时跳过无效优雅关闭请求、直接结束进程（省去 5 秒超时等待），日志不再误报 404。
+
 ## 4. 需去除/已清理项
 
 - 设置页 `loop_control.max_iterations`：迁移为 `max_steps_per_turn`（读取时兼容旧键展示，保存时删除旧键，不改磁盘）。
@@ -69,10 +74,10 @@
 | 2 | 0.32.0 新增 4 个 hook 事件（TurnStarted / UserPromptQueued / TaskStarted / SessionHeartbeat） | runtime-event-normalizer 对未知事件安全忽略；若未来需消费再接入 |
 | 3 | 新 REST 端点 `/api/v1/healthz`（免鉴权）、`/api/v1/meta`、`/api/v1/workspaces/{id}/trust` | 现能力探测走 `/openapi.json`，暂无消费需求 |
 | 4 | `server_hello` 新增 `heartbeat_ms` 协议字段 | 当前未消费，固定 10s 节奏回应即可（心跳帧已适配，见 §3.1） |
-| 5 | 2026-08-31 kimi-k2.5 / moonshot-v1 API 下线 | 仅影响以开放平台 API key 登录并在 config.toml 显式绑定旧模型的用户；桌面端默认 OAuth 订阅路径不受影响。建议在设置页模型相关文案处（后续版本）提示 |
+| 5 | 2026-08-31 kimi-k2.5 / moonshot-v1 API 下线 | 仅影响以开放平台 API key 登录并在 config.toml 显式绑定旧模型的用户；桌面端默认 OAuth 订阅路径不受影响。已跟进：设置页模型区新增迁移提示（本版本落地） |
 | 6 | 官方 Kimi Work 桌面端（2026-06-03 Beta 公测，K3 需 3.1.0+） | 与本项目定位的关系见 README 新增段落；本项目继续以 `kimi web` 套壳为定位 |
 | 7 | 0.36.0 当天发布时无公开 release notes | 本报告以 GitHub release + 官方 changelog 为准 |
-| 8 | `POST /api/v1/shutdown` 长期返回 404（桌面端以强制结束兜底） | 历史问题，非本次上游引入，留待观察 |
+| 8 | `POST /api/v1/shutdown` 在非 loopback 绑定下恒 404 | 已定位根因并修复，见 §3.4 |
 
 ## 6. 验证矩阵
 

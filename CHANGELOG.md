@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.2] - 2026-08-13
+
+### 修复
+
+- **CLI 0.36.0 WS 心跳适配**：服务端每 10 秒发应用层 `ping` 心跳、20 秒无 `pong` 即以 `1001 heartbeat timeout` 断开，升级 CLI 后出现每 ~25 秒断连重连循环；桌面端在 WS 消息入口回 `pong` 后连接稳定（实测 2 分钟+ 零断连）。
+- **「设置打不开」防御修复**：覆盖层渲染进程崩溃后 `overlayView` 悬挂导致后续打开设置永久静默失败；新增 `render-process-gone` 复位、`loadFile` 失败整页降级、设置页「返回会话」按钮桥判空三重防护。
+- **shutdown 能力探测**：上游 shutdown 端点仅 loopback 绑定挂载（`--host 0.0.0.0` 时 openapi 中无此路径、恒 404）；现在按 `/openapi.json` 能力探测结果跳过无效优雅关闭请求，直接结束进程，不再等待 5 秒超时。
+- **loop_control 键名迁移**：CLI 0.31.0 起 `max_iterations` 改名 `max_steps_per_turn`、`max_tool_depth` 已删除；设置页读取兼容旧键展示、保存时写新键并清理旧键。
+- 模型回退候选补充 `k3` / `k3-256k`；设置页新增 kimi-k2.5 / moonshot-v1 系列 API 于 2026-08-31 下线的迁移提示。
+
+### 文档
+
+- 新增 `docs/upstream-alignment-2026-08.md` 上游变更对齐报告（0.29.1→0.36.0 逐版本影响面、需去除/需跟进清单、验证矩阵）。
+- README 新增「与官方 Kimi Work 的关系」小节；`docs/kimi-docs-md` 中过时的 `KIMI_CODE_EXPERIMENTAL_FLAG` 选引擎表述与 `kimi-code/kimi-k2.5` 模型示例更正。
+
 ## [1.8.1] - 2026-08-07
 
 ### 其他

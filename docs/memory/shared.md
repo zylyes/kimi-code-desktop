@@ -8,6 +8,7 @@
 
 - CLI 更新（`src/main/cli-update.js` 纯 Node 模块，由 main.js 注入 Electron `net.fetch` 以兼顾系统代理/证书，且可注入便于单测）：主动检查源 `https://code.kimi.com/kimi-code/latest.json`，失败回退 `/latest`；`~/.kimi-code/updates/latest.json` 仅是 CLI 本地缓存（桌面端只读），远端失败时只能标注为辅助信息，不得据此宣称"已是最新"。IPC 不变式：`ok:true` 表示远端版本已严格校验；`ok:false` 不携带 `latest`/`updateAvailable`，可携带 `cachedLatest`/`cachedCheckedAt`。
 - WS 心跳契约（2026-08-13 实测 CLI 0.36.0）：server 每 10s 发应用层 `{"type":"ping","payload":{"nonce"}}`，20s 无 pong 即 `1001 "heartbeat timeout"` 断开；客户端必须回 `{"type":"pong","nonce":<nonce>}`（main.js WS message 入口已处理）；`server_hello` 携带 `heartbeat_ms:10000`/`protocol_version:2`。0.31.1 及更早无此行为。
+- shutdown 端点契约（2026-08-13 实测 CLI 0.36.0）：上游安全设计——`POST /api/v1/shutdown` 仅 loopback 绑定挂载；`--host 0.0.0.0` 时 openapi.json 无此路径、恒 404。桌面端已按 `/openapi.json` 能力探测（`serverCaps.shutdown`）跳过无效优雅关闭；`/api/v1/healthz` 免鉴权恒 200（两种绑定）。
 - scripts/ 按用途三层：`scripts/build/`（打包）、`scripts/dev/`（开发工具与探测验证）、`scripts/archive/`（过时脚本）；docs/ 同理以 `docs/archive/` 存历史文档。2026-08-07 已清理一次性探测脚本与 `docs/acp-research.md`（均无运行时引用），ACP 结论保留在 src 注释与 ROADMAP 中，勿再引用已删文件。一次性探测脚本用完即删，结论落文档（本次 WS/DOM/CDP 探测结论已并入 `docs/upstream-alignment-2026-08.md`）。
 - 产品定位：官方 Web UI 负责对话、流式渲染、工具卡、上传、Slash Commands、模式与消息队列；不建设独立原生聊天应用或第二套会话运行时，ACP 仅在 REST/WebSocket/本地数据无法满足的必要场景补缺。
 - 工作区增强嵌入主窗口且不离开 Web 对话：Electron 外壳负责 Changes/Files/Agents/Tasks 侧栏、状态汇总、通知和 Windows 集成；优先通过独立本地 `WebContentsView`/侧栏与官方 Web UI 并排，避免深度修改官方页面 DOM。

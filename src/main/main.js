@@ -574,8 +574,10 @@ async function stopKimi() {
 
   if (!proc && !pid) return;
 
-  // 尝试优雅关闭：POST /api/v1/shutdown
-  if (knownServerBase) {
+  // 尝试优雅关闭：POST /api/v1/shutdown。
+  // 上游安全设计：shutdown 端点仅 loopback 绑定挂载（--host 0.0.0.0 时 openapi 无此路径、
+  // 恒 404，实测 2026-08-13 CLI 0.36.0）——按能力探测结果跳过无效请求，直接强制结束。
+  if (knownServerBase && serverCaps.shutdown !== false) {
     logLine(`尝试优雅关闭: POST ${knownServerBase}/api/v1/shutdown`);
     const res = await httpPostShutdown(knownServerBase, knownServerToken);
     if (res) {
@@ -592,6 +594,8 @@ async function stopKimi() {
     } else {
       logLine('关闭请求失败，强制结束');
     }
+  } else {
+    logLine('上游未挂载 /api/v1/shutdown（非 loopback 绑定），跳过优雅关闭');
   }
 
   forceKill(pid);
@@ -780,6 +784,7 @@ function detectServerCaps(openapi) {
   serverCaps.archive = false; serverCaps.archivePath = null;
   serverCaps.delete = false; serverCaps.deletePath = null; serverCaps.deleteMethod = 'post';
   serverCaps.models = false; serverCaps.modelsPath = null;
+  serverCaps.shutdown = false;
   const paths = openapi && typeof openapi === 'object' ? openapi.paths : null;
   if (!paths || typeof paths !== 'object') return;
   for (const [p, ops] of Object.entries(paths)) {
@@ -795,9 +800,12 @@ function detectServerCaps(openapi) {
       serverCaps.delete = true; serverCaps.deletePath = p; serverCaps.deleteMethod = 'delete';
     } else if (/\/models/.test(p) && methods.includes('get') && !serverCaps.models) {
       serverCaps.models = true; serverCaps.modelsPath = p;
+    } else if (/\/shutdown\/?$/.test(p) && methods.includes('post')) {
+      // 上游安全设计：shutdown 端点仅 loopback 绑定挂载（--host 0.0.0.0 时 openapi 无此路径）
+      serverCaps.shutdown = true;
     }
   }
-  logLine(`服务端能力: archive=${serverCaps.archive} delete=${serverCaps.delete} models=${serverCaps.models}`);
+  logLine(`服务端能力: archive=${serverCaps.archive} delete=${serverCaps.delete} models=${serverCaps.models} shutdown=${serverCaps.shutdown}`);
 }
 
 // 将会话 ID 代入路径模板（{xxx} → id），并附加 /api/v1 前缀（若模板缺失）
