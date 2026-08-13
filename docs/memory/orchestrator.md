@@ -1,5 +1,5 @@
 # Orchestrator 记忆（kimi-code-desktop）
 
-## 记忆维护约定
+## 记忆维护
 
-- 2026-08-07：用户要求整体精简记忆时，由 orchestrator 统一执行（已全局读取各文件、有跨文件去重视角），不必委派各 agent 各自精简自己的文件。
+- 权限结构与精简流程见 memory 技能；精简记录：2026-08-13 shared 29 行、librarian 20 行、oracle 7 行（多分区合并/引用 librarian 事实源）；explorer/fixer/designer/fast-generic/doc-writer 为紧凑契约未动。

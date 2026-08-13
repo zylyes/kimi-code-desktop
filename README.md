@@ -2,6 +2,12 @@
 
 > Kimi Code 网页版的原生桌面体验。一键启动 Kimi Code 本地服务，无需浏览器——ACP 原生聊天、图形化设置、会话管理、全局热键、无边框窗口，全部开箱即用。
 
+## 与官方 Kimi Work 的关系
+
+- 官方已推出 Kimi Work 桌面端（2026-06-03 Beta 公测，K3 起要求 3.1.0+）。
+- 本项目是 `kimi web` 的 Electron 桌面套壳，与 Kimi Work 定位不同，继续维护。
+- 若你以开放平台 API key 使用 Kimi 且显式绑定 `kimi-k2.5` / `moonshot-v1` 模型，注意其 API 于 2026-08-31 下线，请迁移至 `k3` / `k2.6` / `k2.7-code`。
+
 ## 直接使用
 
 从 [Releases](https://github.com/zylyes/kimi-code-desktop/releases) 下载最新版本，提供三种分发格式：
